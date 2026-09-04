@@ -36,7 +36,7 @@ Always an HTML artifact, not a text answer.
 
 - No walls of text. If a section needs more than ~15 words, the idea isn't broken down enough yet, split it further.
 - No technical terms without an immediate plain-language stand-in.
-- Keep it legible in both light and dark mode per `artifact-design`.
+- Keep it legible in both light and dark mode, following `artifact-design` where it is available.
 
 ## Hands off to
 

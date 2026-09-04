@@ -34,6 +34,9 @@ Neither joins the ship chain, because they explain a thing rather than ship one.
 They are still reachable from it: `grill` and `need-me` link to `eli5-text` when
 a decision is blocked on understanding, and `ship-loop` and `harden` link to
 `eli5` when a change needs explaining to someone who will not read the diff.
+The `grill` edge is here because a reviewer found the handoff claiming it before
+it existed, which is the failure this file is meant to prevent rather than
+commit.
 A reviewer caught that the first version left them an island, which quietly made
 the README's "loading any of them reaches the rest" false. The Hands-off graph
 is now strongly connected and `tools/check-repo.py` would be the place to assert
@@ -44,8 +47,10 @@ prose rather than by disabling model invocation.**
 `eli5-text` matches "eli5 this", a superset of `eli5`'s "eli5", so the more
 specific phrase would have won by default and silently changed what a bare
 "eli5 X" produces. Each description now names when to prefer the other, and
-`eli5-text` says explicitly that it takes ambiguous cases, since text costs a
-reader nothing to skim and a page nobody opens costs more. Rejected:
+`eli5-text` says in its DESCRIPTION that it takes ambiguous cases, since text
+costs a reader nothing to skim and a page nobody opens costs more. The first
+version put that sentence in the body, where the router never sees it: a body
+loads only after the skill has already been chosen. Rejected:
 `disable-model-invocation: true` on `eli5-text`, which is what `wayfinder` uses
 for a name collision. Held in reserve if the prose tie-break turns out to fail
 in practice.

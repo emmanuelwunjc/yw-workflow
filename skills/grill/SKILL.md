@@ -85,6 +85,8 @@ building the wrong thing confidently is worse than no grilling.
   old one superseded with the date. A decision is superseded, never deleted.
 - You could not get an answer: `/yw-workflow:need-me` puts the open question in front of the
   human in the format they can act on.
+- They cannot answer because they do not yet understand what is being decided:
+  `/yw-workflow:eli5-text` explains it in the conversation, then ask again.
 
 ## Credit
 

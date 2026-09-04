@@ -22,6 +22,7 @@ Checks, each one because something actually broke:
 import importlib.util
 import json
 import pathlib
+import re
 import subprocess
 import sys
 
@@ -113,30 +114,58 @@ for skill in skills:
 
 # 1c. The README describes the skills, and nothing checked that it still did.
 # Adding two skills left it claiming seven in one place and nine in another, and
-# gave one row a summary that differed from its own skill. Both were regressions
-# introduced by the change that added them.
+# gave one row a summary that differed from its own skill.
+#
+# The first version of this check searched the whole README for each one-liner.
+# That is green when two rows swap summaries, when a row is deleted and its text
+# survives in a code block, and when a row is missing entirely. It has to find
+# the row BY NAME and compare that cell, which is why this parses the table.
 print("README agrees with the skills")
-readme = (ROOT / "README.md").read_text()
+# fenced blocks are examples, not claims. Without this, deleting a row and
+# leaving its text in a code sample reads as though the row is still there, and
+# the guard's own module already knows how to strip them.
+readme = guard.strip_fences((ROOT / "README.md").read_text())
 WORDS = {1: "one", 2: "two", 3: "three", 4: "four", 5: "five", 6: "six",
          7: "seven", 8: "eight", 9: "nine", 10: "ten", 11: "eleven", 12: "twelve"}
-count_word = WORDS.get(len(skills), str(len(skills)))
-wrong = [w for n, w in WORDS.items()
-         if n != len(skills) and (w + " skills") in readme.lower()]
-check("README says %s skills, never another count" % count_word,
-      (count_word + " skills") in readme.lower() and not wrong,
-      "also found: " + ", ".join(wrong))
+n = len(skills)
+right = {WORDS.get(n, str(n)), str(n)}
+# digits count too: "7 skills" beside "Nine skills" is the same defect
+# ponytail: a determiner marks a subset ("the two skills at the bottom"), where
+# a total claim does not ("the same nine skills"). Widen if a real miss appears.
+stated = set(re.findall(r"(?<!\bthe )(?<!\bthose )(?<!\bthese )"
+                        r"\b([a-z]+|\d+)\s+skills\b", readme, re.IGNORECASE))
+stated = {w.lower() for w in stated} & ({str(k) for k in WORDS} | set(WORDS.values()))
+check("README states %d skills and no other count" % n,
+      bool(stated & right) and not (stated - right),
+      "found: " + ", ".join(sorted(stated)) if stated else "no count found")
+
+# one row per skill in the Skills table, keyed by the bolded name in column one
+rows = dict(re.findall(r"^\|\s*\*\*([a-z0-9-]+)\*\*\s*\|\s*(.+?)\s*\|\s*$",
+                       readme, re.MULTILINE))
+names = {s.parent.name for s in skills}
+check("the Skills table has exactly one row per skill",
+      set(rows) == names,
+      "table only: %s | skills only: %s" % (sorted(set(rows) - names),
+                                            sorted(names - set(rows))))
 for skill in skills:
+    name = skill.parent.name
     text = skill.read_text()
     marker = "**In one line:**"
     if marker not in text:
-        check("%s has a one-line summary" % skill.parent.name, False)
+        check("%s has a one-line summary" % name, False)
         continue
-    line = " ".join(
-        text.split(marker, 1)[1].split("\n\n", 1)[0].split()
-    )
-    check("README row for %s matches its skill" % skill.parent.name,
-          line in " ".join(readme.split()),
-          "skill says: " + line)
+    line = " ".join(text.split(marker, 1)[1].split("\n\n", 1)[0].split())
+    check("README row for %s matches its skill" % name,
+          " ".join(rows.get(name, "").split()) == line,
+          "row says: " + rows.get(name, "<missing>"))
+
+# 1d. the marketplace description lists skill names by hand, which drifts the
+# moment a skill is added. Same failure the README check above exists for.
+market = json.loads((ROOT / ".claude-plugin" / "marketplace.json").read_text())
+blurb = market["plugins"][0]["description"]
+missing = sorted(n for n in names if n not in blurb)
+check("marketplace.json names every skill", not missing,
+      "missing: " + ", ".join(missing))
 
 # 2. manifests parse
 print("manifests")

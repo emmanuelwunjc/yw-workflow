@@ -1,6 +1,6 @@
 ---
 name: eli5-text
-description: Explain a topic like the reader knows nothing about it, in the conversation, with no artifact and no page to open. Use when the user asks to "eli5 this", "explain it simply", "what does this actually mean", or wants the plain version right now rather than a link. Prefer this over eli5 when the answer is needed mid-task.
+description: Explain a topic like the reader knows nothing about it, in the conversation, with no artifact and no page to open. Use when the user asks to "eli5 this", "explain it simply", "what does this actually mean", or wants the plain version right now rather than a link. Prefer this over eli5 when the answer is needed mid-task, and when a bare "eli5 X" could go either way.
 origin: authored
 tags: [explanation, teaching, plain-language]
 version: 1.0.0
