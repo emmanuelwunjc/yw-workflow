@@ -11,7 +11,8 @@ version: 1.0.0
 **In one line:** Explains a topic to someone with zero background, in the
 conversation, with nothing to open.
 
-Say that line back when you start, so whoever invoked this knows what they got.
+That line is for a human reading the skill list. Never say it back: the first
+sentence of the output is the core idea, and this would be a preamble.
 
 Same discipline as `/yw-workflow:eli5`. The difference is delivery: the answer
 arrives where the question was asked, so it can be read mid-task without
@@ -26,6 +27,11 @@ minute.
 Use `/yw-workflow:eli5` when the explanation IS the deliverable: it will be
 re-read, shown to someone else, or kept. A picture earns its place there because
 someone will look at it twice.
+
+**When both fit, or neither obviously does, take this one.** A bare "eli5 X"
+usually wants the answer now, and text costs the reader nothing to skim. If it
+turns out to deserve a page, say so in a line and offer `/yw-workflow:eli5`,
+which is cheaper than a page nobody opens.
 
 ## Shape
 
@@ -43,8 +49,8 @@ Close with one line naming what this lets them do now.
 - **Every technical term gets a plain stand-in the moment it appears**, or it
   does not appear. `a queue (a line, first in, first out)` is fine. A bare
   `idempotent` is not.
-- **Real-world comparison over abstraction.** "Like a mail carrier delivering
-  letters" beats "a message-passing protocol". One comparison per step at most:
+- **Real-world comparison over abstraction.** "Like a bouncer checking a list at
+  the door" beats "an authorization middleware". One comparison per step at most:
   a second one competes with the first and the reader holds neither.
 - **Short sentences. One idea each.** A sentence with two clauses is two
   sentences.

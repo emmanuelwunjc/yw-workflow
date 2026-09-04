@@ -111,6 +111,33 @@ for skill in skills:
           "got " + repr(keys.get("name")))
     check("%s has a description" % want, bool(keys.get("description")))
 
+# 1c. The README describes the skills, and nothing checked that it still did.
+# Adding two skills left it claiming seven in one place and nine in another, and
+# gave one row a summary that differed from its own skill. Both were regressions
+# introduced by the change that added them.
+print("README agrees with the skills")
+readme = (ROOT / "README.md").read_text()
+WORDS = {1: "one", 2: "two", 3: "three", 4: "four", 5: "five", 6: "six",
+         7: "seven", 8: "eight", 9: "nine", 10: "ten", 11: "eleven", 12: "twelve"}
+count_word = WORDS.get(len(skills), str(len(skills)))
+wrong = [w for n, w in WORDS.items()
+         if n != len(skills) and (w + " skills") in readme.lower()]
+check("README says %s skills, never another count" % count_word,
+      (count_word + " skills") in readme.lower() and not wrong,
+      "also found: " + ", ".join(wrong))
+for skill in skills:
+    text = skill.read_text()
+    marker = "**In one line:**"
+    if marker not in text:
+        check("%s has a one-line summary" % skill.parent.name, False)
+        continue
+    line = " ".join(
+        text.split(marker, 1)[1].split("\n\n", 1)[0].split()
+    )
+    check("README row for %s matches its skill" % skill.parent.name,
+          line in " ".join(readme.split()),
+          "skill says: " + line)
+
 # 2. manifests parse
 print("manifests")
 for rel in (".claude-plugin/marketplace.json", ".claude-plugin/plugin.json",

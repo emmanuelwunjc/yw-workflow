@@ -5,7 +5,7 @@ instead of remembered.
 
 ## Install
 
-Pick one. Both serve the same seven skills, and installing both leaves
+Pick one. Both serve the same nine skills, and installing both leaves
 duplicates that drift apart.
 
 ```bash
@@ -40,7 +40,7 @@ Each one carries a one-line summary at the top.
 | **need-me** | Shows only what is waiting on you, answerable in one word. |
 | **harden** | Gives a repo the CI and branch protection that make its review gate real. |
 | **eli5** | Explains a topic to someone with zero background, as a page of big pictures and few words. |
-| **eli5-text** | The same, in the conversation, with nothing to open. |
+| **eli5-text** | Explains a topic to someone with zero background, in the conversation, with nothing to open. |
 
 Invoke them namespaced: `/yw-workflow:grill`.
 
