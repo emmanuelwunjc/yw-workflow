@@ -114,6 +114,14 @@ is the enforcement working. Use the file-edit tools for that text.
 - **The repo is private.** Both install commands resolve only for an account
   with read access. Going public needs a scrub pass first: the skills reference
   "your CLAUDE.md" and the hooks encode one person's rules.
-- **No CI.** `harden` exists to stamp exactly that onto a repo, and this one has
-  not eaten its own cooking yet. The four self-tests are the gate today, run by
-  hand.
+- ~~**No CI.**~~ Superseded 2026-09-04: the four self-tests and
+  `tools/check-repo.py` now run on every pull request and on push to `main`.
+  The reason to move them was that a hook protects one laptop while a status
+  check protects the repo. Deliberately one job, running the exact command
+  above, because CI that runs something else is a second undocumented policy.
+- **The status check enforces nothing yet.** Branch protection and rulesets both
+  return 403 on a personal private repo with no paid plan, so a red check does
+  not block a merge. Making the repo public is what turns the check into a gate.
+- **Skipped: pre-commit and a PR template.** pre-commit is bypassable and this
+  repo's own `harden` skill says never to treat it as the enforcement
+  mechanism. A PR template would check nothing CI does not.

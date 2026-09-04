@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  # One job, so branch protection has one required context to name. It runs the
+  # exact commands docs/HANDOFF.md calls the gate, because CI that runs
+  # something else is a second, undocumented policy.
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # tags, and full history to find them. The default is --depth=1
+          # --no-tags, which makes `git describe` in check-repo.py return
+          # nothing, so the version check would pass forever without ever
+          # comparing anything.
+          fetch-depth: 0
+
+      - name: Hook self-tests
+        run: (for t in ./hooks/*-selftest.*; do "$t" || exit 1; done)
+
+      - name: Repo checks
+        run: ./tools/check-repo.py
