@@ -30,6 +30,13 @@ it took a push to find out, because the API reports protection as configured
 either way. Any repo hardened by `harden` needs the same probe: push something
 to the protected branch and confirm it is rejected. Configured is not enforced.
 
+**Probe with your real git identity, never a throwaway.** The first probe used
+`t <t@t.com>` so it would look disposable. Protection accepted it, GitHub
+resolved that address to a real user who happens to have it registered, and a
+stranger appeared in the contributor list of a public repo, credited with a
+commit they never wrote. A probe you expect to be rejected can be accepted;
+that is the entire reason for running it.
+
 **2026-09-04 · Rewriting history is not enough on GitHub; pull refs survive.**
 A worked example in `need-me` named a real individual and asserted no public
 record of them existed. `git filter-repo` cleaned every commit and a force-push
@@ -40,8 +47,12 @@ Resolved by renaming the old repo (it keeps those refs, and stays private) and
 pushing the clean history to a fresh one. Verified from a scratch clone: zero
 pull refs, zero hits. The old repo is `yw-workflow-archive-preScrub`, private,
 and can be deleted once `gh auth refresh -h github.com -s delete_repo` is run.
-The lesson: on GitHub, scrubbing a secret from history means abandoning the
-remote, not rewriting it.
+The lesson: on GitHub, scrubbing anything from history means abandoning the
+remote, not rewriting it. Learned twice on the same day, the second time for a
+misattributed commit, because rewriting `main` cleared the branch and left the
+pull refs feeding the contributor list. Cheap while a repo is hours old with no
+stars or forks. Expensive later, which is the reason to get identity and
+content right before the first push rather than after.
 
 **2026-09-04 · Credit Matt Pocock explicitly, and reproduce his notice.**
 `grill` and `wayfinder` are derivative works of skills in
