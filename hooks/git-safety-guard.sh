@@ -102,13 +102,13 @@ if printf '%s' "$check_cmd" | grep -Eq 'core\.hooksPath' && printf '%s' "$norm_c
   deny "CLAUDE.md: setting core.hooksPath disables local git hooks the same way --no-verify does. Same rule applies: don't, unless the user explicitly asked for it."
 fi
 
-# 2. No direct commits to main/master (CLAUDE.md: trunk-based development —
+# 2. No direct commits to main/master (CLAUDE.md: trunk-based development:
 #    short-lived branches, not commits straight to trunk). branch is resolved
 #    from the command's actual target dir (see target_dir above), not
 #    blindly from the hook's own $PWD.
 if [ "$branch" = "main" ] || [ "$branch" = "master" ]; then
   if printf '%s' "$norm_cmd" | grep -Eq 'git +commit\b'; then
-    deny "CLAUDE.md: trunk-based workflow — branch off ($branch) before committing instead of committing directly to it. Create a short-lived feature/fix branch first."
+    deny "CLAUDE.md: trunk-based workflow. Branch off ($branch) before committing instead of committing directly to it. Create a short-lived feature/fix branch first."
   fi
 fi
 

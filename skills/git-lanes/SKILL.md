@@ -22,7 +22,7 @@ worktree instead of switching.
 A running mutation-testing harness makes this worse: it mutates tracked files
 transiently, so a concurrent `checkout` can abort and a concurrent `git add -A`
 can commit a mutation as if it were real work. Both have happened.
-`~/.claude/hooks/git-safety-guard.sh` blocks those commands while one runs.
+this plugin's `hooks/git-safety-guard.sh` blocks those commands while one runs.
 
 ## Worktrees live inside the repo, in one gitignored `.worktrees/`, numbered
 
@@ -109,65 +109,27 @@ a file that is no longer there.
 A loose preview copy at the repo root gets swept into an unrelated lane's
 `git add -A`. That has happened. Write previews to the scratchpad.
 
-## Never copy a venv between worktrees
-
-Measured 2026-08-27 on a 72 MB, 3,134-file venv (pandas, numpy, requests,
-pytest), macOS arm64:
-
-```
-reflink copy of .venv       0.35s   12 files broken
-uv venv && uv pip install   0.08s    0 files broken
-```
-
-Rebuilding is four times faster AND correct, because `uv` hardlinks packages out
-of `~/.cache/uv`, which every worktree on the machine shares. Copying wins only
-on a cold cache, which happens once per machine.
-
-The copy is also wrong in a way that hides. `bin/python` is a symlink out of the
-tree, so `sys.prefix` relocates and `import pandas` works, which makes the copy
-look fine. But `bin/activate` and every console script (`bin/pytest`,
-`bin/f2py`, `bin/pygmentize`) hardcode the SOURCE worktree's absolute path on
-line 2. So lane B runs lane A's interpreter for as long as lane A exists, and
-`bin/pytest` dies with `No such file or directory` the moment lane A is removed.
-That is cross-lane contamination, the one thing worktrees exist to prevent,
-arriving through the cache optimisation meant to speed them up.
-
-Build the venv fresh in each lane. Put it in a creation hook if your tooling has
-one, never in a copy step.
-
-## A git wrapper bypasses the safety hook
-
-`~/.claude/hooks/git-safety-guard.sh` matches on the literal string `git `. Any
-tool that wraps git (worktrunk's `wt`, lazygit, a Makefile target, a script)
-runs its git operations as its own subprocesses and never presents a `git`
-command to the Bash tool, so every rule in that hook silently stops applying:
-no "do not move a tree while a mutation harness runs", no "no commit on main".
-
-Adopting such a tool means adding matching rules for ITS command names to that
-hook, in the same commit. A tool that is only a convenience layer over commands
-the hook already guards is not neutral, it is a hole.
-
-Evaluated 2026-08-27: worktrunk (`wt`, github.com/max-sixty/worktrunk) is a thin
-Rust wrapper that reads worktrees straight from git, so lanes created by hand
-with `git worktree add` appear in `wt list` with no migration. Two things it
-does better than raw git: `wt switch` onto a branch another worktree holds
-NAVIGATES there instead of failing or detaching, which removes the checkout
-footgun this whole skill exists for, and `wt remove` detects a squash-merged
-branch that `git branch --merged` does not list. Two things to refuse: `wt
-merge` fast-forwards LOCAL trunk with commits that never passed a required
-status check, and no config disables it, so block it in the hook before anyone
-runs it. And its path template has no stateful filter, so it cannot produce the
-`NN-name` counter: keep creating lanes with `git worktree add`.
-
 ## Mechanism over prose
 
 When a rule here gets broken, the fix is a mechanism. Prefer, in order: a hook
 that blocks it, CI that fails on it, a config setting that forbids it, then
 prose. The concurrency rule above was prose for months and broke the first time
-it mattered. It is now `~/.claude/hooks/git-safety-guard.sh`, which denies the
+it mattered. It is now this plugin's `hooks/git-safety-guard.sh`, which denies the
 command.
 
 For a repo meant to last: CI runs the repo's own documented checks on every push
 and PR, and branch protection on trunk requires that CI to pass and blocks
 force-push. Local pre-commit hooks are bypassed with `--no-verify`, so they
 complement server-side protection rather than replace it.
+
+## Hands off to
+
+- A lane finishes: it does NOT merge on its own. `/yw-workflow:ship-loop` step 4 dispatches
+  `/yw-workflow:fresh-eye` at the lane tip, and the lane merges only after a round comes
+  back clean. A lane that merges unreviewed is the failure this whole set exists
+  to prevent.
+- Setting up a repo that has no CI or branch protection to merge into:
+  `/yw-workflow:harden` first.
+- The measured findings behind this skill (the venv benchmark, the worktrunk
+  evaluation) live in `docs/DECISIONS.md` in this plugin, dated, because they
+  age and this procedure does not.

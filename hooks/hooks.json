@@ -5,24 +5,43 @@
       {
         "matcher": "Bash",
         "hooks": [
-          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/git-safety-guard.sh" },
-          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/require-code-review.py" },
-          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/no-ai-attribution.py" }
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/git-safety-guard.sh",
+            "if": "Bash(git *)"
+          },
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/require-code-review.py"
+          },
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/no-ai-attribution.py"
+          }
         ]
       }
     ],
     "UserPromptSubmit": [
       {
         "hooks": [
-          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/claude-md-guard.py remind" }
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/claude-md-guard.py remind"
+          }
         ]
       }
     ],
     "Stop": [
       {
         "hooks": [
-          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/claude-md-guard.py check" },
-          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/handoff-freshness.py" }
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/claude-md-guard.py check"
+          },
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/handoff-freshness.py"
+          }
         ]
       }
     ]

@@ -9,9 +9,17 @@
     {
       "name": "yw-workflow",
       "source": "./",
-      "description": "Grill, wayfinder, fresh-eye, ship-loop, git-lanes, bootstrap-repo-hygiene, plus the guard hooks that make the rules mechanical.",
+      "description": "Grill, wayfinder, git-lanes, ship-loop, fresh-eye, need-me and harden, wired as one chain, plus the guard hooks that make the rules mechanical.",
       "category": "engineering",
-      "keywords": ["workflow", "review", "worktree", "hooks", "grilling", "wayfinder"]
+      "keywords": [
+        "workflow",
+        "review",
+        "worktree",
+        "hooks",
+        "grilling",
+        "wayfinder",
+        "planning"
+      ]
     }
   ]
 }

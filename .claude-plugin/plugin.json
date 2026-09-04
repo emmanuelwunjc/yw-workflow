@@ -1,9 +1,18 @@
 {
   "name": "yw-workflow",
-  "version": "1.0.0",
+  "version": "1.0.7",
   "description": "Yiming's engineering workflow: skills for planning, reviewing and shipping, with hooks that enforce the rules rather than restating them.",
-  "author": { "name": "Yiming Wang" },
+  "author": {
+    "name": "Yiming Wang"
+  },
   "repository": "https://github.com/emmanuelwunjc/yw-workflow",
   "license": "MIT",
-  "keywords": ["claude-code", "plugin", "skills", "hooks", "code-review", "worktree"]
+  "keywords": [
+    "claude-code",
+    "plugin",
+    "skills",
+    "hooks",
+    "code-review",
+    "worktree"
+  ]
 }

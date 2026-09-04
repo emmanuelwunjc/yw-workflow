@@ -17,11 +17,11 @@ Every question goes through the **AskUserQuestion tool**. Checkboxes, 2 to 4
 concrete options, the recommended one first and labelled `(Recommended)`.
 Never in prose.
 
-This is `~/CLAUDE.md` section 6 and it outranks any skill text, including
+This is your CLAUDE.md's habits section and it outranks any skill text, including
 this one. A skill saying "ask one at a time" sets cadence, not format. That
 displacement is exactly how this rule broke on 2026-07-08 and 2026-08-03:
 skill text lands mid-turn at higher recency and wins on tone. It does not win
-on format. `~/.claude/hooks/claude-md-guard.py` enforces it and a Stop hook
+on format. This plugin's own `hooks/claude-md-guard.py` enforces it, and its Stop hook
 refuses to end a turn that asked in prose.
 
 If a question has only one live path, it is not a question. State the path
@@ -43,7 +43,7 @@ Ask about:
 - **Irreversibles.** Anything that deletes, publishes, migrates, or takes a
   name. Cheap to ask, expensive to undo.
 - **Cost.** A third-party API, a paid tier, a runtime that bills. State the
-  pricing in the option description, per `~/CLAUDE.md` section 6.
+  pricing in the option description, per your CLAUDE.md's habits section.
 - **The thing you are about to assume.** If you catch yourself writing
   "assuming X", that assumption is the next question.
 
@@ -70,9 +70,12 @@ Then say back what was decided, in the user's own words where they gave them,
 and do not start work until they confirm. A grilling that ends in you
 building the wrong thing confidently is worse than no grilling.
 
-## Handing off
+## Hands off to
 
-- The answers are a plan too big for one session: chart it with `/wayfinder`.
-- The answers are a plan sized for one session: implement, then `/fresh-eye`.
-- The answers changed a decision already recorded: update `docs/HANDOFF.md`
-  and mark the old one superseded with the date. A decision is never deleted.
+- The answers describe work too big for one session: `/yw-workflow:wayfinder` charts it.
+- Sized for one session: `/yw-workflow:git-lanes` if anyone else may be in the repo, then
+  `/yw-workflow:ship-loop`.
+- A decision changed one already recorded: update `docs/HANDOFF.md` and mark the
+  old one superseded with the date. A decision is superseded, never deleted.
+- You could not get an answer: `/yw-workflow:need-me` puts the open question in front of the
+  human in the format they can act on.

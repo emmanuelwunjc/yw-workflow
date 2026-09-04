@@ -121,9 +121,9 @@ words: `PASS`, `BLOCK`, or `REVIEW` (a call only a person can make, e.g. a
 deliberate tradeoff the reviewer can't approve or reject on its own). Never
 bury the verdict in prose the reader has to extract themselves.
 
-The TL;DR is not a shorter version of the specifics section, it is a different
-altitude: it describes the user-facing scenario the finding would have caused,
-not the mechanism that caused it. If a TL;DR sentence names a variable,
+The TL;DR sits at a different altitude from the specifics section. It
+describes the user-facing scenario the finding would have caused, leaving the
+mechanism to the section below. If a TL;DR sentence names a variable,
 function, or line number, it belongs in Agent-facing specifics instead.
 
 ## Prompt skeleton
@@ -156,3 +156,12 @@ function, or line number, it belongs in Agent-facing specifics instead.
     Report each finding with file:line, BLOCKING or nit, the concrete failure
     scenario (inputs -> wrong output), and how you verified it. Say plainly
     whether this is mergeable. Do not fix anything. Do not commit.
+
+## Hands off to
+
+- Always run in its own worktree: `/yw-workflow:git-lanes` covers that, and a reviewer never
+  works in the author's tree.
+- Findings come back: `/yw-workflow:ship-loop` step 5 triages them, and the fix gets its own
+  review round. The fix is where the next defect usually is.
+- A finding is a product or design call rather than a defect: `/yw-workflow:need-me`, because
+  the reviewer cannot settle it and neither can the author.
