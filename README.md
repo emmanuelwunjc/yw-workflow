@@ -55,6 +55,12 @@ grill -> wayfinder -> git-lanes -> ship-loop -> fresh-eye
 
 `harden` runs once per repo, before any of it merges.
 
+`eli5` and `eli5-text` are off the diagram because they explain a thing rather
+than ship one. They are still in the graph: `grill` and `need-me` reach
+`eli5-text` when a decision is blocked on understanding, and `ship-loop` and
+`harden` reach `eli5` when a change needs explaining to someone who will not
+read the diff.
+
 ## Hooks
 
 Each exists because a rule broke and prose was not enough. They come with the
@@ -83,9 +89,9 @@ commit.
 ./tools/check-repo.py
 ```
 
-Both run in CI on every pull request and on push to `main`, advisory until
-branch protection is enabled. `claude-md-guard.py` is
-deliberately partial: it blocks a turn, so it fires only when it is sure, and
+Both run in CI on every pull request and on push to `main`, and `main` is
+protected: a red check blocks the merge, for the repo owner too.
+`claude-md-guard.py` is deliberately partial: it blocks a turn, so it fires only when it is sure, and
 its known misses and known false positives are listed in its self-test.
 
 ## Credit

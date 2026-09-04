@@ -130,18 +130,27 @@ WORDS = {1: "one", 2: "two", 3: "three", 4: "four", 5: "five", 6: "six",
 n = len(skills)
 right = {WORDS.get(n, str(n)), str(n)}
 # digits count too: "7 skills" beside "Nine skills" is the same defect
-# ponytail: a determiner marks a subset ("the two skills at the bottom"), where
-# a total claim does not ("the same nine skills"). Widen if a real miss appears.
-stated = set(re.findall(r"(?<!\bthe )(?<!\bthose )(?<!\bthese )"
-                        r"\b([a-z]+|\d+)\s+skills\b", readme, re.IGNORECASE))
+# Every "<count> skills" in the README is treated as a claim about the total. A
+# subset phrasing ("the two skills at the bottom") would false-positive, and an
+# earlier version excluded a leading determiner to allow it. That also excluded
+# "The seven skills", which is the drift this check exists for, so the exclusion
+# cost more than it bought. Rephrase the README if the subset case ever arises.
+stated = set(re.findall(r"\b([a-z]+|\d+)\s+skills\b", readme, re.IGNORECASE))
 stated = {w.lower() for w in stated} & ({str(k) for k in WORDS} | set(WORDS.values()))
 check("README states %d skills and no other count" % n,
       bool(stated & right) and not (stated - right),
       "found: " + ", ".join(sorted(stated)) if stated else "no count found")
 
 # one row per skill in the Skills table, keyed by the bolded name in column one
-rows = dict(re.findall(r"^\|\s*\*\*([a-z0-9-]+)\*\*\s*\|\s*(.+?)\s*\|\s*$",
-                       readme, re.MULTILINE))
+# only the Skills section counts: a correct copy in a later table must not cover
+# for a corrupted row in this one
+section = readme.split("## Skills", 1)[-1].split("\n## ", 1)[0]
+found = re.findall(r"^\|\s*\*\*([a-z0-9-]+)\*\*\s*\|\s*(.+?)\s*\|\s*$",
+                   section, re.MULTILINE)
+check("no skill is listed twice in the Skills table",
+      len(found) == len({n for n, _ in found}),
+      "rows: " + ", ".join(n for n, _ in found))
+rows = dict(found)
 names = {s.parent.name for s in skills}
 check("the Skills table has exactly one row per skill",
       set(rows) == names,
@@ -157,15 +166,22 @@ for skill in skills:
     line = " ".join(text.split(marker, 1)[1].split("\n\n", 1)[0].split())
     check("README row for %s matches its skill" % name,
           " ".join(rows.get(name, "").split()) == line,
-          "row says: " + rows.get(name, "<missing>"))
+          "row: %s | skill: %s" % (rows.get(name, "<missing>"), line))
 
 # 1d. the marketplace description lists skill names by hand, which drifts the
 # moment a skill is added. Same failure the README check above exists for.
 market = json.loads((ROOT / ".claude-plugin" / "marketplace.json").read_text())
 blurb = market["plugins"][0]["description"]
-missing = sorted(n for n in names if n not in blurb)
+# tokenised, because a substring test lets "eli5-text" satisfy "eli5"
+words = set(re.findall(r"[a-z0-9-]+", blurb.lower()))
+missing = sorted(n for n in names if n not in words)
 check("marketplace.json names every skill", not missing,
       "missing: " + ", ".join(missing))
+blurb_counts = {w.lower() for w in re.findall(r"\b([a-z]+|\d+)\s+skills\b", blurb,
+                                              re.IGNORECASE)}
+blurb_counts &= ({str(k) for k in WORDS} | set(WORDS.values()))
+check("marketplace.json states the right count, if it states one",
+      not (blurb_counts - right), "found: " + ", ".join(sorted(blurb_counts)))
 
 # 2. manifests parse
 print("manifests")
