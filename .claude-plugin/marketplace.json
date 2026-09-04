@@ -1,0 +1,17 @@
+{
+  "name": "yw-workflow",
+  "owner": {
+    "name": "Yiming Wang",
+    "url": "https://github.com/emmanuelwunjc"
+  },
+  "description": "Yiming's engineering workflow as an installable Claude Code plugin: skills and the hooks that enforce them.",
+  "plugins": [
+    {
+      "name": "yw-workflow",
+      "source": "./",
+      "description": "Grill, wayfinder, fresh-eye, ship-loop, git-lanes, bootstrap-repo-hygiene, plus the guard hooks that make the rules mechanical.",
+      "category": "engineering",
+      "keywords": ["workflow", "review", "worktree", "hooks", "grilling", "wayfinder"]
+    }
+  ]
+}

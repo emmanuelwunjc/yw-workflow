@@ -1,0 +1,30 @@
+{
+  "description": "Guard hooks for the yw-workflow plugin. Each one makes a CLAUDE.md rule mechanical instead of hoping the model remembers it.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/git-safety-guard.sh" },
+          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/require-code-review.py" },
+          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/no-ai-attribution.py" }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/claude-md-guard.py remind" }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/claude-md-guard.py check" },
+          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/handoff-freshness.py" }
+        ]
+      }
+    ]
+  }
+}
