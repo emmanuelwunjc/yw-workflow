@@ -91,6 +91,7 @@ commit.
 
 Both run in CI on every pull request and on push to `main`, and `main` is
 protected: a red check blocks the merge, for the repo owner too.
+
 `claude-md-guard.py` is deliberately partial: it blocks a turn, so it fires only when it is sure, and
 its known misses and known false positives are listed in its self-test.
 

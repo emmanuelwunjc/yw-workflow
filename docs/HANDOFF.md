@@ -230,10 +230,10 @@ is the enforcement working. Use the file-edit tools for that text.
   The reason to move them was that a hook protects one laptop while a status
   check protects the repo. Deliberately one job, running the exact command
   above, because CI that runs something else is a second undocumented policy.
-- **The status check enforces nothing yet.** Branch protection and rulesets both
-  return 403 on a personal private repo with no paid plan, so a red check does
-  not block a merge. Going public unlocks the branch-protection API on a free plan, which is what
-  makes enabling the gate possible. Enabling it is still a separate step.
+- ~~**The status check enforces nothing yet.**~~ Superseded 2026-09-04: the repo
+  is public, protection is on with `enforce_admins: true`, and force-pushes and
+  deletions are blocked. A red check blocks the merge for the owner too,
+  verified by pushing to `main` and being refused.
 - **Skipped: pre-commit and a PR template.** pre-commit is bypassable and this
   repo's own `harden` skill says never to treat it as the enforcement
   mechanism. A PR template would check nothing CI does not.

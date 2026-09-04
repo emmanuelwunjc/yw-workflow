@@ -1,6 +1,6 @@
 ---
 name: eli5
-description: Explain a topic like the reader knows nothing about it, as an HTML artifact with big pictures and few words. Use when the user asks to "eli5", "explain like I'm 5", or wants a dead-simple visual explainer instead of a text answer. Prefer this over eli5-text when the explanation will be re-read, shared, or kept.
+description: Explain a topic like the reader knows nothing about it, as an HTML artifact with big pictures and few words. Use when the user asks to "eli5", "explain like I'm 5", or wants a dead-simple visual explainer instead of a text answer. Requires the Artifact tool; without it use eli5-text. Prefer this over eli5-text when the explanation will be re-read, shared, or kept.
 origin: authored
 tags: [explanation, artifact, svg, teaching]
 version: 1.0.0
