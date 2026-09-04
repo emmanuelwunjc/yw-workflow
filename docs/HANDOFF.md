@@ -21,6 +21,28 @@ plugin repo fixes all three.
 
 ## Decisions, newest first
 
+**2026-09-04 · A required status check binds nobody until enforce_admins is on.**
+Branch protection was enabled with `enforce_admins: false`, the GitHub default.
+A deliberate probe commit pushed straight to `main` and was accepted, with the
+remote printing "Bypassed rule violations". So the gate bound everyone except
+the repo owner, who is the only person who commits here. It was decoration, and
+it took a push to find out, because the API reports protection as configured
+either way. Any repo hardened by `harden` needs the same probe: push something
+to the protected branch and confirm it is rejected. Configured is not enforced.
+
+**2026-09-04 · Rewriting history is not enough on GitHub; pull refs survive.**
+A worked example in `need-me` named a real individual and asserted no public
+record of them existed. `git filter-repo` cleaned every commit and a force-push
+updated `main`, and the name was still fetchable from `refs/pull/1/head`,
+which a force-push does not touch and which anyone can fetch on a public repo.
+Two of the commit messages describing the fix also signposted where to look.
+Resolved by renaming the old repo (it keeps those refs, and stays private) and
+pushing the clean history to a fresh one. Verified from a scratch clone: zero
+pull refs, zero hits. The old repo is `yw-workflow-archive-preScrub`, private,
+and can be deleted once `gh auth refresh -h github.com -s delete_repo` is run.
+The lesson: on GitHub, scrubbing a secret from history means abandoning the
+remote, not rewriting it.
+
 **2026-09-04 · Credit Matt Pocock explicitly, and reproduce his notice.**
 `grill` and `wayfinder` are derivative works of skills in
 github.com/mattpocock/skills (MIT). `wayfinder` follows his design section for
