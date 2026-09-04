@@ -9,7 +9,7 @@
     {
       "name": "yw-workflow",
       "source": "./",
-      "description": "Grill, wayfinder, git-lanes, ship-loop, fresh-eye, need-me and harden, wired as one chain, plus the guard hooks that make the rules mechanical.",
+      "description": "Grill, wayfinder, git-lanes, ship-loop, fresh-eye, need-me, harden, eli5 and eli5-text, wired as one chain, plus the guard hooks that make the rules mechanical.",
       "category": "engineering",
       "keywords": [
         "workflow",

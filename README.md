@@ -1,6 +1,6 @@
 # yw-workflow
 
-Seven skills and five hooks that make an engineering workflow mechanical
+Nine skills and five hooks that make an engineering workflow mechanical
 instead of remembered.
 
 ## Install
@@ -39,6 +39,8 @@ Each one carries a one-line summary at the top.
 | **fresh-eye** | Sends someone who did not write the code to try to break it. |
 | **need-me** | Shows only what is waiting on you, answerable in one word. |
 | **harden** | Gives a repo the CI and branch protection that make its review gate real. |
+| **eli5** | Explains a topic to someone with zero background, as a page of big pictures and few words. |
+| **eli5-text** | The same, in the conversation, with nothing to open. |
 
 Invoke them namespaced: `/yw-workflow:grill`.
 
