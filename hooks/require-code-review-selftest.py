@@ -6,7 +6,7 @@ vocabulary drifted from whatever the review flow actually writes. Every miss
 cost a SKIP_REVIEW_GATE=1, and a gate you routinely disable is not a gate.
 This pins what counts as a verdict and, just as importantly, what does not.
 
-Run: python3 ~/.claude/hooks/require-code-review-selftest.py
+Run: ./hooks/require-code-review-selftest.py
 """
 
 import importlib.util

@@ -3,10 +3,15 @@ name: fresh-eye
 description: Dispatch an independent adversarial reviewer that did not write the code, in an isolated git worktree, to try to break a change rather than agree with it. Use before merging anything non-trivial, when asked for "a fresh eye", "a second opinion", "review this properly", "try to break this", or when you have just finished work and are about to call it done. Also use on the FIX for a previous review, because that is where the next defect usually is.
 origin: authored
 tags: [review, quality, adversarial, worktree, mutation-testing]
-version: 1.1.0
+version: 1.1.1
 ---
 
 # Fresh eye
+
+**In one line:** Sends someone who did not write the code to try to break it.
+
+Say that line back when you start, so whoever invoked this knows
+what they got.
 
 An agent reviewing its own work is a self-check. It is not a review. This skill
 dispatches someone else.

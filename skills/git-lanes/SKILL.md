@@ -3,10 +3,15 @@ name: git-lanes
 description: Run concurrent agents in isolated git worktrees without them colliding. Use before starting multi-file work in a repo where another agent may be active, when asked to "run these in parallel", "spin up lanes", "use worktrees", when dispatching a reviewer, or when about to git checkout/pull/stash in a repo you did not just create. Also covers where built deliverables live and how lanes merge back to trunk.
 origin: authored
 tags: [git, worktree, concurrency, multi-agent, merge]
-version: 1.0.0
+version: 1.0.1
 ---
 
 # Git lanes
+
+**In one line:** Gives every concurrent agent its own worktree so they cannot corrupt each other.
+
+Say that line back when you start, so whoever invoked this knows
+what they got.
 
 Two agents in one working directory is the failure. File ownership does not
 prevent it: `checkout`, `pull` and `stash` move the entire working tree
@@ -94,7 +99,7 @@ repo/deliverables/report.xlsx
 ```
 
 The folder name answers "what do I open" and "what do I edit" without asking.
-Keep filenames fully descriptive: `deliverables/gates4-compute-slides.html` is
+Keep filenames fully descriptive: `deliverables/q3-compute-benchmark-slides.html` is
 what lands in an email attachment.
 
 Track outputs when they are the product and someone needs the file without a

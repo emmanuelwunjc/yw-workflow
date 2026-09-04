@@ -1,6 +1,16 @@
+Third-party notices
+===================
+
+skills/grill/SKILL.md and skills/wayfinder/SKILL.md are derivative works of
+skills in https://github.com/mattpocock/skills, which is MIT licensed.
+wayfinder in particular follows that design section for section. Its notice is
+reproduced in full below, as MIT requires.
+
+----
+
 MIT License
 
-Copyright (c) 2026 Yiming Wang
+Copyright (c) 2026 Matt Pocock
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -19,7 +29,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
----
-
-Portions of this software are copyright (c) 2026 Matt Pocock; see NOTICE.

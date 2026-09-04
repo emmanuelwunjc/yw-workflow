@@ -1,12 +1,18 @@
 ---
 name: grill
 description: Interrogate a plan, decision, or idea one decision at a time until the shared understanding is real. Use when the user says "grill me", "stress-test this", "poke holes in it", "am I missing anything", or before committing to any plan whose cost is more than an hour. Also use when a request is ambiguous enough that two readings would produce different work.
-origin: authored
+origin: adapted
+adapted-from: "Matt Pocock's grilling skill (https://github.com/mattpocock/skills, MIT)"
 tags: [planning, questions, decisions, askuserquestion]
-version: 1.0.0
+version: 1.0.1
 ---
 
 # Grill
+
+**In one line:** Asks you one decision at a time, in checkboxes, until nothing is left to guess.
+
+Say that line back when you start, so whoever invoked this knows
+what they got.
 
 A plan that survived no questions is a plan nobody checked. This skill asks
 the questions.
@@ -17,11 +23,11 @@ Every question goes through the **AskUserQuestion tool**. Checkboxes, 2 to 4
 concrete options, the recommended one first and labelled `(Recommended)`.
 Never in prose.
 
-This is your CLAUDE.md's habits section and it outranks any skill text, including
+The checkbox format outranks any skill text, including
 this one. A skill saying "ask one at a time" sets cadence, not format. That
 displacement is exactly how this rule broke on 2026-07-08 and 2026-08-03:
 skill text lands mid-turn at higher recency and wins on tone. It does not win
-on format. This plugin's own `hooks/claude-md-guard.py` enforces it, and its Stop hook
+on format. Installed as a plugin, `hooks/claude-md-guard.py` enforces it, and its Stop hook
 refuses to end a turn that asked in prose.
 
 If a question has only one live path, it is not a question. State the path
@@ -43,7 +49,7 @@ Ask about:
 - **Irreversibles.** Anything that deletes, publishes, migrates, or takes a
   name. Cheap to ask, expensive to undo.
 - **Cost.** A third-party API, a paid tier, a runtime that bills. State the
-  pricing in the option description, per your CLAUDE.md's habits section.
+  pricing in the option description. Never assume a free tier.
 - **The thing you are about to assume.** If you catch yourself writing
   "assuming X", that assumption is the next question.
 
@@ -79,3 +85,21 @@ building the wrong thing confidently is worse than no grilling.
   old one superseded with the date. A decision is superseded, never deleted.
 - You could not get an answer: `/yw-workflow:need-me` puts the open question in front of the
   human in the format they can act on.
+
+## Credit
+
+Adapted from [Matt Pocock's `grilling` skill](https://github.com/mattpocock/skills)
+(MIT), copyright (c) 2026 Matt Pocock. The full notice is in `NOTICE` at the
+repo root; it is repeated here because the skills CLI copies this file alone.
+
+His version is the discipline: relentless, one question at a time, a
+recommended answer attached to each, facts looked up rather than asked. This
+one changes the format to `AskUserQuestion` checkboxes, because a skill body
+lands mid-turn at higher recency than `CLAUDE.md` and kept overriding it.
+
+The permission notice, carried here because the skills CLI copies this file on
+its own: permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the "Software"), to
+deal in the Software without restriction, subject to the copyright notice and
+this permission notice being included in all copies or substantial portions of
+the Software. The Software is provided "as is", without warranty of any kind.

@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-CLAUDE.md guard. Mechanically enforces three standing rules from ~/CLAUDE.md
+CLAUDE.md guard. Mechanically enforces three standing rules from a user CLAUDE.md
 that prose alone kept failing to hold.
 
 WHY THIS EXISTS
-    All three rules below were stated in ~/CLAUDE.md for months and violated anyway,
+    All three rules below were stated in that CLAUDE.md for months and violated anyway,
     most recently on 2026-08-03. Per CLAUDE.md section 3 ("the fix is a
     mechanism, not a stronger sentence"), restating them harder is not a fix.
     This hook is the mechanism.

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # PreToolUse(Bash) hook: mechanically enforces the git-safety rules stated in
-# ~/CLAUDE.md's "Git Workflow and Concurrent Work" and "Executing actions
+# your CLAUDE.md's "Git Workflow and Concurrent Work" and "Executing actions
 # with care" sections, instead of relying on the model to remember them.
-# Wired in ~/.claude/settings.json under hooks.PreToolUse (matcher: Bash).
+# Wired by this plugin's hooks/hooks.json under PreToolUse (matcher: Bash).
 #
 # Known structural limit, not fixable from inside this script: it only ever
 # runs when a git command reaches the local Bash tool. An agent given

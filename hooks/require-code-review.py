@@ -58,12 +58,12 @@ import sys
 #
 # `READY TO MERGE`/`DO-NOT-MERGE` were missing entirely until 2026-08-28, even
 # though they are LOOP.md's and tools/loop_gate.py's own verdict words in
-# EdSim (and any repo that adopts the same LOOP.md convention) and this
+# any repo that adopts the LOOP.md convention, and this
 # session's real reviewer comments used them verbatim. A same-shape gap to the
 # `Verdict:` one above: this hook has its own separate vocabulary from the
 # repo's `loop_gate.py`, so a comment that satisfies one satisfies neither
 # automatically, and the only way past it was SKIP_REVIEW_GATE=1 again. Found
-# 2026-08-28 merging EdSim #366 and #368, both with a posted, real,
+# 2026-08-28 merging two PRs in such a repo, both with a posted, real,
 # independent-review-backed verdict this hook still could not see.
 VERDICT_MARKERS = re.compile(
     r"\b(APPROVE|APPROVE_WITH_NITS|CHANGES_MADE|BLOCKED|READY TO MERGE|DO-NOT-MERGE)\b"

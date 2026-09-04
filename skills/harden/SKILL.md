@@ -1,15 +1,22 @@
 ---
 name: harden
-description: Set up CI, pre-commit hooks, a PR template, and GitHub branch protection for a repo, matching the "pro dev / SDE agentic workflow" bar from CLAUDE.md's Git Workflow section. Use when the user asks to "set up CI", "add branch protection", "bootstrap this repo", "add git hygiene", "harden this repo's git workflow", or when starting real work in a repo that has none of this yet.
+description: Set up CI, pre-commit hooks, a PR template, and GitHub branch protection for a repo, so its review gate holds where the work runs rather than only on one laptop. Use when the user asks to "set up CI", "add branch protection", "bootstrap this repo", "add git hygiene", "harden this repo's git workflow", or when starting real work in a repo that has none of this yet.
 origin: authored
 tags: [git, ci, github-actions, pre-commit, branch-protection, bootstrap]
-version: 1.0.0
+version: 1.0.1
 ---
 
 # Harden
 
-Stamps a repo up to the workflow bar your CLAUDE.md's "CI and branch
-protection, not just local discipline" section describes. Built from doing
+**In one line:** Gives a repo the CI and branch protection that make its review gate real.
+
+Say that line back when you start, so whoever invoked this knows
+what they got.
+
+Stamps a repo up to one bar: every rule the team relies on is enforced by
+something the repo carries, so it holds for a cloud routine, a remote agent and
+a teammate's checkout, rather than only where a local hook happens to be
+installed. Built from doing
 this by hand for `synthweave` (2026-07-31, PR #25). The steps below encode
 what actually went wrong that time so it doesn't get rediscovered.
 
@@ -23,7 +30,7 @@ what actually went wrong that time so it doesn't get rediscovered.
   It protects one machine only. A cloud routine, a remote agent, or a
   teammate's checkout never loads it, which is the whole reason the per-repo CI
   gate below exists.
-- The git-workflow rules in your own CLAUDE.md.
+- Whatever git-workflow rules your own setup already enforces globally.
 
 **What's inherently per-repo** (CI/pre-commit/branch-protection can only
 live inside each repo, so there is no global equivalent):
@@ -173,7 +180,7 @@ workflow name.
 If the repo already has an open, unrelated PR in flight, put this hygiene
 work on its own short-lived branch off `main` rather than bundling it into
 whatever feature branch happens to be checked out. It's a distinct,
-single-purpose concern per `CLAUDE.md`'s PR-size guidance, and it needs to
+single-purpose concern, one self-contained change per PR, and it needs to
 land on `main` before branch protection can reference a check that's ever
 actually run there.
 

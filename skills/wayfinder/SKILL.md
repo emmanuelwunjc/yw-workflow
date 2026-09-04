@@ -1,13 +1,20 @@
 ---
 name: wayfinder
 description: Chart a body of work too big for one session as a map of decision tickets on GitHub Issues, then resolve them one at a time until the route is clear. Use for a loose idea, a migration, a new project, or any effort where the destination is known and the way there is not. Triggers include "where do I even start", "this is too big", "chart this", "wayfinder".
-origin: authored
+origin: adapted
+adapted-from: "Matt Pocock's wayfinder skill (https://github.com/mattpocock/skills, MIT)"
 tags: [planning, github-issues, decisions, multi-session]
-version: 1.0.0
+version: 1.0.1
 disable-model-invocation: true
 ---
 
 # Wayfinder
+
+**In one line:** Turns work too big for one session into a map of decisions on GitHub Issues.
+
+Say that line back when you start, so whoever invoked this knows what they
+got.
+
 
 Some work is too big to hold in one session. Charging at it produces a plan
 that is stale by the time the session compacts. This skill writes the plan
@@ -77,7 +84,7 @@ The frontier is every open ticket with no assignee and no open entry in
 `blockedBy`.
 
 **Refer to tickets by title, never by bare number.** `#42, #43, #44` is
-illegible. Per your CLAUDE.md's reporting section, gloss every number.
+illegible. Gloss every number you do show: `#42 (the cache-key fix)`.
 
 ## Fog of war
 
@@ -153,3 +160,22 @@ The map is done when the frontier is empty and the fog is empty. Hand off to
   worktrees.
 - The frontier and the fog are both empty: `/yw-workflow:ship-loop` builds the decisions.
 - A ticket has been open across sessions waiting on a human answer: `/yw-workflow:need-me`.
+
+## Credit
+
+Adapted from [Matt Pocock's `wayfinder` skill](https://github.com/mattpocock/skills)
+(MIT), copyright (c) 2026 Matt Pocock. The full notice is in `NOTICE` at the
+repo root; it is repeated here because the skills CLI copies this file alone.
+
+The whole shape is his: a map issue, decision tickets sized to one
+session, the fog of war, one ticket per session, plan rather than build. His is
+tracker-agnostic and binds to a tracker through a setup skill. This one is
+GitHub Issues only, so it works the moment it installs, and it hands off to
+`/yw-workflow:ship-loop` when the frontier empties.
+
+The permission notice, carried here because the skills CLI copies this file on
+its own: permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the "Software"), to
+deal in the Software without restriction, subject to the copyright notice and
+this permission notice being included in all copies or substantial portions of
+the Software. The Software is provided "as is", without warranty of any kind.

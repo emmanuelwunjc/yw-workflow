@@ -49,7 +49,9 @@ scanned = 0
 # double-counts and would judge a copy. Anything vendored gets skipped for the
 # separate reason that these are this repo's writing rules, not a third party's.
 SKIP = {".git", ".worktrees", "node_modules", "vendor", ".venv"}
-for md in sorted(ROOT.glob("**/*.md")):
+# NOTICE and LICENSE carry prose too, and an extension-based glob misses them
+extra = [ROOT / n for n in ("NOTICE", "LICENSE") if (ROOT / n).exists()]
+for md in sorted(ROOT.glob("**/*.md")) + extra:
     # relative, because SKIP against md.parts also matches directories ABOVE
     # the repo: a checkout under any path containing "vendor" skipped everything
     if SKIP & set(md.relative_to(ROOT).parts):

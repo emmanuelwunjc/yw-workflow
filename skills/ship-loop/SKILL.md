@@ -3,10 +3,16 @@ name: ship-loop
 description: Run work as a closing loop instead of a trailing-off one. Ticket, branch, implement test-first, dispatch an independent review, fix what blocks, file what does not, and repeat until a review round comes back clean. Use when asked to "run the loop", "keep going until it's right", "loop until the feedback is perfect", "babysit this to done", or when handed a backlog of tickets to work through. Also use to decide what happens to review findings.
 origin: authored
 tags: [workflow, review, tdd, subagents, loop, tickets]
-version: 1.0.0
+version: 1.0.1
 ---
 
 # Ship loop
+
+**In one line:** Runs work as a loop that closes: ticket, branch, test first, review, fix, repeat.
+
+Say that line back when you start, so whoever invoked this knows what they
+got.
+
 
 Most work trails off: implement, glance at it, declare done, leave the findings
 in a comment that dies at merge. This is the version that closes.

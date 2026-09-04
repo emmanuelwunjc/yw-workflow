@@ -21,6 +21,36 @@ plugin repo fixes all three.
 
 ## Decisions, newest first
 
+**2026-09-04 · Credit Matt Pocock explicitly, and reproduce his notice.**
+`grill` and `wayfinder` are derivative works of skills in
+github.com/mattpocock/skills (MIT). `wayfinder` follows his design section for
+section: the map as an index, the four ticket types, claim-by-assign, the fog
+of war and its state-it-now test, the out-of-scope section that never
+graduates, both invocation modes. A reviewer read the two files line by line
+and called it a rewrite of a whole design, which is the honest description.
+The frontmatter key started as `inspired-by:` and was changed to
+`adapted-from:`, because the key is what a tool reads and it was saying
+something weaker than the prose beneath it. A link plus the token "(MIT)" is
+not the notice MIT asks for, so `NOTICE` reproduces his copyright and
+permission paragraphs verbatim. That matters more if this repo ever goes
+public, and costs nothing now.
+Checked and found clean: no other skill here derives from his work.
+`git-lanes` against his `git-guardrails` (his blocks commands, this isolates
+worktrees), `fresh-eye` against his `code-review` (his is standards-vs-spec,
+this is adversarial), `harden` against his `setup-pre-commit` (his is Husky,
+this is CI and branch protection), `need-me` against his `handoff` (his
+compacts a conversation, this queues blocked decisions).
+
+**2026-09-04 · Names questioned and kept: git-lanes, ship-loop, harden.**
+Rejected `multi-task` (multitasking is sequential and needs no worktree, and it
+overlaps ship-loop's territory), `loop-it` (a built-in `/loop` already exists
+and ship-loop calls it, and Matt has a `loop-me` meaning a third thing), and
+`set-infra` (infra reads as deployment, which harden never touches). The real
+complaint was that the names are jargon. That is answered by the one-line
+opener each skill now carries, rather than by renaming. `harden` itself was a
+rename, from `bootstrap-repo-hygiene`, on the different ground that the old
+name was 35 characters at the prompt.
+
 **2026-09-04 · The negation guard stays partial, deliberately.**
 `~/CLAUDE.md` said the no-negation rule was "Enforced by claude-md-guard.py".
 It was not: the hook checked em-dashes and question format only. Building the
@@ -111,9 +141,17 @@ is the enforcement working. Use the file-edit tools for that text.
 
 - **Indented (4-space) code blocks are not stripped.** Quoting a diff that way
   can block a turn. Assistant output almost always uses fences.
-- **The repo is private.** Both install commands resolve only for an account
-  with read access. Going public needs a scrub pass first: the skills reference
-  "your CLAUDE.md" and the hooks encode one person's rules.
+- ~~**The repo is private.**~~ Superseded 2026-09-04: scrubbed and published.
+  What the scrub covered: two internal names nobody outside could resolve, six
+  citations of named sections in a personal CLAUDE.md that a public installer
+  does not have, and a worked example in `need-me` that named a real
+  individual and asserted no public record of them existed. That last one was
+  the only thing here genuinely unpublishable, and no reviewer had been asked
+  about it until the round that made publishing imminent.
+  What it did NOT cover, on the record: `EdSim` and a project codename remain
+  in git history at the first commit, removed only later. Publishing the repo
+  publishes the history, and only a rewrite would reach them. Judged low risk,
+  since they are project names rather than secrets.
 - ~~**No CI.**~~ Superseded 2026-09-04: the four self-tests and
   `tools/check-repo.py` now run on every pull request and on push to `main`.
   The reason to move them was that a hook protects one laptop while a status
@@ -121,7 +159,8 @@ is the enforcement working. Use the file-edit tools for that text.
   above, because CI that runs something else is a second undocumented policy.
 - **The status check enforces nothing yet.** Branch protection and rulesets both
   return 403 on a personal private repo with no paid plan, so a red check does
-  not block a merge. Making the repo public is what turns the check into a gate.
+  not block a merge. Going public unlocks the branch-protection API on a free plan, which is what
+  makes enabling the gate possible. Enabling it is still a separate step.
 - **Skipped: pre-commit and a PR template.** pre-commit is bypassable and this
   repo's own `harden` skill says never to treat it as the enforcement
   mechanism. A PR template would check nothing CI does not.

@@ -3,8 +3,16 @@ name: need-me
 description: Show only what is actually waiting on the human, delivered as clickable questions they answer in seconds. Use when the user asks "what needs me", "am I blocking anything", "/need-me", "what's waiting on me", at any natural pause where they may walk away, and before a handoff so the next session does not inherit a hidden queue of unanswered questions.
 origin: authored
 tags: [attention, escalation, handoff, decisions]
-version: 1.0.0
+version: 1.0.1
 ---
+
+# Need me
+
+**In one line:** Shows only what is waiting on you, answerable in one word.
+
+That line is for a human reading the skill list. Never say it back: the output
+format below allows exactly one line of prose, and this would be a second.
+
 
 Write for someone whose calendar is booked in thirty-second units. They read
 this standing up, between two other things, and they answer by clicking.
