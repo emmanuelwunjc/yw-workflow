@@ -267,22 +267,44 @@ for event, groups in wiring["hooks"].items():
             script = cmd.split()[0]
             check("%s -> %s" % (event, cmd), (ROOT / script).exists())
 
-# 5. a version that never moves is a plugin that never updates
+# 5. A version that never moves is a plugin that never updates: `claude plugin
+# update` keys off it, so an edited repo whose version is unchanged installs as
+# the old one.
+#
+# Comparing against the last tag alone was wrong in both directions. It went red
+# on `main` the moment a release was tagged, because the released version equals
+# its tag by definition, and it went green on a branch that changed files
+# without bumping, because that branch also equals the tag. The question is
+# different on a branch than on the trunk, so ask it separately.
 print("plugin version")
 version = json.loads((ROOT / ".claude-plugin" / "plugin.json").read_text())["version"]
-tag = subprocess.run(
-    ["git", "describe", "--tags", "--abbrev=0"], cwd=ROOT,
-    capture_output=True, text=True,
-).stdout.strip()
+
+
 def parts(v):
     return tuple(int(n) for n in v.split(".") if n.isdigit())
 
 
-if tag:
-    check("version %s is ahead of last tag %s" % (version, tag),
-          parts(version) > parts(tag.lstrip("v")))
+def run(*args):
+    return subprocess.run(args, cwd=ROOT, capture_output=True, text=True).stdout.strip()
+
+
+tag = run("git", "describe", "--tags", "--abbrev=0")
+head = run("git", "rev-parse", "HEAD")
+trunk = run("git", "rev-parse", "origin/main") or run("git", "rev-parse", "main")
+
+if trunk and head and trunk != head:
+    # on a branch: the version has to move, or the change is uninstallable
+    before = run("git", "show", "%s:.claude-plugin/plugin.json" % trunk)
+    base = json.loads(before)["version"] if before else ""
+    check("version %s is ahead of main's %s" % (version, base or "<unknown>"),
+          bool(base) and parts(version) > parts(base))
+elif tag:
+    # on the trunk: equal to the last tag is the released state, behind it is not
+    check("version %s is at or ahead of last tag %s" % (version, tag),
+          parts(version) >= parts(tag.lstrip("v")))
 else:
-    check("version is set (%s), no tag to compare" % version, bool(version))
+    check("version is set (%s), no tag and no trunk to compare" % version,
+          bool(version))
 
 print()
 if failures:
