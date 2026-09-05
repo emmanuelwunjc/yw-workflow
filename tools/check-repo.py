@@ -22,6 +22,7 @@ Checks, each one because something actually broke:
 import importlib.util
 import json
 import pathlib
+import re
 import subprocess
 import sys
 
@@ -111,6 +112,125 @@ for skill in skills:
           "got " + repr(keys.get("name")))
     check("%s has a description" % want, bool(keys.get("description")))
 
+# 1c. The README describes the skills, and nothing checked that it still did.
+# Adding two skills left it claiming seven in one place and nine in another, and
+# gave one row a summary that differed from its own skill.
+#
+# The first version of this check searched the whole README for each one-liner.
+# That is green when two rows swap summaries, when a row is deleted and its text
+# survives in a code block, and when a row is missing entirely. It has to find
+# the row BY NAME and compare that cell, which is why this parses the table.
+wiring_for_readme = json.loads((ROOT / "hooks" / "hooks.json").read_text())
+print("README agrees with the skills")
+# fenced blocks are examples, not claims. Without this, deleting a row and
+# leaving its text in a code sample reads as though the row is still there, and
+# the guard's own module already knows how to strip them.
+readme = guard.strip_fences((ROOT / "README.md").read_text())
+WORDS = {1: "one", 2: "two", 3: "three", 4: "four", 5: "five", 6: "six",
+         7: "seven", 8: "eight", 9: "nine", 10: "ten", 11: "eleven", 12: "twelve",
+         13: "thirteen", 14: "fourteen", 15: "fifteen", 16: "sixteen",
+         17: "seventeen", 18: "eighteen", 19: "nineteen", 20: "twenty"}
+n = len(skills)
+right = {WORDS.get(n, str(n)), str(n)}
+# digits count too: "7 skills" beside "Nine skills" is the same defect
+# Every "<count> skills" in the README is treated as a claim about the total. A
+# subset phrasing ("the two skills at the bottom") would false-positive, and an
+# earlier version excluded a leading determiner to allow it. That also excluded
+# "The seven skills", which is the drift this check exists for, so the exclusion
+# cost more than it bought. Rephrase the README if the subset case ever arises.
+stated = set(re.findall(r"\b([a-z]+|\d+)\s+skills\b", readme, re.IGNORECASE))
+stated = {w.lower() for w in stated} & ({str(k) for k in WORDS} | set(WORDS.values()))
+check("README states %d skills and no other count" % n,
+      bool(stated & right) and not (stated - right),
+      "found: " + ", ".join(sorted(stated)) if stated else "no count found")
+
+# one row per skill in the Skills table, keyed by the bolded name in column one
+# only the Skills section counts: a correct copy in a later table must not cover
+# for a corrupted row in this one
+check("README has a ## Skills section", "## Skills" in readme)
+section = readme.split("## Skills", 1)[-1].split("\n## ", 1)[0]
+found = re.findall(r"^\|\s*\*\*([a-z0-9-]+)\*\*\s*\|\s*(.+?)\s*\|\s*$",
+                   section, re.MULTILINE)
+check("no skill is listed twice in the Skills table",
+      len(found) == len({n for n, _ in found}),
+      "rows: " + ", ".join(n for n, _ in found))
+rows = dict(found)
+names = {s.parent.name for s in skills}
+check("the Skills table has exactly one row per skill",
+      set(rows) == names,
+      "table only: %s | skills only: %s" % (sorted(set(rows) - names),
+                                            sorted(names - set(rows))))
+for skill in skills:
+    name = skill.parent.name
+    text = skill.read_text()
+    marker = "**In one line:**"
+    if marker not in text:
+        check("%s has a one-line summary" % name, False)
+        continue
+    line = " ".join(text.split(marker, 1)[1].split("\n\n", 1)[0].split())
+    check("README row for %s matches its skill" % name,
+          " ".join(rows.get(name, "").split()) == line,
+          "row: %s | skill: %s" % (rows.get(name, "<missing>"), line))
+
+# 1c-ii. Same treatment for the hooks half of the README, which had none. The
+# count and the table drift exactly the way the skills ones did.
+wired = sorted({
+    hook["command"].split("/")[-1].split()[0]
+    for groups in wiring_for_readme["hooks"].values()
+    for g in groups for hook in g.get("hooks", [])
+})
+hn = len(wired)
+hright = {WORDS.get(hn, str(hn)), str(hn)}
+hstated = {w.lower() for w in re.findall(r"\b([a-z]+|\d+)\s+hooks\b", readme,
+                                         re.IGNORECASE)}
+hstated &= ({str(k) for k in WORDS} | set(WORDS.values()))
+check("README states %d hooks and no other count" % hn,
+      bool(hstated & hright) and not (hstated - hright),
+      "found: " + ", ".join(sorted(hstated)) if hstated else "no count found")
+check("README has a ## Hooks section", "## Hooks" in readme)
+hsection = readme.split("## Hooks", 1)[-1].split("\n## ", 1)[0]
+# no intersection: an extra row for a hook that is wired nowhere is a defect too,
+# and scoping to the section stops a row in another table covering for a missing
+# one here
+hfound = re.findall(r"^\|\s*\*\*([a-z0-9_.-]+)\*\*\s*\|", hsection,
+                    re.MULTILINE)
+check("no hook is listed twice in the Hooks table",
+      len(hfound) == len(set(hfound)), "rows: " + ", ".join(hfound))
+hook_rows = set(hfound)
+check("the Hooks table has exactly one row per wired hook",
+      hook_rows == set(wired),
+      "table only: %s | wired only: %s" % (sorted(hook_rows - set(wired)),
+                                           sorted(set(wired) - hook_rows)))
+# ponytail: a hook's description cell is never compared, because unlike a skill
+# a hook has no machine-readable summary to compare against. Someone who saw the
+# per-row check above will assume parity that is not here.
+
+# 1d. the marketplace description lists skill names by hand, which drifts the
+# moment a skill is added. Same failure the README check above exists for.
+market = json.loads((ROOT / ".claude-plugin" / "marketplace.json").read_text())
+blurb = market["plugins"][0]["description"]
+# tokenised, because a substring test lets "eli5-text" satisfy "eli5"
+words = set(re.findall(r"[a-z0-9-]+", blurb.lower()))
+missing = sorted(n for n in names if n not in words)
+check("marketplace.json names every skill", not missing,
+      "missing: " + ", ".join(missing))
+# and the other direction: a name left in the blurb after its skill is gone, or
+# one that was never a skill. A heuristic over loose words cannot tell a skill
+# name from an English one, so the blurb states its list in a fixed shape and
+# this parses it: everything between the colon and ", plus".
+check("marketplace.json lists its skills after a colon and before ', plus'",
+      ":" in blurb and ", plus" in blurb)
+listed = blurb.split(":", 1)[-1].split(", plus", 1)[0]
+listed = {w.strip() for part in listed.split(",") for w in part.split(" and ")}
+listed = {w for w in listed if w}
+check("marketplace.json names no skill that does not exist",
+      listed <= names, "not skills: " + ", ".join(sorted(listed - names)))
+blurb_counts = {w.lower() for w in re.findall(r"\b([a-z]+|\d+)\s+skills\b", blurb,
+                                              re.IGNORECASE)}
+blurb_counts &= ({str(k) for k in WORDS} | set(WORDS.values()))
+check("marketplace.json states the right count, if it states one",
+      not (blurb_counts - right), "found: " + ", ".join(sorted(blurb_counts)))
+
 # 2. manifests parse
 print("manifests")
 for rel in (".claude-plugin/marketplace.json", ".claude-plugin/plugin.json",
@@ -137,7 +257,7 @@ for line in listing:
 
 # 4. every wired command points at something real
 print("hooks.json commands resolve")
-wiring = json.loads((ROOT / "hooks" / "hooks.json").read_text())
+wiring = wiring_for_readme
 for event, groups in wiring["hooks"].items():
     for group in groups:
         for hook in group.get("hooks", []):

@@ -193,3 +193,5 @@ actually run there.
   this skill exists rather than trusting the hook.
 - Adding a git wrapper (`wt`, lazygit, a Makefile target) means adding its
   command names to the hook in the same commit. See `docs/DECISIONS.md` in this plugin.
+- The team needs to know why the gate exists before they resent it:
+  `/yw-workflow:eli5` makes the case in one page.

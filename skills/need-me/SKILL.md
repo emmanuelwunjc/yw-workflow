@@ -140,3 +140,5 @@ options:
 - A decision here supersedes one already recorded: update `docs/HANDOFF.md` with
   the date and what replaced it.
 - The answer opens more questions than it settles: `/yw-workflow:grill`.
+- They are stuck because the choice needs background they do not have:
+  `/yw-workflow:eli5-text`, then ask again.

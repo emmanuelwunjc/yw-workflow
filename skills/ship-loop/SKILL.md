@@ -141,3 +141,5 @@ clean.
 - Two rounds fail on the same finding, or a decision is genuinely the human's:
   `/yw-workflow:need-me`, which is the format for that escalation.
 - The repo has no CI or branch protection for step 6 to merge into: `/yw-workflow:harden`.
+- The change needs explaining to someone who will not read the diff:
+  `/yw-workflow:eli5` for a page they keep, `/yw-workflow:eli5-text` in passing.

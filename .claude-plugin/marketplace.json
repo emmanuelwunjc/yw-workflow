@@ -9,7 +9,7 @@
     {
       "name": "yw-workflow",
       "source": "./",
-      "description": "Grill, wayfinder, git-lanes, ship-loop, fresh-eye, need-me and harden, wired as one chain, plus the guard hooks that make the rules mechanical.",
+      "description": "Nine skills wired so loading any one reaches the rest: grill, wayfinder, git-lanes, ship-loop, fresh-eye, need-me, harden, eli5 and eli5-text, plus the guard hooks that make the rules mechanical.",
       "category": "engineering",
       "keywords": [
         "workflow",
@@ -18,7 +18,8 @@
         "hooks",
         "grilling",
         "wayfinder",
-        "planning"
+        "planning",
+        "eli5"
       ]
     }
   ]

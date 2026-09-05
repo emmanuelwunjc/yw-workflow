@@ -1,11 +1,11 @@
 # yw-workflow
 
-Seven skills and five hooks that make an engineering workflow mechanical
+Nine skills and five hooks that make an engineering workflow mechanical
 instead of remembered.
 
 ## Install
 
-Pick one. Both serve the same seven skills, and installing both leaves
+Pick one. Both serve the same nine skills, and installing both leaves
 duplicates that drift apart.
 
 ```bash
@@ -39,6 +39,8 @@ Each one carries a one-line summary at the top.
 | **fresh-eye** | Sends someone who did not write the code to try to break it. |
 | **need-me** | Shows only what is waiting on you, answerable in one word. |
 | **harden** | Gives a repo the CI and branch protection that make its review gate real. |
+| **eli5** | Explains a topic to someone with zero background, as a page of big pictures and few words. |
+| **eli5-text** | Explains a topic to someone with zero background, in the conversation, with nothing to open. |
 
 Invoke them namespaced: `/yw-workflow:grill`.
 
@@ -52,6 +54,12 @@ grill -> wayfinder -> git-lanes -> ship-loop -> fresh-eye
 ```
 
 `harden` runs once per repo, before any of it merges.
+
+`eli5` and `eli5-text` are off the diagram because they explain a thing rather
+than ship one. They are still in the graph: `grill` and `need-me` reach
+`eli5-text` when a decision is blocked on understanding, and `ship-loop` and
+`harden` reach `eli5` when a change needs explaining to someone who will not
+read the diff.
 
 ## Hooks
 
@@ -81,10 +89,12 @@ commit.
 ./tools/check-repo.py
 ```
 
-Both run in CI on every pull request and on push to `main`, advisory until
-branch protection is enabled. `claude-md-guard.py` is
-deliberately partial: it blocks a turn, so it fires only when it is sure, and
-its known misses and known false positives are listed in its self-test.
+Both run in CI on every pull request and on push to `main`, and `main` is
+protected, so a red check blocks the merge for the repo owner too.
+
+`claude-md-guard.py` is deliberately partial. It blocks a turn, so it fires only
+when it is sure, and its known misses and known false positives are both listed
+in its self-test.
 
 ## Credit
 

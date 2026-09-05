@@ -1,8 +1,10 @@
 # Handoff
 
 What this repo is: Yiming's engineering workflow packaged as a Claude Code
-plugin. Seven skills, five guard hooks. See `README.md` for what each does and
-`docs/DECISIONS.md` for the dated measurements behind them.
+plugin. See `README.md` for what each skill and hook does, and
+`docs/DECISIONS.md` for the dated measurements behind them. The counts live in
+the README and are checked against the skills on every run, so they are not
+repeated here.
 
 State you can derive, so it is not written here:
 
@@ -20,6 +22,38 @@ only on that machine, had no history, and could not be handed to anyone. A
 plugin repo fixes all three.
 
 ## Decisions, newest first
+
+**2026-09-04 · eli5 and eli5-text are two skills, not one with a flag.**
+The output shapes barely overlap: `eli5` is per-panel around an SVG, and the
+text version wants a one-sentence opener, 3 to 6 labelled steps, and a closing
+line. A flag would have meant one skill carrying two structures and a branch,
+and the model choosing the branch from the same ambiguous request either way.
+Two skills put that choice in the router, where a description can carry a
+tie-break, rather than in the body.
+Neither joins the ship chain, because they explain a thing rather than ship one.
+They are still reachable from it: `grill` and `need-me` link to `eli5-text` when
+a decision is blocked on understanding, and `ship-loop` and `harden` link to
+`eli5` when a change needs explaining to someone who will not read the diff.
+The `grill` edge is here because a reviewer found the handoff claiming it before
+it existed, which is the failure this file is meant to prevent rather than
+commit.
+A reviewer caught that the first version left them an island, which quietly made
+the README's "loading any of them reaches the rest" false. The Hands-off graph
+is now strongly connected and `tools/check-repo.py` would be the place to assert
+that if it breaks again.
+
+**2026-09-04 · Both eli5 descriptions trigger on "eli5", and that is handled in
+prose rather than by disabling model invocation.**
+`eli5-text` matches "eli5 this", a superset of `eli5`'s "eli5", so the more
+specific phrase would have won by default and silently changed what a bare
+"eli5 X" produces. Each description now names when to prefer the other, and
+`eli5-text` says in its DESCRIPTION that it takes ambiguous cases, since text
+costs a reader nothing to skim and a page nobody opens costs more. The first
+version put that sentence in the body, where the router never sees it: a body
+loads only after the skill has already been chosen. Rejected:
+`disable-model-invocation: true` on `eli5-text`, which is what `wayfinder` uses
+for a name collision. Held in reserve if the prose tie-break turns out to fail
+in practice.
 
 **2026-09-04 · A required status check binds nobody until enforce_admins is on.**
 Branch protection was enabled with `enforce_admins: false`, the GitHub default.
@@ -167,6 +201,26 @@ verbs, imperatives, subordinate clauses, independent clauses after "but". Adding
 a seventh pattern is almost always the wrong move; recording the gap is the
 right one.
 
+**A backup is only as good as its date.** `~/.claude/skills/eli5` was deleted
+when the skill moved into the plugin, on the strength of a backup at
+`~/.claude/backups/skills-pre-plugin/eli5` that was thirteen days old. The
+frontmatter matched, so nothing was lost, but that was luck. Re-take a backup at
+the moment of deletion rather than trusting one that already exists.
+
+**`marketplace.json`'s description must keep its skill list between a colon and
+`, plus`.** `tools/check-repo.py` parses that list to check the blurb names every
+skill and no skill that does not exist. A word heuristic was tried first and was
+green on an invented name, because nothing distinguishes a skill name from an
+English one. The parse is stricter and the trade is deliberate: a reworded blurb
+fails loudly with a message naming the shape to restore, which is the right
+direction for a manifest. Reword freely, keep the punctuation.
+
+**`check-repo.py` is at its ceiling, not at the start of a pattern.** It is roughly
+twice the size of the README it guards. Every check traces to a defect that
+actually shipped, and a reviewer judged that worth the friction, with the
+`## Skills` and `## Hooks` headings now load-bearing. Adding more of this shape
+needs a defect to point at, not a gap to fill.
+
 **The no-attribution hook blocks writing about itself in a Bash command.** That
 is the enforcement working. Use the file-edit tools for that text.
 
@@ -190,10 +244,10 @@ is the enforcement working. Use the file-edit tools for that text.
   The reason to move them was that a hook protects one laptop while a status
   check protects the repo. Deliberately one job, running the exact command
   above, because CI that runs something else is a second undocumented policy.
-- **The status check enforces nothing yet.** Branch protection and rulesets both
-  return 403 on a personal private repo with no paid plan, so a red check does
-  not block a merge. Going public unlocks the branch-protection API on a free plan, which is what
-  makes enabling the gate possible. Enabling it is still a separate step.
+- ~~**The status check enforces nothing yet.**~~ Superseded 2026-09-04: the repo
+  is public, protection is on with `enforce_admins: true`, and force-pushes and
+  deletions are blocked. A red check blocks the merge for the owner too,
+  verified by pushing to `main` and being refused.
 - **Skipped: pre-commit and a PR template.** pre-commit is bypassable and this
   repo's own `harden` skill says never to treat it as the enforcement
   mechanism. A PR template would check nothing CI does not.
