@@ -207,6 +207,20 @@ when the skill moved into the plugin, on the strength of a backup at
 frontmatter matched, so nothing was lost, but that was luck. Re-take a backup at
 the moment of deletion rather than trusting one that already exists.
 
+**`marketplace.json`'s description must keep its skill list between a colon and
+`, plus`.** `tools/check-repo.py` parses that list to check the blurb names every
+skill and no skill that does not exist. A word heuristic was tried first and was
+green on an invented name, because nothing distinguishes a skill name from an
+English one. The parse is stricter and the trade is deliberate: a reworded blurb
+fails loudly with a message naming the shape to restore, which is the right
+direction for a manifest. Reword freely, keep the punctuation.
+
+**`check-repo.py` is at its ceiling, not at the start of a pattern.** It is
+roughly 280 lines guarding a 116-line README. Every check traces to a defect
+that actually shipped, and a reviewer judged that worth the friction, with the
+`## Skills` and `## Hooks` headings now load-bearing. Adding more of this shape
+needs a defect to point at, not a gap to fill.
+
 **The no-attribution hook blocks writing about itself in a Bash command.** That
 is the enforcement working. Use the file-edit tools for that text.
 

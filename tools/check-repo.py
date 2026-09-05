@@ -127,7 +127,9 @@ print("README agrees with the skills")
 # the guard's own module already knows how to strip them.
 readme = guard.strip_fences((ROOT / "README.md").read_text())
 WORDS = {1: "one", 2: "two", 3: "three", 4: "four", 5: "five", 6: "six",
-         7: "seven", 8: "eight", 9: "nine", 10: "ten", 11: "eleven", 12: "twelve"}
+         7: "seven", 8: "eight", 9: "nine", 10: "ten", 11: "eleven", 12: "twelve",
+         13: "thirteen", 14: "fourteen", 15: "fifteen", 16: "sixteen",
+         17: "seventeen", 18: "eighteen", 19: "nineteen", 20: "twenty"}
 n = len(skills)
 right = {WORDS.get(n, str(n)), str(n)}
 # digits count too: "7 skills" beside "Nine skills" is the same defect
@@ -185,11 +187,20 @@ hstated &= ({str(k) for k in WORDS} | set(WORDS.values()))
 check("README states %d hooks and no other count" % hn,
       bool(hstated & hright) and not (hstated - hright),
       "found: " + ", ".join(sorted(hstated)) if hstated else "no count found")
-hook_rows = set(re.findall(r"^\|\s*\*\*([a-z0-9_.-]+)\*\*\s*\|", readme,
-                           re.MULTILINE)) & {w for w in wired}
-check("the Hooks table has a row for every wired hook",
+check("README has a ## Hooks section", "## Hooks" in readme)
+hsection = readme.split("## Hooks", 1)[-1].split("\n## ", 1)[0]
+# no intersection: an extra row for a hook that is wired nowhere is a defect too,
+# and scoping to the section stops a row in another table covering for a missing
+# one here
+hook_rows = set(re.findall(r"^\|\s*\*\*([a-z0-9_.-]+)\*\*\s*\|", hsection,
+                           re.MULTILINE))
+check("the Hooks table has exactly one row per wired hook",
       hook_rows == set(wired),
-      "missing: " + ", ".join(sorted(set(wired) - hook_rows)))
+      "table only: %s | wired only: %s" % (sorted(hook_rows - set(wired)),
+                                           sorted(set(wired) - hook_rows)))
+# ponytail: a hook's description cell is never compared, because unlike a skill
+# a hook has no machine-readable summary to compare against. Someone who saw the
+# per-row check above will assume parity that is not here.
 
 # 1d. the marketplace description lists skill names by hand, which drifts the
 # moment a skill is added. Same failure the README check above exists for.
