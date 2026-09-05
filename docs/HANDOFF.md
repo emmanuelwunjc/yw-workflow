@@ -215,9 +215,9 @@ English one. The parse is stricter and the trade is deliberate: a reworded blurb
 fails loudly with a message naming the shape to restore, which is the right
 direction for a manifest. Reword freely, keep the punctuation.
 
-**`check-repo.py` is at its ceiling, not at the start of a pattern.** It is
-roughly 280 lines guarding a 116-line README. Every check traces to a defect
-that actually shipped, and a reviewer judged that worth the friction, with the
+**`check-repo.py` is at its ceiling, not at the start of a pattern.** It is roughly
+twice the size of the README it guards. Every check traces to a defect that
+actually shipped, and a reviewer judged that worth the friction, with the
 `## Skills` and `## Hooks` headings now load-bearing. Adding more of this shape
 needs a defect to point at, not a gap to fill.
 

@@ -1,6 +1,6 @@
 {
   "name": "yw-workflow",
-  "version": "1.2.5",
+  "version": "1.2.6",
   "description": "Yiming's engineering workflow: skills for planning, reviewing and shipping, with hooks that enforce the rules rather than restating them.",
   "author": {
     "name": "Yiming Wang"

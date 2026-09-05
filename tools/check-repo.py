@@ -192,8 +192,11 @@ hsection = readme.split("## Hooks", 1)[-1].split("\n## ", 1)[0]
 # no intersection: an extra row for a hook that is wired nowhere is a defect too,
 # and scoping to the section stops a row in another table covering for a missing
 # one here
-hook_rows = set(re.findall(r"^\|\s*\*\*([a-z0-9_.-]+)\*\*\s*\|", hsection,
-                           re.MULTILINE))
+hfound = re.findall(r"^\|\s*\*\*([a-z0-9_.-]+)\*\*\s*\|", hsection,
+                    re.MULTILINE)
+check("no hook is listed twice in the Hooks table",
+      len(hfound) == len(set(hfound)), "rows: " + ", ".join(hfound))
+hook_rows = set(hfound)
 check("the Hooks table has exactly one row per wired hook",
       hook_rows == set(wired),
       "table only: %s | wired only: %s" % (sorted(hook_rows - set(wired)),
