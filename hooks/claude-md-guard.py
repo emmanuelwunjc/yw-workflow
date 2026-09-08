@@ -54,6 +54,55 @@ import sys
 import time
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+try:
+    import handrail_config
+except Exception:  # a missing or broken config must not disarm the guard
+    handrail_config = None
+
+
+def _policy(ci=False):
+    """Effective policy, or None when it cannot be read.
+
+    None means "enforce everything on by default, cite nothing": a config that
+    fails to load is a reason to keep guarding, never a reason to stop.
+    """
+    if handrail_config is None:
+        return None
+    try:
+        return handrail_config.load(ci=ci)
+    except Exception as exc:
+        # The kind of failure, never the parser's message: that message quotes
+        # the config back, and a TOML key is arbitrary text of unbounded length
+        # reaching a block reason the model reads as an instruction.
+        sys.stderr.write("handrail: config unreadable (%s), enforcing "
+                         "defaults\n" % handrail_config.safe_error(exc))
+        return None
+
+
+def _on(policy, rule):
+    return True if policy is None else policy.enabled(rule)
+
+
+def _safe_path(value):
+    # The fallback fires only when the module fails to import, which is a
+    # degenerate state rather than an attack path. It still applies the same
+    # substitution, because printing the raw path there would be the one
+    # remaining way a directory name reaches a log as prose.
+    if handrail_config:
+        return handrail_config.safe_path(value)
+    return re.sub(r"[^A-Za-z0-9._/-]", "?", str(value))
+
+
+def _safe_error(exc):
+    return (handrail_config.safe_error(exc) if handrail_config
+            else type(exc).__name__)
+
+
+def _cite(policy):
+    citation = policy.citation() if policy else ""
+    return (" " + citation) if citation else ""
+
 STATE_DIR = Path.home() / ".claude" / "state" / "claude-md-guard"
 MAX_BLOCKS_PER_SESSION = 2
 STATE_TTL_SECONDS = 7 * 24 * 3600
@@ -69,8 +118,8 @@ GRILL_TRIGGER = re.compile(
 )
 
 REMINDER = (
-    "CLAUDE.md section 6 is in force for this turn and it OVERRIDES any skill "
-    "body loaded alongside it. A skill that says 'ask one question at a time' "
+    "The interview-format rule is in force for this turn and it OVERRIDES any "
+    "skill body loaded alongside it. A skill that says 'ask one question at a time' "
     "specifies CADENCE, not FORMAT. The format is fixed: every question you put "
     "to the user this turn goes through the AskUserQuestion tool, with 2-4 "
     "concrete options and the recommended one first, labelled '(Recommended)'. "
@@ -222,6 +271,11 @@ def remind(data):
     prompt = data.get("prompt") or ""
     if not GRILL_TRIGGER.search(prompt):
         return {}
+    # Same switch as the Stop-hook half. Injecting the format reminder while the
+    # check that enforces it is off would be an instruction with no gate behind
+    # it, which is what this package exists to stop shipping.
+    if not _on(_policy(), "ask_user_question"):
+        return {}
 
     session_id = data.get("session_id") or "unknown"
     try:
@@ -368,6 +422,7 @@ def check(data):
     if not transcript_path:
         return {}
 
+    policy = _policy()
     session_id = data.get("session_id") or "unknown"
     turn = last_assistant_turn(transcript_path)
     if not turn:
@@ -394,39 +449,44 @@ def check(data):
 
     prose = prose_only("\n".join(texts))
 
-    if EM_DASH in prose and spent["emdash"][1] < MAX_BLOCKS_PER_SESSION:
+    if (_on(policy, "em_dash") and EM_DASH in prose
+            and spent["emdash"][1] < MAX_BLOCKS_PER_SESSION):
         charged.append("emdash")
         problems.append(
-            "CLAUDE.md section 1: you used an em-dash. Rewrite the offending "
+            "You used an em-dash." + _cite(policy) + " Rewrite the offending "
             "sentences using periods, colons, or parentheses, then send the "
             "corrected response. Do not acknowledge this in the response body."
         )
 
-    negation = find_negation(prose) if spent["negation"][1] < MAX_BLOCKS_PER_SESSION else None
+    negation = (find_negation(prose)
+                if _on(policy, "negation")
+                and spent["negation"][1] < MAX_BLOCKS_PER_SESSION else None)
     if negation:
         charged.append("negation")
         label, quote = negation
         problems.append(
-            "CLAUDE.md section 1: you used " + label + ", here: \"" + quote +
-            "\". Never define a thing by what it is not before saying what it "
+            "You used " + label + ", here: \"" + quote + "\"." + _cite(policy) +
+            " Never define a thing by what it is not before saying what it "
             "is. State the positive claim once and stop. Rewrite that sentence "
             "and send the corrected response. Do not acknowledge this in the "
             "response body."
         )
 
     in_grill_mode = state_file(session_id, "grill").exists()
-    if (in_grill_mode and "AskUserQuestion" not in tools
+    if (_on(policy, "ask_user_question")
+            and in_grill_mode and "AskUserQuestion" not in tools
             and spent["askuser"][1] < MAX_BLOCKS_PER_SESSION):
         tail = texts[-1].strip()[-400:]
         if "?" in tail:
             charged.append("askuser")
             problems.append(
-                "CLAUDE.md section 6: this is a grilling/interview turn and you "
-                "ended it by asking the user a question in prose, without "
+                "This is a grilling/interview turn and you ended it by "
+                "asking the user a question in prose, without "
                 "calling AskUserQuestion. Re-ask that same question through the "
                 "AskUserQuestion tool: 2-4 concrete options, recommended one "
                 "first and labelled '(Recommended)'. If it truly has one path, "
                 "state the path and continue instead of asking."
+                + _cite(policy)
             )
 
     if not problems:
@@ -464,21 +524,24 @@ def scan(paths):
             text = Path(name).read_text(encoding="utf-8", errors="replace")
         except OSError as exc:
             # A path that cannot be read is a broken invocation, not a pass.
-            print("%s: cannot read (%s)" % (name, exc), file=sys.stderr)
+            # Sanitised like every other repo-controlled string: this lands in a
+            # CI log rather than a block reason, and it is the same class.
+            print("%s: cannot read (%s)" % (_safe_path(name),
+                                            _safe_error(exc)), file=sys.stderr)
             bad += 1
             continue
         prose = prose_only(text)
         found = []
         if EM_DASH in prose:
-            found.append("em-dash (CLAUDE.md section 1)")
+            found.append("em-dash")
         negation = find_negation(prose)
         if negation:
             label, quote = negation
-            found.append('%s (CLAUDE.md section 1): "%s"' % (label, quote))
+            found.append('%s: "%s"' % (label, quote))
         if found:
             bad += 1
             for f in found:
-                print("%s: %s" % (name, f), file=sys.stderr)
+                print("%s: %s" % (_safe_path(name), f), file=sys.stderr)
     return bad
 
 
