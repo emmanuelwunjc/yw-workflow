@@ -153,7 +153,9 @@ the config today.** The `[rules]` switches and `policy_doc` work for those two.
 The value keys below are parsed and are not yet read by any guard, so
 `trivial_lines` and `protected` change nothing until the unit that wires them
 lands. `git-safety-guard.sh` still hardcodes `main` and `master`, and
-`require-code-review.py` still hardcodes 25 lines.
+`require-code-review.py` still hardcodes 25 lines. The CI half is not wired
+either: the action runs the guards' `scan` entry points, which never read a
+config.
 
 Every rule is on by default except negation-then-correction, which is the one
 heuristic with known false positives. To change that, write `.handrail.toml` in
@@ -180,12 +182,15 @@ as the dotfiles-in-a-bare-repo pattern does, then that repo's `.handrail.toml`
 is your user config and can switch rules off.
 
 The repo config is looked for between the current directory and the repository
-root, and the root is whatever `git rev-parse --show-toplevel` says it is. A
+root, and the root comes from `git rev-parse --show-toplevel`. A root that is
+neither the current directory nor one of its parents is refused, because
+`GIT_DIR` and `GIT_WORK_TREE` can point git at a tree the current directory has
+nothing to do with. A
 config above that boundary is ignored, so a `.handrail.toml` in a shared parent,
 a world-writable one included, cannot govern a checkout below it. Outside a
-repository only the current directory is trusted. Linked worktrees, submodules
-and bare checkouts all behave the way git says they do, because git is what
-answers the question. Thresholds
+repository only the current directory is trusted. Linked worktrees, submodules and bare
+checkouts behave the way git says they do, subject to that ancestry rule.
+Thresholds
 sit outside that ratchet: a repo sets them freely, because a monorepo full of
 generated files has a real reason to move the review threshold. So the guarantee
 is that a repo cannot switch a guard off, rather than that a repo cannot weaken
@@ -196,8 +201,12 @@ Block messages explain their rule on their own terms and append `See
 pointing at a file the reader does not have is worse than none.
 
 Where tomllib is missing (Python before 3.11), `.handrail.json` is read instead.
-With both files present a session reads the TOML and warns, while CI fails the
-job, because two configs disagreeing is an unanswered question.
+With both files present a session reads the TOML and warns. The CI half of that
+rule, which fails the job instead, is written and not yet wired.
+
+A `policy_doc` is refused unless it is a plain relative path of letters, digits,
+dots, dashes, underscores and slashes. Its text reaches a block message that the
+model reads as an instruction, and a filename can be a paragraph.
 
 ## Checks
 
