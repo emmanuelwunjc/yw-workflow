@@ -279,8 +279,10 @@ skip installing them.
   mode it re-raises. `require-code-review` treats an empty `gh` lookup as
   "unknown": the hook lets that through so a network blip cannot block a local
   merge, and `check-pr` fails on it. `hooks/scan-modes-selftest.py` asserts
-  both directions, and the fail-closed case was mutation-tested by deleting the
-  re-raise and confirming the suite goes red.
+  both directions, and every claimed guarantee was mutation-tested: deleting the
+  re-raise, making `scan` always return 0, counting an unreadable path as clean,
+  returning 0 for an `unknown` verdict, and discarding the review verdict
+  entirely each turn the suite red.
 - **`check-pr` runs the review gate only, never the all-checks-green gate.** In
   CI this check is one of those checks, so gate 1 would always find itself in
   progress and fail every run.
@@ -301,3 +303,38 @@ diagnose if the YAML is not validated locally first.
 
 **Still open.** The action is untested against a real PR run. Its first
 exercise is the PR that adds it, which is the only honest way to test it.
+
+**Review round 1 (2026-09-08), and what it caught.** Two blocking findings, both
+in the same shape: a guarantee the prose asserted and nothing tested.
+
+- **An unrecognised `rules` value made the whole gate a green no-op.** Each step
+  is gated on `contains(inputs.rules, '<name>')`, a substring match on
+  unvalidated input. `rules: all`, an empty string, or one typo skipped every
+  step, and a job whose steps all skip concludes SUCCESS. Branch protection
+  would show a green required check that ran nothing. There is now a validate
+  step that fails on an unknown token. The dogfood job passes no `with:`, so
+  this input was never going to be exercised by this repo's own CI.
+- **`check-pr` had no test, only `review_status` did.** The reviewer mutated
+  `check-pr` to return 0 for the `unknown` verdict, and then to discard the
+  verdict entirely, and the suite stayed green at 22 cases both times. Testing
+  the helper and shipping the wrapper is the gap. Six cases now cover
+  `check_pr` itself, and both mutations were re-run and now fail the suite.
+
+  The lesson generalises past this PR: coverage of the pure function underneath
+  is not coverage of the entry point the world actually calls.
+
+**Considered and rejected: filtering the review verdict by author.** The gate is
+satisfied by any PR comment matching the verdict pattern, including one the
+author wrote. Filtering it would make the gate unsatisfiable for a solo
+maintainer, and it is how this repo's own flow opens the gate. The README now
+says so plainly rather than implying a second pair of eyes is enforced. Use
+branch protection for that.
+
+**Dropped: the `paths` input.** One caller, one value, no test. Config for a
+value that never changes, and the same shape as the `rules` input that produced
+the blocking finding above. The suffix list is literal now.
+
+**Rejected trigger: `pull_request_target`.** The first version accepted it. It
+hands a privileged token to a workflow whose checkout is usually the PR head,
+and these steps execute `hooks/*.py` out of that checkout, so on a fork PR that
+is the author's code running with write scope.

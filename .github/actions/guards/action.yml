@@ -12,12 +12,6 @@ inputs:
       (a non-trivial code diff must carry a review). Default is all three.
     required: false
     default: claude-md,no-ai-attribution,review-gate
-  paths:
-    description: >-
-      Space-separated glob suffixes scanned for the prose rules. Files outside
-      the PR diff are never scanned.
-    required: false
-    default: ".md .txt"
 
 runs:
   using: composite
@@ -29,13 +23,41 @@ runs:
       shell: bash
       run: echo "YW_HOOKS=$(cd "$GITHUB_ACTION_PATH/../../../hooks" && pwd)" >> "$GITHUB_ENV"
 
+    # Every rule step is gated on contains(inputs.rules, '<name>'), which is a
+    # substring match against unvalidated input. `rules: all`, `rules: ""`, or
+    # one typo skips every step, and a job whose steps all skip concludes
+    # SUCCESS. Branch protection would then show a green required check that
+    # ran nothing, which is the exact failure this action exists to prevent.
+    - name: Validate rules
+      shell: bash
+      env:
+        RULES: ${{ inputs.rules }}
+      run: |
+        set -euo pipefail
+        if [ -z "${RULES//[[:space:],]/}" ]; then
+          echo "rules is empty: the job would pass without running a guard." >&2
+          exit 1
+        fi
+        IFS=','
+        for rule in $RULES; do
+          case "$(echo "$rule" | tr -d '[:space:]')" in
+            claude-md|no-ai-attribution|review-gate) ;;
+            "") ;;
+            *) echo "unknown rule: $rule (want claude-md, no-ai-attribution, review-gate)" >&2; exit 1 ;;
+          esac
+        done
+
     # A PR body and a diff are what these rules read. Without an event payload
     # there is nothing to check, and silently passing would make the required
     # check meaningless, so say so and fail.
+    # pull_request_target is deliberately NOT accepted. It hands a privileged
+    # token to a workflow whose checkout is usually the PR head, and these steps
+    # execute hooks/*.py out of that checkout. On a fork PR that is the author's
+    # code running with write scope.
     - name: Require a pull_request event
       shell: bash
       run: |
-        if [ "$GITHUB_EVENT_NAME" != "pull_request" ] && [ "$GITHUB_EVENT_NAME" != "pull_request_target" ]; then
+        if [ "$GITHUB_EVENT_NAME" != "pull_request" ]; then
           echo "yw-workflow guards run on pull_request events only (got: $GITHUB_EVENT_NAME)." >&2
           exit 1
         fi
@@ -55,12 +77,10 @@ runs:
 
     - name: Collect changed prose files
       shell: bash
-      env:
-        SUFFIXES: ${{ inputs.paths }}
       run: |
         set -euo pipefail
         : > /tmp/yw-prose.txt
-        for suffix in $SUFFIXES; do
+        for suffix in .md .txt; do
           # Only files still present in the tree: a path renamed away would
           # otherwise fail the read and be reported as a finding.
           while IFS= read -r f; do
@@ -75,7 +95,7 @@ runs:
       run: |
         set -euo pipefail
         if [ ! -s /tmp/yw-prose.txt ]; then echo "no prose files changed"; exit 0; fi
-        xargs -a /tmp/yw-prose.txt "$YW_HOOKS/claude-md-guard.py" scan
+        xargs -a /tmp/yw-prose.txt -d '\n' "$YW_HOOKS/claude-md-guard.py" scan
 
     - name: no-ai-attribution
       if: contains(inputs.rules, 'no-ai-attribution')
@@ -94,7 +114,7 @@ runs:
         # This repo's own hooks are exactly that case.
         cp /tmp/yw-prose.txt /tmp/yw-attr.txt
         printf '%s\n' /tmp/yw-pr-body.txt >> /tmp/yw-attr.txt
-        xargs -a /tmp/yw-attr.txt "$YW_HOOKS/no-ai-attribution.py" scan
+        xargs -a /tmp/yw-attr.txt -d '\n' "$YW_HOOKS/no-ai-attribution.py" scan
 
     - name: review-gate
       if: contains(inputs.rules, 'review-gate')

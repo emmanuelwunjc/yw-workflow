@@ -198,8 +198,15 @@ def deny(msg: str) -> None:
 
 
 def main() -> None:
-    # check-pr takes a PR number on argv and never reads stdin.
-    if len(sys.argv) > 2 and sys.argv[1] == "check-pr":
+    # check-pr takes a PR number on argv and never reads stdin. The mode is
+    # matched on its own, before the argument count: falling through to the hook
+    # path on a missing number reads an empty stdin and exits 0, so a broken
+    # invocation would look like a pass.
+    if len(sys.argv) > 1 and sys.argv[1] == "check-pr":
+        if len(sys.argv) < 3:
+            print("usage: require-code-review.py check-pr <pr-number>",
+                  file=sys.stderr)
+            sys.exit(1)
         sys.exit(check_pr(sys.argv[2]))
 
     raw = sys.stdin.read()

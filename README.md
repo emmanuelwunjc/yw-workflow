@@ -105,14 +105,21 @@ jobs:
           rules: claude-md,no-ai-attribution,review-gate
 ```
 
+Pin a tag instead of `@main` once one exists for the version you want, so a
+change here cannot alter what a consumer's required check enforces.
+
 Then name `guards` as a required context in branch protection, or the check is
 advisory and a red run merges anyway.
+
+An unrecognised `rules` value fails the job. Every step is gated on a substring
+match, so a typo would otherwise skip all of them, and a job whose steps all
+skip reports success.
 
 | Rule | What it reads | What fails the job |
 |---|---|---|
 | `claude-md` | changed `.md` and `.txt` files | an em-dash or a negation-then-correction in prose, with code fences exempt |
 | `no-ai-attribution` | the PR body and changed prose files | a generation footer or a session URL. `Claude-Session:` commit trailers pass |
-| `review-gate` | the PR's files, reviews, and comments | a 25+ line code diff with no approval and no verdict comment |
+| `review-gate` | the PR's files, reviews, and comments | a 25+ line code diff with no approval and no verdict comment, including a verdict the author posted themselves |
 
 Three differences from the hook path, each deliberate:
 
@@ -127,6 +134,11 @@ Three differences from the hook path, each deliberate:
   quotes the banned footer on purpose is source. This repo's own hooks are that
   case, and scanning every changed file reports the rule's documentation as a
   violation of itself.
+
+There is no author filter on that verdict comment, which is how this repo's own
+flow satisfies the gate: a review runs, its verdict is posted, the gate opens.
+Requiring a second GitHub account would make it unsatisfiable for a solo
+maintainer. Branch protection is where "somebody else must approve" belongs.
 
 `SKIP_REVIEW_GATE=1` has no effect here. Bypassing a server-side gate is a
 branch-protection decision, and it belongs with the people who own the branch.

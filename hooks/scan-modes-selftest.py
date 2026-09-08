@@ -11,6 +11,7 @@ three things that are different when the same rules run in CI:
      that never arrives hangs until the runner times out.
 """
 import importlib.util
+import io
 import subprocess
 import sys
 import tempfile
@@ -85,10 +86,6 @@ with tempfile.TemporaryDirectory() as tmp:
            run(ATTR, "scan", missing), 1)
     expect("attr scan: no files passes", run(ATTR, "scan"), 0)
 
-    # A guard that crashes must fail the CI job. The hook path deliberately does
-    # the opposite (a crashing guard must never wedge a session), so the two are
-    # asserted separately: this is the regression that would silently turn the
-    # required check green forever.
     # A guard that crashes must fail the CI job. The hook path deliberately does
     # the opposite (a crashing guard must never wedge a session), so the two are
     # asserted separately: this is the regression that would silently turn the
@@ -173,6 +170,41 @@ review_case("docs-only needs no review", "ok", files=DOCS)
 # An empty file list means the lookup failed. The hook lets that through so a
 # network blip cannot wedge a local merge; CI must not.
 review_case("broken lookup is unknown, never ok", "unknown", files="")
+
+
+def check_pr_case(name, want, **kw):
+    """Cover check_pr itself, never only the review_status helper.
+
+    review_status returns a verdict; check_pr is what turns it into an exit
+    code, and it is what the action calls. Testing only the helper let two
+    mutations survive: returning 0 for "unknown" (the fail-open this change
+    exists to prevent) and discarding the verdict entirely.
+    """
+    global cases
+    cases += 1
+    original = rcr.gh
+    rcr.gh = fake_gh(**kw)
+    # check_pr reports on stderr; a passing suite should print only its own line.
+    stderr, sys.stderr = sys.stderr, io.StringIO()
+    try:
+        got = rcr.check_pr("1")
+    finally:
+        rcr.gh = original
+        sys.stderr = stderr
+    if got != want:
+        failures.append("FAIL %s: want exit %d, got %d" % (name, want, got))
+
+
+check_pr_case("check-pr: unreviewed big diff fails", 1, files=BIG)
+check_pr_case("check-pr: broken lookup fails, never passes", 1, files="")
+check_pr_case("check-pr: approved passes", 0, files=BIG, reviews="APPROVED")
+check_pr_case("check-pr: small diff passes", 0, files=SMALL)
+check_pr_case("check-pr: docs-only passes", 0, files=DOCS)
+
+# A bare `check-pr` with no number must not fall through to the stdin hook path,
+# where empty input exits 0 and a broken invocation reads as a pass.
+expect("check-pr: missing PR number fails",
+       run(REVIEW, "check-pr", stdin=""), 1)
 
 if failures:
     print("\n".join(failures))
