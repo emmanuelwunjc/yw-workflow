@@ -13,7 +13,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 try:
-    import config as handrail_config
+    import handrail_config
 except Exception:  # a missing or broken config must not disarm the guard
     handrail_config = None
 
@@ -28,7 +28,9 @@ def _policy():
         return None
     try:
         return handrail_config.load()
-    except Exception:
+    except Exception as exc:
+        sys.stderr.write("handrail: config unreadable (%s), enforcing "
+                         "defaults\n" % exc)
         return None
 
 BANNED = [

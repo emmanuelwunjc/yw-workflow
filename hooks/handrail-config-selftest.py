@@ -14,7 +14,7 @@ import tempfile
 from pathlib import Path
 
 HOOKS = Path(__file__).resolve().parent
-spec = importlib.util.spec_from_file_location("handrail_config", HOOKS / "config.py")
+spec = importlib.util.spec_from_file_location("handrail_config", HOOKS / "handrail_config.py")
 cfg = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(cfg)
 
@@ -105,6 +105,17 @@ with tempfile.TemporaryDirectory() as tmp:
     check("policy doc: cited once the file exists",
           c.citation(), "See ENGINEERING.md.")
 
+    # Outside any repo there is nothing to resolve a policy_doc against, so the
+    # existence check has to run rather than being skipped along with the root.
+    # Every hook invocation outside a repo takes this path.
+    loose = tmp / "loose"
+    loose.mkdir()
+    write(home, ".handrail.toml", 'policy_doc = "NOWHERE.md"\n')
+    c = load(home, loose)
+    check("no repo root: a policy doc that cannot be resolved is not cited",
+          c.citation(), "")
+    (home / ".handrail.toml").unlink()
+
     # --- CI ignores on/off ----------------------------------------------
     write(repo, ".handrail.toml",
           "[rules]\nem_dash = false\nrequire_review = false\n"
@@ -131,10 +142,16 @@ with tempfile.TemporaryDirectory() as tmp:
     (home / ".handrail.toml").unlink()
 
     # --- both formats present -------------------------------------------
-    write(repo, ".handrail.json", '{"rules": {"negation": true}}')
+    # The two files must DISAGREE, or the case passes whichever one is read and
+    # reversing the lookup order goes unnoticed.
+    write(repo, ".handrail.toml", "[rules]\nnegation = true\n")
+    write(repo, ".handrail.json", '{"rules": {"em_dash": true}, '
+                                  '"policy_doc": "FROM-JSON.md"}')
+    write(repo, "FROM-JSON.md", "would be cited if the JSON won\n")
     c = load(home, repo)
     check("both present: a session reads the TOML and keeps working",
           c.enabled("negation"), True)
+    check("both present: the JSON is ignored, not merged", c.citation(), "")
     cases += 1
     try:
         load(home, repo, ci=True)
@@ -151,17 +168,31 @@ with tempfile.TemporaryDirectory() as tmp:
     check("resolution: a subdirectory reads the repo's config",
           c.enabled("negation"), True)
 
+    # A submodule or a vendored checkout puts a .git between the cwd and the
+    # repo's config. Stopping at it silently drops the team's opt-in, so the
+    # walk looks for a config across every ancestor before falling back to git.
+    (nested / ".git").write_text("gitdir: ../../.git/modules/api\n")
+    c = load(home, nested)
+    check("resolution: a nested .git does not shadow the repo's config",
+          c.enabled("negation"), True)
+
 # --- the guards actually read it ------------------------------------------
 # Resolution being right proves nothing about whether a guard consults it. Each
 # case here runs the guard as a subprocess with HOME and cwd pointed at fixtures.
 BLOCK, ALLOW = 2, 0
 
 
-def guard(script, payload, home, cwd):
+def guard(script, payload, home, cwd, *args):
+    """Run a guard with HOME and cwd pointed at fixtures.
+
+    args carries the mode. Omitting it on a guard that needs one exits 0 with no
+    output, which reads exactly like "did not block" and is how these cases
+    first passed for the wrong reason.
+    """
     env = dict(os.environ, HOME=str(home))
-    return subprocess.run([sys.executable, str(HOOKS / script)], input=payload,
-                          capture_output=True, text=True, timeout=20,
-                          cwd=str(cwd), env=env)
+    return subprocess.run([sys.executable, str(HOOKS / script), *args],
+                          input=payload, capture_output=True, text=True,
+                          timeout=20, cwd=str(cwd), env=env)
 
 
 with tempfile.TemporaryDirectory() as tmp:
@@ -197,6 +228,95 @@ with tempfile.TemporaryDirectory() as tmp:
     (repo / ".handrail.toml").write_text("[rules\nthis is not toml\n")
     check("wiring: a malformed config leaves the guard armed",
           guard("no-ai-attribution.py", publish, home, repo).returncode, BLOCK)
+
+    # --- the prose guard reads it too -----------------------------------
+    # Resolution and one guard are not the wiring. Every mutation to
+    # claude-md-guard.py's gates survived until these existed.
+    transcript = repo / "t.jsonl"
+    transcript.write_text(
+        '{"message": {"role": "user", "content": "go"}}\n'
+        '{"message": {"role": "assistant", "content": [{"type": "text", '
+        '"text": "This sentence has an em dash \u2014 right here."}]}}\n')
+    turn = [0]
+
+    def blocked(home_dir):
+        """True when the Stop hook asked for a rewrite.
+
+        Each call gets its own session id. The guard spends a per-session block
+        budget, so reusing one id makes the third case pass for having run out
+        of budget rather than for reading the config.
+        """
+        turn[0] += 1
+        stop = json.dumps({"transcript_path": str(transcript),
+                           "session_id": "cfg-%d" % turn[0]})
+        out = guard("claude-md-guard.py", stop, home_dir, repo, "check").stdout
+        return '"decision": "block"' in out or '"decision":"block"' in out
+
+    (repo / ".handrail.toml").write_text("")
+    check("wiring: the prose guard blocks an em-dash by default",
+          blocked(home), True)
+
+    (home / ".handrail.toml").write_text("[rules]\nem_dash = false\n")
+    check("wiring: the user config switches the prose rule off",
+          blocked(home), False)
+
+    (repo / ".handrail.toml").write_text("[rules]\nem_dash = true\n")
+    check("wiring: a repo switches the prose rule back on",
+          blocked(home), True)
+    (home / ".handrail.toml").unlink()
+
+    (repo / ".handrail.toml").write_text("[rules\nnot toml\n")
+    check("wiring: a malformed config leaves the prose guard armed",
+          blocked(home), True)
+
+    # negation is the one rule off by default, so its gate has to be checked in
+    # the other direction: silent until asked for, then loud.
+    negation_turn = repo / "n.jsonl"
+    negation_turn.write_text(
+        '{"message": {"role": "user", "content": "go"}}\n'
+        '{"message": {"role": "assistant", "content": [{"type": "text", '
+        '"text": "Not a chatbot. A colleague that edits real files here."}]}}\n')
+
+    def negation_blocked(session):
+        payload = json.dumps({"transcript_path": str(negation_turn),
+                              "session_id": session})
+        out = guard("claude-md-guard.py", payload, home, repo, "check").stdout
+        return '"decision": "block"' in out
+
+    (repo / ".handrail.toml").write_text("")
+    check("wiring: negation stays quiet by default",
+          negation_blocked("neg-off"), False)
+    (repo / ".handrail.toml").write_text("[rules]\nnegation = true\n")
+    check("wiring: a repo can switch negation on",
+          negation_blocked("neg-on"), True)
+
+    # The reminder arms the interview format. Injecting it while the check that
+    # enforces it is off would be an instruction with no gate behind it.
+    grill = json.dumps({"prompt": "grill me on this plan", "session_id": "g1"})
+    (repo / ".handrail.toml").write_text("")
+    cases += 1
+    if "AskUserQuestion" not in guard("claude-md-guard.py", grill, home, repo,
+                                      "remind").stdout:
+        failures.append("FAIL wiring: the interview reminder is not injected "
+                        "by default")
+    (home / ".handrail.toml").write_text("[rules]\nask_user_question = false\n")
+    cases += 1
+    if guard("claude-md-guard.py", grill, home, repo, "remind").stdout.strip():
+        failures.append("FAIL wiring: the reminder is injected while the rule "
+                        "that enforces it is off")
+    (home / ".handrail.toml").unlink()
+
+    # The prose guard cites the policy doc through the same helper the
+    # attribution guard uses, and had no case proving it.
+    (repo / ".handrail.toml").write_text('policy_doc = "TEAM.md"\n')
+    (repo / "TEAM.md").write_text("rules\n")
+    payload = json.dumps({"transcript_path": str(transcript),
+                          "session_id": "cite"})
+    cases += 1
+    if "See TEAM.md." not in guard("claude-md-guard.py", payload, home, repo,
+                                   "check").stdout:
+        failures.append("FAIL wiring: the prose guard does not cite the "
+                        "configured policy doc")
 
     (repo / ".handrail.toml").write_text('policy_doc = "TEAM.md"\n')
     (repo / "TEAM.md").write_text("rules\n")

@@ -409,3 +409,53 @@ the argv wiring to `sys.exit(0)` left every case green. A subprocess case with
 `gh` removed from `PATH` covers it. And the README's rule table still promised
 that a `Claude-Session:` line passes, which stopped being true for the PR body
 in the previous commit.
+
+## 2026-09-08: policy moves into a config file
+
+Why: the package enforced one person's taste with no way to disagree short of
+forking, and block messages cited `CLAUDE.md Section 1` at readers who have no
+such file. That is what stopped a team adopting it.
+
+**Decisions.**
+
+- **The ratchet: a repo config may switch a rule on, only a user config may
+  switch one off.** A repo you clone can make you stricter and never laxer, so
+  cloning a careless repo cannot strip the guards off your machine.
+- **Thresholds sit outside that ratchet, deliberately.** A monorepo full of
+  generated files has a real reason to move the review threshold. The cost is
+  that `trivial_lines = 100000` reaches the same place as switching the rule
+  off, so the documented guarantee is "a repo cannot switch a guard off" and
+  never "a repo cannot weaken your guards". Overclaiming here would be worse
+  than the gap.
+- **A citation appears only when the policy doc is configured and present.** A
+  pointer to a file the reader does not have is worse than no pointer, which is
+  the lesson round 3 of the CI gate taught at a cost of one review round.
+- **A config that fails to load leaves the guards armed.** Failing to read the
+  policy is a reason to keep guarding. The guards now also say so on stderr,
+  because silently running the defaults after a typo gives the user no signal
+  for as long as they keep the typo.
+- **Considered and rejected: validating values.** `trivial_lines = "lots"` is
+  accepted straight through today. Nothing reads values yet, so the check has
+  no caller. It belongs with the unit that wires them.
+
+**Known and accepted.** If your home directory is itself a git checkout, that
+repo's config is your user config and can switch rules off. There is no fix that
+keeps the design, since `~/.handrail.toml` is defined as the trusted file. The
+README states the exception.
+
+**Review round 1 caught four blocking, and three were the same shape.** A
+guarantee asserted with nothing testing it: the whole of `claude-md-guard.py`'s
+wiring had no coverage, so every mutation to its gates survived, including
+inverting the fail-safe. The both-present case wrote two fixtures that agreed,
+so reversing the lookup order passed. The module docstring described the CI
+wiring as shipped when it has no caller until the next unit. The fourth was a
+real bug: with no repo root the policy-doc existence check was skipped by
+short-circuit, so every invocation outside a repo cited a file that does not
+exist.
+
+**Trap.** The new subprocess cases first passed for the wrong reason: the helper
+ran `claude-md-guard.py` with no argv, and a guard invoked without its mode
+exits 0 with no output, which reads exactly like "did not block". Then they
+failed for a second wrong reason, since reusing one session id across cases
+exhausted the per-session block budget. Both are the same lesson: a case that
+goes green through a path you did not intend is not covered.

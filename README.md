@@ -167,7 +167,10 @@ trivial_lines = 10
 ```
 
 A repo config may switch a rule **on**. Only your user config may switch one
-**off**, so a repo you clone can make you stricter and never laxer. Thresholds
+**off**, so a repo you clone can make you stricter and never laxer. One
+exception, and it is inherent: if your home directory is itself a git checkout,
+as the dotfiles-in-a-bare-repo pattern does, then that repo's `.handrail.toml`
+is your user config and can switch rules off. Thresholds
 sit outside that ratchet: a repo sets them freely, because a monorepo full of
 generated files has a real reason to move the review threshold. So the guarantee
 is that a repo cannot switch a guard off, rather than that a repo cannot weaken

@@ -27,9 +27,14 @@ repo cannot weaken your guards". Documented that way on purpose.
 
 CI
 
-The action ignores on/off entirely and enforces CI_FLOOR, because a required
+load(ci=True) ignores on/off entirely and returns CI_FLOOR, because a required
 check a repo can switch off is not a required check. Negation is the exception:
 it runs in CI only when a repo asks for it, and asking is one-way.
+
+NOT WIRED YET. The action does not read this module, so today `scan` runs the
+negation heuristic unconditionally in CI, which is the opposite of what
+CI_OPT_IN describes. Wiring it is the next unit of this change. Until then treat
+CI_FLOOR as the intended contract rather than the shipped one.
 
 FORMAT
 
@@ -136,10 +141,15 @@ def _repo_root(start):
     Walking to a config first means a subdirectory can carry its own policy in a
     monorepo without every package needing a .git.
     """
-    start = Path(start).resolve()
-    for directory in (start, *start.parents):
+    try:
+        start = Path(start).resolve()
+    except OSError:  # a deleted cwd still has to yield defaults, not a crash
+        return None
+    ancestors = (start, *start.parents)
+    for directory in ancestors:
         if any((directory / name).is_file() for name in BASENAMES):
             return directory
+    for directory in ancestors:
         if (directory / ".git").exists():
             return directory
     return None
@@ -153,6 +163,8 @@ class Config:
         self.root = root
 
     def enabled(self, rule):
+        # An unknown name is off. A typo in a config must not silently arm
+        # something, and every real rule is present in DEFAULTS.
         return self._rules.get(rule, False)
 
     def value(self, section, key):
@@ -169,7 +181,13 @@ class Config:
 
 
 def load(cwd=None, ci=False):
-    """Effective config for this run. Never raises in session mode."""
+    """Effective config for this run.
+
+    Raises on a malformed file, an unreadable one, or a config whose shape is
+    wrong. Callers are what make that safe: every guard treats a failure to load
+    as "enforce the defaults, cite nothing", so a broken config keeps the guards
+    armed rather than disarming them.
+    """
     cwd = Path(cwd or os.getcwd())
     user = _read_dir(Path.home(), strict=ci) or {}
     root = _repo_root(cwd)
@@ -198,7 +216,7 @@ def load(cwd=None, ci=False):
                     values[section][key] = val
 
     doc = repo.get("policy_doc") or user.get("policy_doc")
-    if doc and root and not (root / doc).is_file():
+    if doc and not (root and (root / doc).is_file()):
         sys.stderr.write("handrail: policy_doc %r is configured but missing, "
                          "so messages will not cite it\n" % doc)
         doc = None
