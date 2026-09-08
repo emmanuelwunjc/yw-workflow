@@ -514,3 +514,37 @@ tool call, which contradicts this same file's ruling one entry above about
 stderr noise. And a `policy_doc` of `../../anything.md` resolved, which is the
 payload a captured config would have chosen; a path escaping the tree is refused
 now.
+
+**Review round 4: bounding on directories alone broke `git worktree`.** Round 3
+required the repository marker to be a `.git` DIRECTORY, which closed the
+`touch /tmp/.git` attack and silently broke every subdirectory of a linked
+worktree, since those use a `.git` FILE. The config vanished and the root came
+back as None. This project mandates worktrees for concurrent agents, so the fix
+broke the workflow the package exists to support.
+
+A marker is a `.git` directory, or a `.git` file that starts with `gitdir:` and
+names a target that exists. Because the bound takes the INNERMOST marker, a
+planted marker above your repo is never chosen, so accepting files costs
+nothing. `touch /tmp/.git` fails both halves of the validation anyway.
+
+**Considered and rejected: asking git.** `git rev-parse --show-toplevel` would
+hand the boundary to the tool that owns it, and four rounds of getting this
+wrong by hand is a real argument for it. Measured at 11.4 ms per call on this
+machine, against a `PreToolUse` hook that runs on every Bash command, and there
+are already three such hooks. Revisit if the marker logic needs a fifth
+correction, since at that point the subprocess is cheaper than the defects.
+
+**Two of the four new cases passed for the wrong reason and had to be rebuilt.**
+The worktree case put the linked checkout inside the superproject, so a `.git`
+directory above it reached the config no matter what the bound did, and it went
+green while worktrees were broken. The gitdir-prefix case named an existing path
+whose first seven characters, once sliced off, no longer existed, so removing
+the prefix check changed nothing. Both now fail when their guarantee is broken.
+That is the fourth round running where a test could not distinguish the fix from
+the bug.
+
+**Also from round 4.** An absolute `policy_doc` was accepted, so only half the
+path-escape check was covered. `CI_FLOOR` was compared against itself, so
+dropping a member from it passed. And the README presented value keys as working
+configuration when no guard reads them; it now says so at the top of the section
+rather than leaving a reader to discover it by setting one.

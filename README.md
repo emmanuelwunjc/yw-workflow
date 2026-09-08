@@ -148,6 +148,13 @@ branch-protection decision, and it belongs with the people who own the branch.
 
 ## Config
 
+**Read this first: only `claude-md-guard.py` and `no-ai-attribution.py` consult
+the config today.** The `[rules]` switches and `policy_doc` work for those two.
+The value keys below are parsed and are not yet read by any guard, so
+`trivial_lines` and `protected` change nothing until the unit that wires them
+lands. `git-safety-guard.sh` still hardcodes `main` and `master`, and
+`require-code-review.py` still hardcodes 25 lines.
+
 Every rule is on by default except negation-then-correction, which is the one
 heuristic with known false positives. To change that, write `.handrail.toml` in
 a repo, or `~/.handrail.toml` for your machine.

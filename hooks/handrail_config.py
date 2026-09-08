@@ -135,6 +135,42 @@ def _read_dir(directory, strict):
     return _parse(present[0])
 
 
+def _is_repo_marker(directory):
+    """True when directory is a real repository root.
+
+    A .git DIRECTORY is the ordinary case. A .git FILE is a linked worktree or a
+    submodule, and both are real roots, so accepting only directories loses the
+    config for every subdirectory of a worktree. That is a workflow this project
+    mandates, so it has to work.
+
+    The file is validated rather than trusted: it must start with `gitdir:` and
+    name a target that exists. `touch /tmp/.git`, which is what defeated the
+    previous bound, fails both halves.
+    """
+    marker = directory / ".git"
+    if marker.is_dir():
+        return True
+    if not marker.is_file():
+        return False
+    try:
+        head = marker.read_text(encoding="utf-8", errors="replace").strip()
+    except OSError:
+        return False
+    prefix = "gitdir:"
+    if not head.startswith(prefix):
+        return False
+    target = head[len(prefix):].strip().splitlines()[0].strip() if head[len(prefix):].strip() else ""
+    if not target:
+        return False
+    path = Path(target)
+    if not path.is_absolute():
+        path = directory / path
+    try:
+        return path.exists()
+    except OSError:
+        return False
+
+
 def _repo_root(start):
     """Nearest ancestor holding a config, else the git root, else None.
 
@@ -143,28 +179,25 @@ def _repo_root(start):
     """
     try:
         start = Path(start).resolve()
-    except OSError:  # a deleted cwd still has to yield defaults, not a crash
+    except OSError:  # an unresolvable path yields defaults rather than a crash
         return None
     ancestors = (start, *start.parents)
-    # The search for a config is BOUNDED by the INNERMOST ancestor whose .git is
-    # a DIRECTORY, which is the repo you are actually in. Both halves matter:
+    # The search for a config is BOUNDED by the INNERMOST repository root, which
+    # is the repo you are actually in. Innermost is the load-bearing half:
+    # bounding at the outermost walks past your repo into whatever contains it,
+    # so a config in a shared parent governs every checkout below, and /tmp is
+    # world-writable. That reach lets any local process choose the policy doc
+    # quoted at the model, which is the whole blast radius today because nothing
+    # in production reads values yet. It becomes thresholds and protected branch
+    # names the moment the unit that wires them lands, which is why the bound is
+    # here now rather than then.
     #
-    #   outermost, as the first attempt used, walks past the repo into whatever
-    #   contains it, so a config in a shared parent governs every checkout below.
-    #   .exists(), as the first attempt used, accepts a zero-byte file, so
-    #   `touch /tmp/.git` next to a hostile config restores that reach. /tmp is
-    #   world-writable, so any local process could then pick the policy doc
-    #   quoted at the model. That is the whole blast radius TODAY, because
-    #   nothing in production reads values yet. It becomes thresholds and
-    #   protected branch names the moment the unit that wires them lands, which
-    #   is why this is bounded now rather than then.
-    #
-    # A submodule and a worktree both use a .git FILE, so bounding on a
-    # directory keeps a nested checkout from shadowing the superproject's
-    # config, which is what this bound was introduced for. With no git anywhere,
-    # only the cwd is trusted.
+    # Because innermost wins, accepting a .git FILE cannot extend the bound
+    # outward: a marker planted above your repo is never the innermost one. It
+    # is validated anyway, so a planted marker inside your tree has to be a real
+    # checkout. With no repository anywhere, only the cwd is trusted.
     git = [i for i, directory in enumerate(ancestors)
-           if (directory / ".git").is_dir()]
+           if _is_repo_marker(directory)]
     bound = (min(git) + 1) if git else 1
     for directory in ancestors[:bound]:
         if any((directory / name).is_file() for name in BASENAMES):

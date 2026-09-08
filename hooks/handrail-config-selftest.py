@@ -149,6 +149,14 @@ with tempfile.TemporaryDirectory() as tmp:
           c.value("require_review", "trivial_lines"), 25)
     (outer / ".git").unlink()
 
+    # A zero-byte marker is not a checkout. This is what defeated the previous
+    # bound, so it is pinned even though innermost-wins already covers it.
+    (outer / ".git").write_text("")
+    c = load(home, inner)
+    check("capture: an empty .git file is not a repository root",
+          c.value("require_review", "trivial_lines"), 25)
+    (outer / ".git").unlink()
+
     # With no git anywhere, only the directory itself is trusted, or the same
     # stray config would capture every loose directory beneath it.
     loose_child = outer / "nogit"
@@ -168,7 +176,11 @@ with tempfile.TemporaryDirectory() as tmp:
     # could quote any file on disk into a block message.
     write(inner, ".handrail.toml", 'policy_doc = "../EVIL.md"\n')
     c = load(home, inner)
-    check("policy doc: a path escaping the tree is refused", c.citation(), "")
+    check("policy doc: a relative path escaping the tree is refused",
+          c.citation(), "")
+    write(inner, ".handrail.toml", 'policy_doc = "/etc/hosts"\n')
+    c = load(home, inner)
+    check("policy doc: an absolute path is refused", c.citation(), "")
     (inner / ".handrail.toml").unlink()
 
     # A repo with no config of its own still resolves to its git root, which is
@@ -250,6 +262,14 @@ with tempfile.TemporaryDirectory() as tmp:
     c = load(home, repo, ci=True)
     check("CI: a repo can opt into negation", c.enabled("negation"), True)
 
+    # The floor written out literally. Comparing against CI_FLOOR itself would
+    # pass whatever that tuple said, so dropping a member from it went unnoticed.
+    write(repo, ".handrail.toml", "")
+    c = load(home, repo, ci=True)
+    check("CI: the floor is exactly these four rules",
+          sorted(n for n in cfg.DEFAULTS if c.enabled(n)),
+          ["ai_attribution", "em_dash", "handoff_freshness", "require_review"])
+
     # A user config must not be able to lift a rule out of the CI floor, or the
     # required check would depend on whose laptop happened to run it.
     write(home, ".handrail.toml", "[rules]\nem_dash = false\n")
@@ -284,13 +304,38 @@ with tempfile.TemporaryDirectory() as tmp:
     check("resolution: a subdirectory reads the repo's config",
           c.enabled("negation"), True)
 
-    # A submodule or a vendored checkout puts a .git between the cwd and the
-    # repo's config. Stopping at it silently drops the team's opt-in, so the
-    # walk looks for a config across every ancestor before falling back to git.
-    (nested / ".git").write_text("gitdir: ../../.git/modules/api\n")
+    # A .git file whose target does not exist is not a checkout, so it is not a
+    # boundary and the repo's config still applies.
+    (nested / ".git").write_text("gitdir: ../../.git/modules/gone\n")
     c = load(home, nested)
-    check("resolution: a nested .git does not shadow the repo's config",
+    check("resolution: an unresolvable .git file does not shadow the config",
           c.enabled("negation"), True)
+
+    # A real linked checkout IS its own boundary, which is what makes a git
+    # worktree work. The fixture sits OUTSIDE the superproject on purpose: with
+    # a .git directory anywhere above it, the walk would reach the config
+    # regardless and the case could not tell a working bound from a broken one.
+    # That is how the first version of this case passed while worktrees were
+    # broken.
+    linked = tmp / "linked"
+    linked.mkdir()
+    (repo / ".git" / "worktrees").mkdir(parents=True, exist_ok=True)
+    (linked / ".git").write_text("gitdir: %s\n" % (repo / ".git" / "worktrees"))
+    write(linked, ".handrail.toml", "[rules]\nnegation = true\n")
+    linked_src = linked / "src"
+    linked_src.mkdir()
+    c = load(home, linked_src)
+    check("resolution: a subdirectory of a linked checkout reads its config",
+          c.enabled("negation"), True)
+
+    # A .git file has to LOOK like one. The seven leading characters stand in
+    # for "gitdir:" so that dropping the prefix check leaves an existing path
+    # behind, which is the only way this case can tell the check is there.
+    (linked / ".git").write_text("ABCDEFG%s\n" % repo)
+    c = load(home, linked_src)
+    check("resolution: a .git file without a gitdir prefix is not a root",
+          c.enabled("negation"), False)
+    (linked / ".git").unlink()
 
 # --- the guards actually read it ------------------------------------------
 # Resolution being right proves nothing about whether a guard consults it. Each
