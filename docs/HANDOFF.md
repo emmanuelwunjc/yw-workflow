@@ -672,9 +672,10 @@ were driven end to end through a real clone.
 
 **Two different fixes, because the two surfaces differ.** A path is worth
 showing, so every character outside a plain path alphabet becomes `?`, which
-keeps the path recognisable to the person reading it. A parser message is not worth showing, because no length or character
-bound makes an attacker-authored sentence safe to hand a model, so only the
-exception type survives. Anyone debugging their own config can run the parser.
+keeps the path recognisable to the person reading it. A parser message is
+not worth showing, because no length or character bound makes an
+attacker-authored sentence safe to hand a model, so only the exception type
+survives. Anyone debugging their own config can run the parser.
 
 **Considered and rejected: one sanitiser for both.** The first attempt collapsed
 whitespace, truncated and quoted, applied everywhere. It shrinks the surface
@@ -716,3 +717,21 @@ Anything a parser or the OS raised still contributes only its type.
 mutation found a stated guarantee with nothing behind it, which is the most
 durable lesson on this branch: prose asserting a property and a test asserting it
 are different artifacts, and only one of them fails when the property does.
+
+**Review round 9 passed on the delta, and found three sanitising sites with no
+case behind them.** Round 8 sanitised four `scan` print sites and only one was
+covered, so reverting either read-error line or the attribution finding line
+left the suite green. `AmbiguousConfig`'s message is the one `safe_message`
+built from a repo-controlled value, and nothing pinned its sanitising; it is
+unreachable today because no shipped caller passes `ci=True`, and it goes live
+with the CI unit. All four are covered now.
+
+The import fallback in both guards printed the raw path when the module fails to
+load. That is a degenerate state rather than an attack path, and it was the one
+remaining way a directory name reaches a log as prose, so it applies the same
+substitution inline.
+
+**Trap, mine.** Rewrapping one long line by index left the tail of the original
+behind as two stray lines that read as a repeated sentence. A line-index edit on
+a wrapped paragraph is not a rewrap, and the check that caught it was reading
+the result rather than trusting the edit.

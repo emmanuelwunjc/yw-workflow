@@ -50,8 +50,13 @@ TRAILER = re.compile(
 
 
 def _safe_path(value):
-    return (handrail_config.safe_path(value) if handrail_config
-            else str(value))
+    # The fallback fires only when the module fails to import, which is a
+    # degenerate state rather than an attack path. It still applies the same
+    # substitution, because printing the raw path there would be the one
+    # remaining way a directory name reaches a log as prose.
+    if handrail_config:
+        return handrail_config.safe_path(value)
+    return re.sub(r"[^A-Za-z0-9._/-]", "?", str(value))
 
 
 def _safe_error(exc):
