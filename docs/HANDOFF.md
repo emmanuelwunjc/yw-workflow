@@ -459,3 +459,29 @@ exits 0 with no output, which reads exactly like "did not block". Then they
 failed for a second wrong reason, since reusing one session id across cases
 exhausted the per-session block budget. Both are the same lesson: a case that
 goes green through a path you did not intend is not covered.
+
+**Review round 2: the fix for a round 1 nit was a security regression.** Round 1
+noted that a nested `.git` shadowed the repo's config, dropping a team's opt-in
+in a submodule. The fix walked every ancestor for a config before looking at
+`.git` at all, which removed the bound the old single-pass loop provided. A
+`.handrail.toml` anywhere above a checkout then captured it, and `/tmp` is
+world-writable, so any local process could set every checkout's thresholds and
+protected branch names. Thresholds sit outside the ratchet by design, so that
+was reachable rather than theoretical.
+
+The search is bounded at the outermost ancestor holding a `.git` now, and only
+the cwd is trusted when there is no git root anywhere. Both the submodule case
+and the capture case have their own tests.
+
+**Also from round 2.** RULE 1 has two halves and only one had a case, so forcing
+the Stop half's gate on passed everything. That is round 1's finding one gate
+later. A user-level `policy_doc` was resolved against whatever repo you were
+standing in, so it only ever cited in repos that happened to carry the same
+filename; it resolves against home now. The per-call "policy_doc missing"
+warning is gone from session mode, because a `PreToolUse` hook runs on every
+Bash call and a steady warning is noise that teaches people to ignore stderr.
+
+**Uncovered guarantees found by mutation, not by reading.** "A repo sets
+thresholds freely" had no case, so reversing the merge order passed. An unknown
+rule name being off had no case. The git-root fallback had none, because nothing
+except `Config.root` observes it. Coverage went from 41 cases to 51.

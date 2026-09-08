@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Self-test for the effective-policy resolution in hooks/config.py.
+"""Self-test for the effective-policy resolution in hooks/handrail_config.py.
 
 Each case is one decision the config exists to implement, so a case failing
 names the decision that broke rather than a line number.
@@ -115,6 +115,67 @@ with tempfile.TemporaryDirectory() as tmp:
     check("no repo root: a policy doc that cannot be resolved is not cited",
           c.citation(), "")
     (home / ".handrail.toml").unlink()
+
+    # A config above the git root must not capture the repo. Anything writable
+    # above a checkout, /tmp included, could otherwise set that repo's
+    # thresholds and protected branches, and thresholds sit outside the ratchet.
+    outer = tmp / "outer"
+    inner = outer / "checkout"
+    inner.mkdir(parents=True)
+    (inner / ".git").mkdir()
+    write(outer, ".handrail.toml",
+          'policy_doc = "EVIL.md"\n[require_review]\ntrivial_lines = 999999\n')
+    write(outer, "EVIL.md", "not this repo's policy\n")
+    c = load(home, inner)
+    check("capture: a config above the git root is ignored",
+          c.value("require_review", "trivial_lines"), 25)
+    check("capture: and its policy doc is not cited", c.citation(), "")
+
+    # With no git anywhere, only the directory itself is trusted, or the same
+    # stray config would capture every loose directory beneath it.
+    loose_child = outer / "nogit"
+    loose_child.mkdir()
+    c = load(home, loose_child)
+    check("capture: with no git root, an ancestor config is still ignored",
+          c.value("require_review", "trivial_lines"), 25)
+
+    # A repo with no config of its own still resolves to its git root, which is
+    # what a relative path in the config is measured against. Deleting that
+    # fallback left every other case green, because nothing else reads root.
+    bare = outer / "bare"
+    (bare / ".git").mkdir(parents=True)
+    deep = bare / "src" / "pkg"
+    deep.mkdir(parents=True)
+    # resolve() on both sides: macOS hands back /private/var for a temp dir.
+    check("fallback: a repo with no config still resolves to its git root",
+          load(home, deep).root, bare.resolve())
+
+    write(inner, ".handrail.toml", 'policy_doc = "OK.md"\n')
+    write(inner, "OK.md", "the repo's policy\n")
+    c = load(home, inner)
+    check("fallback: the repo's own config still wins",
+          c.citation(), "See OK.md.")
+
+    # A user's policy doc lives on their machine, so it resolves against home.
+    # The repo's own doc wins when it has one, so clear it first.
+    write(repo, ".handrail.toml", "")
+    write(home, ".handrail.toml", 'policy_doc = "MINE.md"\n')
+    write(home, "MINE.md", "my rules\n")
+    c = load(home, repo)
+    check("policy doc: a user-level one resolves against home",
+          c.citation(), "See MINE.md.")
+    (home / ".handrail.toml").unlink()
+    (home / "MINE.md").unlink()
+
+    # Thresholds sit outside the ratchet, so a repo overrides the user's value.
+    write(home, ".handrail.toml", "[require_review]\ntrivial_lines = 5\n")
+    write(repo, ".handrail.toml", "[require_review]\ntrivial_lines = 50\n")
+    c = load(home, repo)
+    check("thresholds: a repo value overrides the user's",
+          c.value("require_review", "trivial_lines"), 50)
+    (home / ".handrail.toml").unlink()
+
+    check("an unknown rule name is off", c.enabled("nosuchrule"), False)
 
     # --- CI ignores on/off ----------------------------------------------
     write(repo, ".handrail.toml",
@@ -304,6 +365,33 @@ with tempfile.TemporaryDirectory() as tmp:
     if guard("claude-md-guard.py", grill, home, repo, "remind").stdout.strip():
         failures.append("FAIL wiring: the reminder is injected while the rule "
                         "that enforces it is off")
+    (home / ".handrail.toml").unlink()
+
+    # RULE 1's Stop half: the check that refuses to end a grilling turn asked in
+    # prose. The remind half was covered and this one was not, so forcing this
+    # gate on passed every case. It needs a grill state file next to a transcript
+    # whose last text ends in a question.
+    state = home / ".claude" / "state" / "claude-md-guard"
+    state.mkdir(parents=True, exist_ok=True)
+    prose_question = repo / "q.jsonl"
+    prose_question.write_text(
+        '{"message": {"role": "user", "content": "grill me"}}\n'
+        '{"message": {"role": "assistant", "content": [{"type": "text", '
+        '"text": "Which database should we use for this?"}]}}\n')
+
+    def asked_in_prose(session):
+        (state / ("%s.grill" % session)).write_text("1")
+        payload = json.dumps({"transcript_path": str(prose_question),
+                              "session_id": session})
+        out = guard("claude-md-guard.py", payload, home, repo, "check").stdout
+        return "AskUserQuestion" in out
+
+    (repo / ".handrail.toml").write_text("")
+    check("wiring: a grilling turn asked in prose is refused by default",
+          asked_in_prose("ask-on"), True)
+    (home / ".handrail.toml").write_text("[rules]\nask_user_question = false\n")
+    check("wiring: switching the interview rule off stops the refusal",
+          asked_in_prose("ask-off"), False)
     (home / ".handrail.toml").unlink()
 
     # The prose guard cites the policy doc through the same helper the

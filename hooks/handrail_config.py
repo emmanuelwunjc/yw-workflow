@@ -146,13 +146,19 @@ def _repo_root(start):
     except OSError:  # a deleted cwd still has to yield defaults, not a crash
         return None
     ancestors = (start, *start.parents)
-    for directory in ancestors:
+    # The search for a config is BOUNDED by the outermost ancestor holding a
+    # .git, so a stray .handrail.toml above a checkout cannot capture it. An
+    # unbounded walk let anything writable above a repo, /tmp included, set that
+    # repo's thresholds and protected branch names, and thresholds sit outside
+    # the ratchet on purpose. With no git anywhere, only the cwd is trusted.
+    git = [i for i, directory in enumerate(ancestors)
+           if (directory / ".git").exists()]
+    bound = (max(git) + 1) if git else 1
+    for directory in ancestors[:bound]:
         if any((directory / name).is_file() for name in BASENAMES):
             return directory
-    for directory in ancestors:
-        if (directory / ".git").exists():
-            return directory
-    return None
+    # No config: the git root is still the right base for resolving a policy doc.
+    return ancestors[max(git)] if git else None
 
 
 class Config:
@@ -215,9 +221,15 @@ def load(cwd=None, ci=False):
                 if key in defaults:
                     values[section][key] = val
 
-    doc = repo.get("policy_doc") or user.get("policy_doc")
-    if doc and not (root and (root / doc).is_file()):
-        sys.stderr.write("handrail: policy_doc %r is configured but missing, "
-                         "so messages will not cite it\n" % doc)
+    doc, base = repo.get("policy_doc"), root
+    if not doc:
+        # A user-level policy doc is a file on that user's machine, so it
+        # resolves against home. Resolving it against the current repo would
+        # cite it only in repos that happen to carry the same filename.
+        doc, base = user.get("policy_doc"), Path.home()
+    if doc and not (base and (base / doc).is_file()):
+        if ci:
+            sys.stderr.write("handrail: policy_doc %r cannot be resolved, so "
+                             "messages will not cite it\n" % doc)
         doc = None
     return Config(rules, values, doc, root)
