@@ -78,10 +78,19 @@ with tempfile.TemporaryDirectory() as tmp:
     body_url.write_text("See https://claude.ai/code/session_xyz for context.\n")
 
     expect("attr scan: clean body passes", run(ATTR, "scan", body_clean), 0)
-    trailer_only = tmp / "trailer-only.md"
-    trailer_only.write_text("Claude-Session: https://claude.ai/code/session_abc\n")
-    expect("attr scan: a bare commit trailer still passes",
-           run(ATTR, "scan", trailer_only), 0)
+    # Indented, and at EOF with no trailing newline: body_clean covers neither,
+    # so this case can fail on its own rather than only alongside that one.
+    trailer_edge = tmp / "trailer-edge.md"
+    trailer_edge.write_text("Fixes it.\n\n    Claude-Session: "
+                            "https://claude.ai/code/session_abc")
+    expect("attr scan: an indented trailer at EOF still passes",
+           run(ATTR, "scan", trailer_edge), 0)
+    # The PR body is published text, so the exemption must be off for it. A
+    # hand-written trailer there is the violation the rule exists to stop.
+    expect("attr scan: --published rejects the trailer",
+           run(ATTR, "scan", "--published", trailer_edge), 1)
+    expect("attr scan: --published still passes clean text",
+           run(ATTR, "scan", "--published", clean), 0)
     expect("attr scan: generation footer fails", run(ATTR, "scan", body_footer), 1)
     expect("attr scan: bare session URL fails", run(ATTR, "scan", body_url), 1)
     expect("attr scan: unreadable path fails closed",

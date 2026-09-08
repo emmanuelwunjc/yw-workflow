@@ -301,8 +301,10 @@ skip installing them.
 error). Use a block scalar. Costs a round trip through a failed workflow to
 diagnose if the YAML is not validated locally first.
 
-**Still open.** The action is untested against a real PR run. Its first
-exercise is the PR that adds it, which is the only honest way to test it.
+**Proved by the PR's own runs.** Every composite step executes on a real
+`pull_request` event, and the only failing step is `review-gate`, which waits
+for a verdict comment on the PR that introduces it. The gate biting on its own
+change is the test.
 
 **Review round 1 (2026-09-08), and what it caught.** Two blocking findings, both
 in the same shape: a guarantee the prose asserted and nothing tested.
@@ -316,8 +318,8 @@ in the same shape: a guarantee the prose asserted and nothing tested.
 - **`check-pr` had no test, only `review_status` did.** The reviewer mutated
   `check-pr` to return 0 for the `unknown` verdict, and then to discard the
   verdict entirely, and the suite stayed green at 22 cases both times. Testing
-  the helper and shipping the wrapper is the gap. Six cases now cover
-  `check_pr` itself, and both mutations were re-run and now fail the suite.
+  the helper and shipping the wrapper is the gap. `check_pr` is covered
+  directly now, and both mutations were re-run and fail the suite.
 
   The lesson generalises past this PR: coverage of the pure function underneath
   is not coverage of the entry point the world actually calls.
@@ -367,3 +369,24 @@ landed before reporting it as done.
 
 **Considered and rejected: matching GitHub's case-insensitive `contains()` in
 the shell.** Moot now that the input is gone.
+
+**Review round 3 (2026-09-08).** The mechanism held. One blocking finding, in
+prose: the README offered "call that guard's own entry point in a step of your
+own" as the replacement for the deleted `rules` input, and a consumer running
+`actions/checkout` on their own repo has no `hooks/` directory, so that step
+dies on a missing file. The same shape as round 2's stale pin: a line that reads
+plausibly and fails when executed. The offer is withdrawn rather than repaired,
+because making it work needs a second checkout and a file list the action
+already builds.
+
+**Also fixed from round 3.** `review-gate` resolved the repo through `gh pr
+view`, which shells out to git, so a consumer checking out with `path:` got a
+failure blaming token permissions. It reads `GH_REPO` from the event now. And
+the PR body was scanned through the same trailer exemption that lets a commit
+message carry `Claude-Session:`, so a body with that line hand-written passed
+the check that exists to keep it out of published text. Published text is
+scanned with the exemption off.
+
+**Follow-up, not in this PR.** `main`'s protection requires only the `check`
+context. `guards` cannot be added to the required contexts until it has run on
+`main` once, so this repo's own dogfood job is advisory until then.

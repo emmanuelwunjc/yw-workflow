@@ -24,13 +24,18 @@ TRAILER = re.compile(
     r"^[ \t]*Claude-Session:[ \t]*https://claude\.ai/code/session_\S+", re.M)
 
 
-def scan(paths):
+def scan(paths, exempt_trailer=True):
     """CI mode: check files instead of a Bash command.
 
     The hook stops a publish at the moment it is typed. That only covers this
     laptop, so CI re-checks the artefacts themselves: the PR body, and any file
-    in the diff. The same TRAILER exemption applies, so a commit message
-    carrying Claude-Session still passes.
+    in the diff.
+
+    exempt_trailer keeps a Claude-Session line legal, which is right for a
+    commit message and wrong for a PR body. Pass --published for text that other
+    people read, where the trailer is the thing being banned. Without that, a
+    hand-written trailer in a PR body walks straight through the check that
+    exists to stop it.
 
     Returns the number of files with at least one finding.
     """
@@ -43,7 +48,7 @@ def scan(paths):
             print("%s: cannot read (%s)" % (name, exc), file=sys.stderr)
             bad += 1
             continue
-        stripped = TRAILER.sub("", text)
+        stripped = TRAILER.sub("", text) if exempt_trailer else text
         hits = [label for pattern, label in BANNED if pattern.search(stripped)]
         if hits:
             bad += 1
@@ -56,7 +61,10 @@ def main():
     # scan takes paths on argv. CI has no hook payload and must not block on a
     # stdin read that will never be fed.
     if len(sys.argv) > 1 and sys.argv[1] == "scan":
-        sys.exit(1 if scan(sys.argv[2:]) else 0)
+        args = sys.argv[2:]
+        published = "--published" in args
+        sys.exit(1 if scan([a for a in args if a != "--published"],
+                           exempt_trailer=not published) else 0)
 
     try:
         payload = json.load(sys.stdin)

@@ -80,14 +80,22 @@ runs:
         # test, or a script that quotes the banned footer on purpose is source,
         # and scanning it reports the rule's own documentation as a violation.
         # This repo's own hooks are exactly that case.
-        cp /tmp/yw-prose.txt /tmp/yw-attr.txt
-        printf '%s\n' /tmp/yw-pr-body.txt >> /tmp/yw-attr.txt
-        xargs -a /tmp/yw-attr.txt -d '\n' "$YW_HOOKS/no-ai-attribution.py" scan
+        # The body is published text, so a Claude-Session line in it is the
+        # violation rather than an exempt commit trailer. Files in the diff keep
+        # the exemption, because a commit message quoted in one is legal.
+        "$YW_HOOKS/no-ai-attribution.py" scan --published /tmp/yw-pr-body.txt
+        if [ -s /tmp/yw-prose.txt ]; then
+          xargs -a /tmp/yw-prose.txt -d '\n' "$YW_HOOKS/no-ai-attribution.py" scan
+        fi
 
     - name: review-gate
       shell: bash
       env:
         PR: ${{ github.event.pull_request.number }}
         GH_TOKEN: ${{ github.token }}
+        # require-code-review.py calls `gh pr view`, which resolves the repo
+        # from the git remote. A consumer who checks out with `path:` has no
+        # remote in the working directory, and the failure blames the token.
+        GH_REPO: ${{ github.repository }}
       run: |
         "$YW_HOOKS/require-code-review.py" check-pr "$PR"
