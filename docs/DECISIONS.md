@@ -61,3 +61,17 @@ merge` fast-forwards LOCAL trunk with commits that never passed a required
 status check, and no config disables it, so block it in the hook before anyone
 runs it. And its path template has no stateful filter, so it cannot produce the
 `NN-name` counter: keep creating lanes with `git worktree add`.
+
+## A path resolver for gitignored data, not yet built (2026-09-08)
+
+`git-lanes` tells a lane to read and write gitignored input data from the main
+checkout, and prose is the weakest form that rule can take: it asks every script
+author to remember, and the failure it prevents is silent in both directions.
+
+The mechanism form is a resolver every script routes through, which refuses to
+resolve a gitignored path that exists in both the lane and the main checkout,
+and names both files when it refuses. That turns the ambiguous case from a run
+that quietly succeeds against the wrong file into a run that will not start.
+
+Nobody has built it. Recorded here rather than in the skill because a skill is
+procedure a reader can follow, and a design nobody has implemented is not.

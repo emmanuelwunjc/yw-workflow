@@ -3,7 +3,7 @@ name: git-lanes
 description: Run concurrent agents in isolated git worktrees without them colliding. Use before starting multi-file work in a repo where another agent may be active, when asked to "run these in parallel", "spin up lanes", "use worktrees", when dispatching a reviewer, or when about to git checkout/pull/stash in a repo you did not just create. Also covers where built deliverables live and how lanes merge back to trunk.
 origin: authored
 tags: [git, worktree, concurrency, multi-agent, merge]
-version: 1.0.1
+version: 1.1.0
 ---
 
 # Git lanes
@@ -83,6 +83,27 @@ are still shared and need their own coordination.
 
 A squash-merge leaves the source branch unmarked as merged, so `git branch
 --merged` will not list it. Do not read that as "never merged".
+
+## A lane must not hold its own copy of gitignored input data
+
+Untracked data (an export, a proposal file, a source spreadsheet) exists once
+per worktree. Copy it into a lane and a script run there reads and WRITES the
+lane's copy, reports success, and the file every other script reads is
+untouched. Both halves are quiet: the write succeeds, and the read that would
+show the truth happens somewhere else. One such run reported seven records
+updated, against a copy nobody else reads, and it was repeated in a commit
+message and to a person before a reviewer running the same script from a
+normal checkout found it.
+
+Read and write that data from the main checkout. The isolation rule above is
+about git commands moving the whole tree, so reading and writing one file there
+is fine. Only one lane at a time, though, and that lane says so before it
+starts: two lanes both following this rule would both write that one file. If a
+lane genuinely needs its own copy, delete that copy the moment the run is done.
+
+The mechanism form of this rule is a path resolver that refuses an ambiguous
+gitignored path. Nobody has built one, so this section is prose that each script
+author has to remember.
 
 ## Built deliverables live in `deliverables/`, one folder, never the repo root
 

@@ -409,3 +409,26 @@ the argv wiring to `sys.exit(0)` left every case green. A subprocess case with
 `gh` removed from `PATH` covers it. And the README's rule table still promised
 that a `Claude-Session:` line passes, which stopped being true for the PR body
 in the previous commit.
+
+## 2026-09-08: a lane's own copy of gitignored data
+
+**The trap, and it cost real trust rather than real time.** A script run inside
+a worktree read and wrote that worktree's copy of a gitignored data file. The
+write succeeded, so the run reported seven records updated. The file every other
+script reads was untouched. The number reached a commit message and a person
+before a reviewer ran the same script from a normal checkout and found nothing
+changed. Both halves of the failure are silent: the write really did succeed,
+and the read that would contradict it happens somewhere else.
+
+The rule landed in `git-lanes` because that skill already owns "worktrees
+isolate the filesystem only" and where built artifacts live. Somewhere else it
+would be a fact nobody encounters at the moment they are about to copy a file
+into a lane.
+
+**Considered and rejected: citing a specific resolver by path.** The first
+version of this rule named a script in another repo as the mechanism form of it.
+That script does not exist, its issue is still open, and the repo is private, so
+a public plugin was pointing at a file no reader could open and that was not
+there to open. The rule now describes the mechanism rather than naming an
+artifact. This repo's own house rule covers it: verify every reference before
+including it.
