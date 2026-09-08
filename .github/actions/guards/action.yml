@@ -1,0 +1,106 @@
+name: yw-workflow guards
+description: >-
+  Run the yw-workflow guard rules as a required status check, so they hold on
+  the server rather than only on whichever laptop has the hooks installed.
+
+inputs:
+  rules:
+    description: >-
+      Comma-separated rules to run. Any of: claude-md (em-dash and
+      negation-then-correction in changed prose), no-ai-attribution (generation
+      footers and session URLs in the PR body and changed files), review-gate
+      (a non-trivial code diff must carry a review). Default is all three.
+    required: false
+    default: claude-md,no-ai-attribution,review-gate
+  paths:
+    description: >-
+      Space-separated glob suffixes scanned for the prose rules. Files outside
+      the PR diff are never scanned.
+    required: false
+    default: ".md .txt"
+
+runs:
+  using: composite
+  steps:
+    # The guards are a sibling of this action inside the same repo, so the
+    # caller gets the exact scripts the hooks run. Resolved once, because a
+    # composite step's working directory is the caller's checkout, not ours.
+    - name: Locate guards
+      shell: bash
+      run: echo "YW_HOOKS=$(cd "$GITHUB_ACTION_PATH/../../../hooks" && pwd)" >> "$GITHUB_ENV"
+
+    # A PR body and a diff are what these rules read. Without an event payload
+    # there is nothing to check, and silently passing would make the required
+    # check meaningless, so say so and fail.
+    - name: Require a pull_request event
+      shell: bash
+      run: |
+        if [ "$GITHUB_EVENT_NAME" != "pull_request" ] && [ "$GITHUB_EVENT_NAME" != "pull_request_target" ]; then
+          echo "yw-workflow guards run on pull_request events only (got: $GITHUB_EVENT_NAME)." >&2
+          exit 1
+        fi
+
+    - name: Collect changed files
+      shell: bash
+      env:
+        PR: ${{ github.event.pull_request.number }}
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        set -euo pipefail
+        # The API list is authoritative and needs no fetch depth, so a shallow
+        # default checkout still gives the right file set.
+        gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR/files" \
+          --jq '.[] | select(.status != "removed") | .filename' > /tmp/yw-changed.txt
+        wc -l < /tmp/yw-changed.txt | xargs echo "changed files:"
+
+    - name: Collect changed prose files
+      shell: bash
+      env:
+        SUFFIXES: ${{ inputs.paths }}
+      run: |
+        set -euo pipefail
+        : > /tmp/yw-prose.txt
+        for suffix in $SUFFIXES; do
+          # Only files still present in the tree: a path renamed away would
+          # otherwise fail the read and be reported as a finding.
+          while IFS= read -r f; do
+            [ -f "$f" ] && printf '%s\n' "$f" >> /tmp/yw-prose.txt
+          done < <(grep -E "\\${suffix}\$" /tmp/yw-changed.txt || true)
+        done
+        sort -u -o /tmp/yw-prose.txt /tmp/yw-prose.txt
+
+    - name: claude-md
+      if: contains(inputs.rules, 'claude-md')
+      shell: bash
+      run: |
+        set -euo pipefail
+        if [ ! -s /tmp/yw-prose.txt ]; then echo "no prose files changed"; exit 0; fi
+        xargs -a /tmp/yw-prose.txt "$YW_HOOKS/claude-md-guard.py" scan
+
+    - name: no-ai-attribution
+      if: contains(inputs.rules, 'no-ai-attribution')
+      shell: bash
+      env:
+        # Through the environment, never string interpolation: a PR body is
+        # attacker-controlled text and inlining it into the script is an
+        # injection.
+        PR_BODY: ${{ github.event.pull_request.body }}
+      run: |
+        set -euo pipefail
+        printf '%s' "$PR_BODY" > /tmp/yw-pr-body.txt
+        # The PR body plus changed prose, never every changed file. A guard, a
+        # test, or a script that quotes the banned footer on purpose is source,
+        # and scanning it reports the rule's own documentation as a violation.
+        # This repo's own hooks are exactly that case.
+        cp /tmp/yw-prose.txt /tmp/yw-attr.txt
+        printf '%s\n' /tmp/yw-pr-body.txt >> /tmp/yw-attr.txt
+        xargs -a /tmp/yw-attr.txt "$YW_HOOKS/no-ai-attribution.py" scan
+
+    - name: review-gate
+      if: contains(inputs.rules, 'review-gate')
+      shell: bash
+      env:
+        PR: ${{ github.event.pull_request.number }}
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        "$YW_HOOKS/require-code-review.py" check-pr "$PR"

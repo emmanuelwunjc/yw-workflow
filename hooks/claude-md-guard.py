@@ -443,15 +443,58 @@ def check(data):
     return {"decision": "block", "reason": "\n\n".join(problems)}
 
 
+def scan(paths):
+    """CI mode: apply the prose rules to files instead of a transcript.
+
+    The hook rules run against one assistant turn held in memory. In CI there is
+    no transcript, so the same two pure checks (em-dash, negation) run over the
+    text of each file. Code is stripped first by the same prose_only() the hook
+    uses, so a fenced sample containing an em-dash stays legal here too.
+
+    ponytail: reports the offending quote, not a line number. find_negation()
+    matches against text with emphasis markers removed, so the quote does not
+    map back to a raw file offset without re-deriving it. Grepping the quote
+    finds it. Add positions if annotations ever need them.
+
+    Returns the number of files with at least one finding.
+    """
+    bad = 0
+    for name in paths:
+        try:
+            text = Path(name).read_text(encoding="utf-8", errors="replace")
+        except OSError as exc:
+            # A path that cannot be read is a broken invocation, not a pass.
+            print("%s: cannot read (%s)" % (name, exc), file=sys.stderr)
+            bad += 1
+            continue
+        prose = prose_only(text)
+        found = []
+        if EM_DASH in prose:
+            found.append("em-dash (CLAUDE.md section 1)")
+        negation = find_negation(prose)
+        if negation:
+            label, quote = negation
+            found.append('%s (CLAUDE.md section 1): "%s"' % (label, quote))
+        if found:
+            bad += 1
+            for f in found:
+                print("%s: %s" % (name, f), file=sys.stderr)
+    return bad
+
+
 def main():
     mode = sys.argv[1] if len(sys.argv) > 1 else ""
+    # scan takes paths on argv and never reads stdin: CI has no hook payload,
+    # and blocking on a stdin read would hang the job.
+    if mode == "scan":
+        return 1 if scan(sys.argv[2:]) else 0
     data = read_input()
     if mode == "remind":
         result = remind(data)
     elif mode == "check":
         result = check(data)
     else:
-        sys.stderr.write("usage: claude-md-guard.py {remind|check}\n")
+        sys.stderr.write("usage: claude-md-guard.py {remind|check|scan FILE...}\n")
         return 0
     if result:
         json.dump(result, sys.stdout)
@@ -463,4 +506,9 @@ if __name__ == "__main__":
         sys.exit(main())
     except Exception:
         # A guard that crashes must never break the session. Fail open.
+        #
+        # CI is the opposite: a scan that crashed proved nothing, and exiting 0
+        # would turn a required check into a rubber stamp. Fail closed there.
+        if len(sys.argv) > 1 and sys.argv[1] == "scan":
+            raise
         sys.exit(0)

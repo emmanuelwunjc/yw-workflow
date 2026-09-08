@@ -251,3 +251,53 @@ is the enforcement working. Use the file-edit tools for that text.
 - **Skipped: pre-commit and a PR template.** pre-commit is bypassable and this
   repo's own `harden` skill says never to treat it as the enforcement
   mechanism. A PR template would check nothing CI does not.
+
+## 2026-09-08: the guards run as a CI action
+
+Why now: a review of Tencent's `teamai-cli` (a tool for distributing skills,
+rules, and hooks across a team) turned up three ways local delivery of these
+guards silently does nothing. Its resource handlers cover skills, rules, docs,
+agents, env, hooks, and MCP, with no handler for executables, so a `hooks.yaml`
+entry pointing at `claude-md-guard.py` lands in a teammate's `settings.json`
+and fails with file-not-found. A PreToolUse hook that exits 127 is a
+non-blocking error, so the tool call proceeds and the config still looks right.
+The other two: `teamai install` is what carries a plugin, and `teamai pull`
+only prints a hint about it, so package sync is a prompt someone can ignore;
+and `TEAMAI_HOOKS_DISABLED=1` resolves team hooks to an empty set, which makes
+the next reconcile delete the guards from `settings.json` rather than merely
+skip installing them.
+
+**Decisions.**
+
+- **CI mode is a subcommand on each existing guard, never a second script.**
+  `claude-md-guard.py scan FILE...`, `no-ai-attribution.py scan FILE...`,
+  `require-code-review.py check-pr N`. The detection logic is shared, so the
+  server-side rule cannot drift from the one the hook enforces. A separate CI
+  linter would have been two policies with one name.
+- **CI fails closed, hooks fail open, and both are tested.** A crashing guard
+  exits 0 in hook mode, because it must never wedge a live session. In scan
+  mode it re-raises. `require-code-review` treats an empty `gh` lookup as
+  "unknown": the hook lets that through so a network blip cannot block a local
+  merge, and `check-pr` fails on it. `hooks/scan-modes-selftest.py` asserts
+  both directions, and the fail-closed case was mutation-tested by deleting the
+  re-raise and confirming the suite goes red.
+- **`check-pr` runs the review gate only, never the all-checks-green gate.** In
+  CI this check is one of those checks, so gate 1 would always find itself in
+  progress and fail every run.
+- **Attribution scanning covers the PR body and changed prose, never every
+  changed file.** This repo's own `no-ai-attribution.py` and its self-test
+  contain the banned strings by necessity. Scanning all files reports the rule's
+  own implementation as a violation, which is how a gate teaches people to
+  disable it.
+- **Considered and rejected: line numbers in scan output.** `find_negation`
+  matches text with emphasis markers stripped, so a hit does not map back to a
+  raw file offset without re-deriving the position. The quote is greppable.
+  Revisit if GitHub annotations are ever wanted.
+
+**Trap.** `run:` in a composite action cannot start with a quoted scalar
+(`run: "$X/script.py" check-pr "$PR"` is a YAML parse error, not a shell
+error). Use a block scalar. Costs a round trip through a failed workflow to
+diagnose if the YAML is not validated locally first.
+
+**Still open.** The action is untested against a real PR run. Its first
+exercise is the PR that adds it, which is the only honest way to test it.
