@@ -45,6 +45,7 @@ use: a crash fails open in a session and closed in CI.
 """
 import json
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -135,75 +136,66 @@ def _read_dir(directory, strict):
     return _parse(present[0])
 
 
-def _is_repo_marker(directory):
-    """True when directory is a real repository root.
+def _git_root(start):
+    """The repository root according to git, or None.
 
-    A .git DIRECTORY is the ordinary case. A .git FILE is a linked worktree or a
-    submodule, and both are real roots, so accepting only directories loses the
-    config for every subdirectory of a worktree. That is a workflow this project
-    mandates, so it has to work.
+    Hand-rolling this was wrong four different ways in four review rounds: an
+    unbounded ancestor walk let a config in a world-writable parent capture
+    every checkout below it, bounding at the outermost `.git` let one `touch`
+    restore that reach, and bounding on a `.git` DIRECTORY broke every
+    subdirectory of a linked worktree. Worktrees, submodules, bare checkouts and
+    `.git` files are git's problem, and git already solves them.
 
-    The file is validated rather than trusted: it must start with `gitdir:` and
-    name a target that exists. `touch /tmp/.git`, which is what defeated the
-    previous bound, fails both halves.
+    The cost is one subprocess per hook invocation, measured at 11.4 ms on the
+    author's machine. That is real for a PreToolUse hook that fires on every
+    Bash command, and it is the price of a boundary that stays correct.
     """
-    marker = directory / ".git"
-    if marker.is_dir():
-        return True
-    if not marker.is_file():
-        return False
     try:
-        head = marker.read_text(encoding="utf-8", errors="replace").strip()
-    except OSError:
-        return False
-    prefix = "gitdir:"
-    if not head.startswith(prefix):
-        return False
-    target = head[len(prefix):].strip().splitlines()[0].strip() if head[len(prefix):].strip() else ""
-    if not target:
-        return False
-    path = Path(target)
-    if not path.is_absolute():
-        path = directory / path
+        done = subprocess.run(
+            ["git", "-C", str(start), "rev-parse", "--show-toplevel"],
+            capture_output=True, text=True, timeout=5,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None  # no git on PATH, or it hung: fall back to the cwd alone
+    if done.returncode != 0:
+        return None  # not a repository
+    out = done.stdout.strip()
+    if not out:
+        return None
     try:
-        return path.exists()
+        return Path(out).resolve()
     except OSError:
-        return False
+        return None
 
 
 def _repo_root(start):
-    """Nearest ancestor holding a config, else the git root, else None.
+    """Nearest ancestor holding a config, bounded by the repository root.
 
-    Walking to a config first means a subdirectory can carry its own policy in a
-    monorepo without every package needing a .git.
+    The bound is what stops a `.handrail.toml` in a shared or world-writable
+    parent from governing a checkout below it. Outside a repository only the
+    directory itself is trusted, for the same reason.
     """
     try:
         start = Path(start).resolve()
     except OSError:  # an unresolvable path yields defaults rather than a crash
         return None
-    ancestors = (start, *start.parents)
-    # The search for a config is BOUNDED by the INNERMOST repository root, which
-    # is the repo you are actually in. Innermost is the load-bearing half:
-    # bounding at the outermost walks past your repo into whatever contains it,
-    # so a config in a shared parent governs every checkout below, and /tmp is
-    # world-writable. That reach lets any local process choose the policy doc
-    # quoted at the model, which is the whole blast radius today because nothing
-    # in production reads values yet. It becomes thresholds and protected branch
-    # names the moment the unit that wires them lands, which is why the bound is
-    # here now rather than then.
-    #
-    # Because innermost wins, accepting a .git FILE cannot extend the bound
-    # outward: a marker planted above your repo is never the innermost one. It
-    # is validated anyway, so a planted marker inside your tree has to be a real
-    # checkout. With no repository anywhere, only the cwd is trusted.
-    git = [i for i, directory in enumerate(ancestors)
-           if _is_repo_marker(directory)]
-    bound = (min(git) + 1) if git else 1
-    for directory in ancestors[:bound]:
-        if any((directory / name).is_file() for name in BASENAMES):
-            return directory
-    # No config: the git root is still the right base for resolving a policy doc.
-    return ancestors[min(git)] if git else None
+
+    root = _git_root(start)
+    if root is None:
+        return start if any((start / name).is_file() for name in BASENAMES) else None
+
+    # Walk from the cwd up to the repository root, inclusive. A path outside the
+    # repo cannot appear here, so nothing above the root is ever read.
+    current = start
+    while True:
+        if any((current / name).is_file() for name in BASENAMES):
+            return current
+        if current == root or current == current.parent:
+            break
+        current = current.parent
+    # No config anywhere in the repo: the root is still the base a relative
+    # policy_doc is measured against.
+    return root
 
 
 class Config:

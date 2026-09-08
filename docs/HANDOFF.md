@@ -527,12 +527,13 @@ names a target that exists. Because the bound takes the INNERMOST marker, a
 planted marker above your repo is never chosen, so accepting files costs
 nothing. `touch /tmp/.git` fails both halves of the validation anyway.
 
-**Considered and rejected: asking git.** `git rev-parse --show-toplevel` would
-hand the boundary to the tool that owns it, and four rounds of getting this
-wrong by hand is a real argument for it. Measured at 11.4 ms per call on this
-machine, against a `PreToolUse` hook that runs on every Bash command, and there
-are already three such hooks. Revisit if the marker logic needs a fifth
-correction, since at that point the subprocess is cheaper than the defects.
+~~**Considered and rejected: asking git.**~~ Superseded 2026-09-08, same day,
+after round 4. The hand-rolled walk was wrong four different ways in four
+rounds, and the latency argument was answered rather than accepted: the guard
+matches its patterns first and resolves the policy only when one hits, so the
+subprocess is paid on a command that carries a footer instead of on every Bash
+call. Measured 24.7 ms for an ordinary command and 37.2 ms when a pattern
+matches, against 35.8 ms for every command under the eager version.
 
 **Two of the four new cases passed for the wrong reason and had to be rebuilt.**
 The worktree case put the linked checkout inside the superproject, so a `.git`
@@ -548,3 +549,21 @@ path-escape check was covered. `CI_FLOOR` was compared against itself, so
 dropping a member from it passed. And the README presented value keys as working
 configuration when no guard reads them; it now says so at the top of the section
 rather than leaving a reader to discover it by setting one.
+
+**The boundary is git\'s now.** `_repo_root` walks from the cwd to
+`git rev-parse --show-toplevel` and no further, and trusts only the cwd outside
+a repository. Worktrees, submodules, bare checkouts and `.git` files stop being
+this package\'s problem.
+
+Two behaviours changed and both are deliberate. A directory whose `.git` file is
+corrupt gets defaults rather than its parent\'s policy, because git refuses to
+name a root and a directory with no establishable identity should not inherit
+someone else\'s rules. A submodule is its own boundary, so a superproject\'s
+config no longer reaches into it.
+
+**The tests had to become real repositories.** Every fixture used a hand-made
+`.git` directory, which is not a repository to `git rev-parse`. That is the
+point: a planted marker no longer creates a boundary. The worktree fixture is a
+real `git worktree add` now, and two mutations survived the first rewrite
+because a config at the repo root is read whether the walk is precise or not, so
+a case with a config in a SUBDIRECTORY was needed to pin it.

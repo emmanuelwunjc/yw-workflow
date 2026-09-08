@@ -33,6 +33,19 @@ def write(directory, name, body):
     (directory / name).write_text(body, encoding="utf-8")
 
 
+def init_repo(directory):
+    """A real repository, because the boundary is whatever git says it is.
+
+    A hand-made .git directory used to be enough when the walk detected markers
+    itself. It is not a repository to `git rev-parse`, which is the point: an
+    attacker planting one no longer creates a boundary.
+    """
+    directory.mkdir(parents=True, exist_ok=True)
+    subprocess.run(["git", "init", "-q", str(directory)], check=True,
+                   capture_output=True)
+    return directory
+
+
 def load(home, repo, ci=False):
     """Resolve with HOME pointed at a fixture, since Path.home() reads it.
 
@@ -56,10 +69,7 @@ with tempfile.TemporaryDirectory() as tmp:
     tmp = Path(tmp)
     home, repo = tmp / "home", tmp / "repo"
     home.mkdir()
-    repo.mkdir()
-    # A marker so _repo_root stops here rather than walking into the real repo
-    # this test runs inside, which would read that repo's config.
-    (repo / ".git").mkdir()
+    init_repo(repo)
 
     # --- defaults -------------------------------------------------------
     c = load(home, repo)
@@ -120,9 +130,7 @@ with tempfile.TemporaryDirectory() as tmp:
     # above a checkout, /tmp included, could otherwise set that repo's
     # thresholds and protected branches, and thresholds sit outside the ratchet.
     outer = tmp / "outer"
-    inner = outer / "checkout"
-    inner.mkdir(parents=True)
-    (inner / ".git").mkdir()
+    inner = init_repo(outer / "checkout")
     write(outer, ".handrail.toml",
           'policy_doc = "EVIL.md"\n[require_review]\ntrivial_lines = 999999\n')
     write(outer, "EVIL.md", "not this repo's policy\n")
@@ -131,38 +139,23 @@ with tempfile.TemporaryDirectory() as tmp:
           c.value("require_review", "trivial_lines"), 25)
     check("capture: and its policy doc is not cited", c.citation(), "")
 
-    # The bound has a DIRECTION, and the cases above pass under either one
-    # because `outer` holds no .git. These pin it. A .git beside the hostile
-    # config is one `touch` away, and bounding on the outermost git, or on
-    # .exists() rather than .is_dir(), lets it through.
-    (outer / ".git").mkdir()
+    # An enclosing REAL repository still must not reach past the inner one.
+    # This is the case that matters: a repo cloned inside another repo, or a
+    # dotfiles repo at $HOME with projects beneath it.
+    init_repo(outer)
     c = load(home, inner)
-    check("capture: an outer .git directory does not extend the bound",
+    check("capture: an enclosing repository does not extend the bound",
           c.value("require_review", "trivial_lines"), 25)
     check("capture: nor does it move the root", c.root, inner.resolve())
-    import shutil
-    shutil.rmtree(outer / ".git")
 
-    (outer / ".git").write_text("gitdir: /somewhere/else\n")
-    c = load(home, inner)
-    check("capture: nor does an outer .git file, which is one touch away",
-          c.value("require_review", "trivial_lines"), 25)
-    (outer / ".git").unlink()
-
-    # A zero-byte marker is not a checkout. This is what defeated the previous
-    # bound, so it is pinned even though innermost-wins already covers it.
-    (outer / ".git").write_text("")
-    c = load(home, inner)
-    check("capture: an empty .git file is not a repository root",
-          c.value("require_review", "trivial_lines"), 25)
-    (outer / ".git").unlink()
-
-    # With no git anywhere, only the directory itself is trusted, or the same
+    # Outside any repository only the directory itself is trusted, or the same
     # stray config would capture every loose directory beneath it.
-    loose_child = outer / "nogit"
-    loose_child.mkdir()
+    loose_child = tmp / "loosetree" / "child"
+    loose_child.mkdir(parents=True)
+    write(loose_child.parent, ".handrail.toml",
+          "[require_review]\ntrivial_lines = 999999\n")
     c = load(home, loose_child)
-    check("capture: with no git root, an ancestor config is still ignored",
+    check("capture: outside a repo, an ancestor config is still ignored",
           c.value("require_review", "trivial_lines"), 25)
 
     # The positive half: trusting nothing at all would also pass the case above.
@@ -186,13 +179,25 @@ with tempfile.TemporaryDirectory() as tmp:
     # A repo with no config of its own still resolves to its git root, which is
     # what a relative path in the config is measured against. Deleting that
     # fallback left every other case green, because nothing else reads root.
-    bare = outer / "bare"
-    (bare / ".git").mkdir(parents=True)
+    bare = init_repo(tmp / "bare")
     deep = bare / "src" / "pkg"
     deep.mkdir(parents=True)
     # resolve() on both sides: macOS hands back /private/var for a temp dir.
     check("fallback: a repo with no config still resolves to its git root",
           load(home, deep).root, bare.resolve())
+
+    # A config in a SUBDIRECTORY governs that subtree. Without this the walk
+    # could return the repo root for everything and still pass, because
+    # load() reads a config at the root either way.
+    write(bare, ".handrail.toml", "[rules]\nnegation = true\n")
+    write(deep, ".handrail.toml", "[rules]\nem_dash = false\n")
+    c = load(home, deep)
+    check("resolution: the nearest config wins over the repo root's",
+          c.root, deep.resolve())
+    check("resolution: and the root's config is not merged in",
+          c.enabled("negation"), False)
+    (deep / ".handrail.toml").unlink()
+    (bare / ".handrail.toml").unlink()
 
     write(inner, ".handrail.toml", 'policy_doc = "OK.md"\n')
     write(inner, "OK.md", "the repo's policy\n")
@@ -304,38 +309,38 @@ with tempfile.TemporaryDirectory() as tmp:
     check("resolution: a subdirectory reads the repo's config",
           c.enabled("negation"), True)
 
-    # A .git file whose target does not exist is not a checkout, so it is not a
-    # boundary and the repo's config still applies.
+    # A corrupt .git file is a broken checkout, and git refuses to name a root
+    # for it. Nothing above is trusted then, which is the safe answer: a
+    # directory whose repository identity cannot be established gets defaults
+    # rather than someone else's policy.
     (nested / ".git").write_text("gitdir: ../../.git/modules/gone\n")
     c = load(home, nested)
-    check("resolution: an unresolvable .git file does not shadow the config",
-          c.enabled("negation"), True)
+    check("resolution: a corrupt .git file yields defaults, not the parent's",
+          c.enabled("negation"), False)
+    (nested / ".git").unlink()
 
-    # A real linked checkout IS its own boundary, which is what makes a git
-    # worktree work. The fixture sits OUTSIDE the superproject on purpose: with
-    # a .git directory anywhere above it, the walk would reach the config
-    # regardless and the case could not tell a working bound from a broken one.
-    # That is how the first version of this case passed while worktrees were
-    # broken.
+    # A REAL linked worktree, made by git rather than by hand. Requiring the
+    # marker to be a directory broke every subdirectory of one of these, and
+    # worktrees are this project's mandated workflow for concurrent agents.
+    # The fixture sits outside the superproject so a config above it cannot
+    # reach the case regardless of what the boundary does.
+    source = init_repo(tmp / "wtsource")
+    write(source, "seed.txt", "seed\n")
+    for args in (["add", "-A"], ["-c", "user.email=t@t", "-c", "user.name=t",
+                                 "commit", "-qm", "seed"]):
+        subprocess.run(["git", "-C", str(source), *args], check=True,
+                       capture_output=True)
     linked = tmp / "linked"
-    linked.mkdir()
-    (repo / ".git" / "worktrees").mkdir(parents=True, exist_ok=True)
-    (linked / ".git").write_text("gitdir: %s\n" % (repo / ".git" / "worktrees"))
+    subprocess.run(["git", "-C", str(source), "worktree", "add", "-q",
+                    str(linked)], check=True, capture_output=True)
     write(linked, ".handrail.toml", "[rules]\nnegation = true\n")
     linked_src = linked / "src"
     linked_src.mkdir()
     c = load(home, linked_src)
-    check("resolution: a subdirectory of a linked checkout reads its config",
+    check("resolution: a subdirectory of a linked worktree reads its config",
           c.enabled("negation"), True)
-
-    # A .git file has to LOOK like one. The seven leading characters stand in
-    # for "gitdir:" so that dropping the prefix check leaves an existing path
-    # behind, which is the only way this case can tell the check is there.
-    (linked / ".git").write_text("ABCDEFG%s\n" % repo)
-    c = load(home, linked_src)
-    check("resolution: a .git file without a gitdir prefix is not a root",
-          c.enabled("negation"), False)
-    (linked / ".git").unlink()
+    check("resolution: and the worktree is its own root",
+          c.root, linked.resolve())
 
 # --- the guards actually read it ------------------------------------------
 # Resolution being right proves nothing about whether a guard consults it. Each
@@ -360,8 +365,7 @@ with tempfile.TemporaryDirectory() as tmp:
     tmp = Path(tmp)
     home, repo = tmp / "home", tmp / "repo"
     home.mkdir()
-    repo.mkdir()
-    (repo / ".git").mkdir()
+    init_repo(repo)
 
     publish = json.dumps({"tool_name": "Bash", "tool_input": {
         "command": 'gh pr create --body "Generated with Claude Code"'}})

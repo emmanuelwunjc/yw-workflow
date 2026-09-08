@@ -102,13 +102,17 @@ def main():
     if not command:
         sys.exit(0)
 
-    policy = _policy()
-    if policy is not None and not policy.enabled("ai_attribution"):
-        sys.exit(0)
-
+    # The patterns are matched BEFORE the config is read. Resolving the policy
+    # shells out to git, which costs about 11 ms, and this hook runs on every
+    # Bash command while a command carrying a footer is rare. Checking the
+    # switch here rather than up front is the same decision, paid for only when
+    # it matters.
     stripped = TRAILER.sub("", command)
     for pattern, label in BANNED:
         if pattern.search(stripped):
+            policy = _policy()
+            if policy is not None and not policy.enabled("ai_attribution"):
+                sys.exit(0)
             citation = policy.citation() if policy else ""
             print(
                 f"Blocked: this command would publish {label}.\n"
