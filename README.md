@@ -119,7 +119,7 @@ substitution are what the steps are built on.
 | Rule | What it reads | What fails the job |
 |---|---|---|
 | `claude-md` | changed `.md` and `.txt` files | an em-dash or a negation-then-correction in prose, with code fences exempt |
-| `no-ai-attribution` | the PR body and changed prose files | a generation footer or a session URL. `Claude-Session:` commit trailers pass |
+| `no-ai-attribution` | the PR body and changed prose files | a generation footer or a session URL, and in the PR body a `Claude-Session:` line too. That trailer still passes inside changed files |
 | `review-gate` | the PR's files, reviews, and comments | a 25+ line code diff with no approval and no verdict comment, including a verdict the author posted themselves |
 
 Three differences from the hook path, each deliberate:

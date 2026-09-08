@@ -388,5 +388,24 @@ the check that exists to keep it out of published text. Published text is
 scanned with the exemption off.
 
 **Follow-up, not in this PR.** `main`'s protection requires only the `check`
-context. `guards` cannot be added to the required contexts until it has run on
-`main` once, so this repo's own dogfood job is advisory until then.
+context, so this repo's own dogfood job is advisory until `guards` is added to
+`required_status_checks.contexts`. The API takes an arbitrary context string
+with no prior run, and waiting for one would wait forever: the `guards` job is
+gated on `pull_request`, so it never runs on a push to `main`.
+
+**Review round 4 (2026-09-08): a test that could not fail.** The case asserting
+the hook path still fails open pointed `transcript_path` at a file that does not
+exist. `check()` returns at its `if not turn` guard before it ever calls
+`Path.read_text`, so the injected fault never fired and the case passed whatever
+the guard did. Deleting the fail-open branch outright left the suite green at 31
+cases. It now feeds a real two-line JSONL transcript, and that same deletion
+fails it.
+
+The file's own comment warned about this exact trap for the sibling probe, and
+the trap was then walked into one function down. A comment is not a check.
+
+**Also from round 4.** `check_pr` was only ever called in-process, so mutating
+the argv wiring to `sys.exit(0)` left every case green. A subprocess case with
+`gh` removed from `PATH` covers it. And the README's rule table still promised
+that a `Claude-Session:` line passes, which stopped being true for the PR body
+in the previous commit.

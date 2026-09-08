@@ -12,6 +12,7 @@ three things that are different when the same rules run in CI:
 """
 import importlib.util
 import io
+import os
 import subprocess
 import sys
 import tempfile
@@ -120,14 +121,25 @@ with tempfile.TemporaryDirectory() as tmp:
 
     # The same injection in hook mode must still exit 0: a broken guard is not
     # allowed to take the user's session down with it.
+    #
+    # The transcript has to be real. An unreadable path makes check() return at
+    # its `if not turn` guard before it ever calls Path.read_text, so the fault
+    # is never injected and the case passes whatever the guard does. That is the
+    # failure this file's own comment warns about, and it shipped here anyway.
+    transcript = tmp / "transcript.jsonl"
+    transcript.write_text(
+        '{"message": {"role": "user", "content": "do the thing"}}\n'
+        '{"message": {"role": "assistant", "content": '
+        '[{"type": "text", "text": "Done, the parser is fixed."}]}}\n')
     hook_probe = subprocess.run(
         [sys.executable, "-c",
          "import pathlib, runpy, sys\n"
+         "real = pathlib.Path.read_text\n"
          "def boom(self, *a, **k): raise RuntimeError('injected')\n"
          "pathlib.Path.read_text = boom\n"
          "sys.argv = ['claude-md-guard.py', 'check']\n"
          "runpy.run_path(%r, run_name='__main__')\n" % str(CMG)],
-        input='{"transcript_path": "/nope", "session_id": "s"}',
+        input='{"transcript_path": "%s", "session_id": "s"}' % transcript,
         capture_output=True, text=True, timeout=20)
     cases += 1
     if hook_probe.returncode != 0:
@@ -226,6 +238,18 @@ cases += 1
 if "usage:" not in missing_arg.stderr or "Traceback" in missing_arg.stderr:
     failures.append("FAIL check-pr: missing PR number should print usage and "
                     "not a traceback, got: " + missing_arg.stderr.strip()[:120])
+
+# The action invokes the CLI, never the function. Mutating
+# `sys.exit(check_pr(sys.argv[2]))` to `sys.exit(0)` left every in-process case
+# green, so the wiring gets its own subprocess case. A PATH with no `gh` makes
+# every lookup come back empty, which is the "unknown" verdict.
+no_gh = dict(os.environ, PATH="/nonexistent")
+wired = subprocess.run([sys.executable, str(REVIEW), "check-pr", "1"], input="",
+                       capture_output=True, text=True, timeout=20, env=no_gh)
+cases += 1
+if wired.returncode != 1:
+    failures.append("FAIL check-pr: the CLI exited %d with no gh available, "
+                    "want 1" % wired.returncode)
 
 if failures:
     print("\n".join(failures))
