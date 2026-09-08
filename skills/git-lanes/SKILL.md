@@ -3,7 +3,7 @@ name: git-lanes
 description: Run concurrent agents in isolated git worktrees without them colliding. Use before starting multi-file work in a repo where another agent may be active, when asked to "run these in parallel", "spin up lanes", "use worktrees", when dispatching a reviewer, or when about to git checkout/pull/stash in a repo you did not just create. Also covers where built deliverables live and how lanes merge back to trunk.
 origin: authored
 tags: [git, worktree, concurrency, multi-agent, merge]
-version: 1.0.1
+version: 1.1.0
 ---
 
 # Git lanes
@@ -95,14 +95,17 @@ updated, against a copy nobody else reads, and it was repeated in a commit
 message and to a person before a reviewer running the same script from a
 normal checkout found it.
 
-Read and write that data from the main checkout. If a lane genuinely needs it,
-delete the lane's copy the moment the run is done.
+Read and write that data from the main checkout, and only from one lane at a
+time. That file is shared state in the same way a port or a database is, so two
+lanes both following this rule will both write it: coordinate which one holds it
+the way you would coordinate those. If a lane genuinely needs its own copy,
+delete that copy the moment the run is done.
 
-The mechanism form of this rule is a path resolver every script routes through,
-which refuses to resolve a gitignored path that exists in both the lane and the
-main checkout, and names both files when it refuses. Prose asks each script
-author to remember; a resolver makes the ambiguous case impossible to run
-against silently.
+The mechanism form of this rule would be a path resolver every script routes
+through, refusing to resolve a gitignored path that exists in both the lane and
+the main checkout and naming both files when it refuses. Nobody has built one
+yet. Prose asks each script author to remember, and a resolver would make the
+ambiguous case impossible to run against silently.
 
 ## Built deliverables live in `deliverables/`, one folder, never the repo root
 
