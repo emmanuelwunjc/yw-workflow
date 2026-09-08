@@ -131,6 +131,24 @@ with tempfile.TemporaryDirectory() as tmp:
           c.value("require_review", "trivial_lines"), 25)
     check("capture: and its policy doc is not cited", c.citation(), "")
 
+    # The bound has a DIRECTION, and the cases above pass under either one
+    # because `outer` holds no .git. These pin it. A .git beside the hostile
+    # config is one `touch` away, and bounding on the outermost git, or on
+    # .exists() rather than .is_dir(), lets it through.
+    (outer / ".git").mkdir()
+    c = load(home, inner)
+    check("capture: an outer .git directory does not extend the bound",
+          c.value("require_review", "trivial_lines"), 25)
+    check("capture: nor does it move the root", c.root, inner.resolve())
+    import shutil
+    shutil.rmtree(outer / ".git")
+
+    (outer / ".git").write_text("gitdir: /somewhere/else\n")
+    c = load(home, inner)
+    check("capture: nor does an outer .git file, which is one touch away",
+          c.value("require_review", "trivial_lines"), 25)
+    (outer / ".git").unlink()
+
     # With no git anywhere, only the directory itself is trusted, or the same
     # stray config would capture every loose directory beneath it.
     loose_child = outer / "nogit"
@@ -138,6 +156,20 @@ with tempfile.TemporaryDirectory() as tmp:
     c = load(home, loose_child)
     check("capture: with no git root, an ancestor config is still ignored",
           c.value("require_review", "trivial_lines"), 25)
+
+    # The positive half: trusting nothing at all would also pass the case above.
+    write(loose_child, ".handrail.toml", "[require_review]\ntrivial_lines = 7\n")
+    c = load(home, loose_child)
+    check("capture: with no git root, the cwd's own config is still read",
+          c.value("require_review", "trivial_lines"), 7)
+    (loose_child / ".handrail.toml").unlink()
+
+    # A policy doc names a file in the tree. Without this an ancestor config
+    # could quote any file on disk into a block message.
+    write(inner, ".handrail.toml", 'policy_doc = "../EVIL.md"\n')
+    c = load(home, inner)
+    check("policy doc: a path escaping the tree is refused", c.citation(), "")
+    (inner / ".handrail.toml").unlink()
 
     # A repo with no config of its own still resolves to its git root, which is
     # what a relative path in the config is measured against. Deleting that
@@ -176,6 +208,29 @@ with tempfile.TemporaryDirectory() as tmp:
     (home / ".handrail.toml").unlink()
 
     check("an unknown rule name is off", c.enabled("nosuchrule"), False)
+
+    # The JSON fallback is a documented guarantee and had no case: deleting the
+    # branch that reads it left every case green.
+    json_only = tmp / "jsononly"
+    (json_only / ".git").mkdir(parents=True)
+    write(json_only, ".handrail.json", '{"rules": {"negation": true}}')
+    check("format: a JSON config is read when it is the only one",
+          load(home, json_only).enabled("negation"), True)
+
+    # Without tomllib a .toml cannot be read, and silently applying defaults
+    # would leave the user enforcing a policy they did not write.
+    toml_only = tmp / "tomlonly"
+    (toml_only / ".git").mkdir(parents=True)
+    write(toml_only, ".handrail.toml", "[rules]\nnegation = true\n")
+    real_tomllib, cfg.tomllib = cfg.tomllib, None
+    cases += 1
+    try:
+        load(home, toml_only)
+        failures.append("FAIL format: a .toml loaded with no tomllib available")
+    except RuntimeError:
+        pass
+    finally:
+        cfg.tomllib = real_tomllib
 
     # --- CI ignores on/off ----------------------------------------------
     write(repo, ".handrail.toml",

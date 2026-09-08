@@ -170,7 +170,14 @@ A repo config may switch a rule **on**. Only your user config may switch one
 **off**, so a repo you clone can make you stricter and never laxer. One
 exception, and it is inherent: if your home directory is itself a git checkout,
 as the dotfiles-in-a-bare-repo pattern does, then that repo's `.handrail.toml`
-is your user config and can switch rules off. Thresholds
+is your user config and can switch rules off.
+
+The repo config is looked for between the current directory and the innermost
+enclosing repo, meaning the nearest ancestor whose `.git` is a directory. A
+config above that boundary is ignored, so a `.handrail.toml` sitting in a shared
+parent, a world-writable one included, cannot govern a checkout below it. A
+submodule or a worktree uses a `.git` file rather than a directory, so a nested
+checkout still reads its superproject's config. Thresholds
 sit outside that ratchet: a repo sets them freely, because a monorepo full of
 generated files has a real reason to move the review threshold. So the guarantee
 is that a repo cannot switch a guard off, rather than that a repo cannot weaken

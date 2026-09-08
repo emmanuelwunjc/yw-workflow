@@ -93,14 +93,17 @@ def main():
     except (json.JSONDecodeError, ValueError):
         sys.exit(0)
 
-    policy = _policy()
-    if policy is not None and not policy.enabled("ai_attribution"):
-        sys.exit(0)
-
+    # The cheap checks come first so a broken config warns on a Bash command
+    # rather than on every tool call. This hook fires constantly, and a steady
+    # warning is what teaches people to stop reading stderr.
     if payload.get("tool_name") != "Bash":
         sys.exit(0)
     command = payload.get("tool_input", {}).get("command", "")
     if not command:
+        sys.exit(0)
+
+    policy = _policy()
+    if policy is not None and not policy.enabled("ai_attribution"):
         sys.exit(0)
 
     stripped = TRAILER.sub("", command)

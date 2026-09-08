@@ -146,19 +146,31 @@ def _repo_root(start):
     except OSError:  # a deleted cwd still has to yield defaults, not a crash
         return None
     ancestors = (start, *start.parents)
-    # The search for a config is BOUNDED by the outermost ancestor holding a
-    # .git, so a stray .handrail.toml above a checkout cannot capture it. An
-    # unbounded walk let anything writable above a repo, /tmp included, set that
-    # repo's thresholds and protected branch names, and thresholds sit outside
-    # the ratchet on purpose. With no git anywhere, only the cwd is trusted.
+    # The search for a config is BOUNDED by the INNERMOST ancestor whose .git is
+    # a DIRECTORY, which is the repo you are actually in. Both halves matter:
+    #
+    #   outermost, as the first attempt used, walks past the repo into whatever
+    #   contains it, so a config in a shared parent governs every checkout below.
+    #   .exists(), as the first attempt used, accepts a zero-byte file, so
+    #   `touch /tmp/.git` next to a hostile config restores that reach. /tmp is
+    #   world-writable, so any local process could then pick the policy doc
+    #   quoted at the model. That is the whole blast radius TODAY, because
+    #   nothing in production reads values yet. It becomes thresholds and
+    #   protected branch names the moment the unit that wires them lands, which
+    #   is why this is bounded now rather than then.
+    #
+    # A submodule and a worktree both use a .git FILE, so bounding on a
+    # directory keeps a nested checkout from shadowing the superproject's
+    # config, which is what this bound was introduced for. With no git anywhere,
+    # only the cwd is trusted.
     git = [i for i, directory in enumerate(ancestors)
-           if (directory / ".git").exists()]
-    bound = (max(git) + 1) if git else 1
+           if (directory / ".git").is_dir()]
+    bound = (min(git) + 1) if git else 1
     for directory in ancestors[:bound]:
         if any((directory / name).is_file() for name in BASENAMES):
             return directory
     # No config: the git root is still the right base for resolving a policy doc.
-    return ancestors[max(git)] if git else None
+    return ancestors[min(git)] if git else None
 
 
 class Config:
@@ -227,6 +239,8 @@ def load(cwd=None, ci=False):
         # resolves against home. Resolving it against the current repo would
         # cite it only in repos that happen to carry the same filename.
         doc, base = user.get("policy_doc"), Path.home()
+    if doc and (".." in Path(doc).parts or Path(doc).is_absolute()):
+        doc = None  # a policy doc names a file in the tree, never one above it
     if doc and not (base and (base / doc).is_file()):
         if ci:
             sys.stderr.write("handrail: policy_doc %r cannot be resolved, so "

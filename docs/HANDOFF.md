@@ -485,3 +485,32 @@ Bash call and a steady warning is noise that teaches people to ignore stderr.
 thresholds freely" had no case, so reversing the merge order passed. An unknown
 rule name being off had no case. The git-root fallback had none, because nothing
 except `Config.root` observes it. Coverage went from 41 cases to 51.
+
+**Review round 3: the bound was real and one `touch` wide.** Round 2 bounded the
+config search at the outermost ancestor holding a `.git`, tested with `.exists()`.
+Both halves were wrong. Outermost walks past the repo into whatever contains it,
+and `.exists()` accepts a zero-byte file, so `touch /tmp/.git` beside a hostile
+config restored the exact reach round 2 had closed. The non-adversarial version
+is more likely to bite: with a `.git` at `$HOME`, from `git init ~` or a dotfiles
+manager, a `.handrail.toml` in `~/code` became the config for every project
+underneath.
+
+The bound is the INNERMOST ancestor whose `.git` is a DIRECTORY now. A submodule
+and a worktree both use a `.git` file, so the nested-checkout case that started
+this still passes.
+
+**The tests were the real defect.** Both capture cases from round 2 passed under
+every bound direction, because the outer directory in them held no `.git` at
+all. `max` to `min`, and `.exists()` to `.is_dir()`, both survived. Only removing
+the bound entirely was caught. A case that cannot distinguish the fix from the
+bug is not a test of the fix, and this is the third round running where the
+finding was a guarantee with no case behind it.
+
+**Also from round 3.** The JSON fallback had no case, so deleting the branch that
+reads it left everything green. "Only the cwd is trusted with no git root" had
+only its negative half, so trusting nothing at all passed. `no-ai-attribution.py`
+read the config before its cheap early exits, so a broken config warned on every
+tool call, which contradicts this same file's ruling one entry above about
+stderr noise. And a `policy_doc` of `../../anything.md` resolved, which is the
+payload a captured config would have chosen; a path escaping the tree is refused
+now.
