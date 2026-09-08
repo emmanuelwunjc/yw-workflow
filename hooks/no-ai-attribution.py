@@ -2,14 +2,34 @@
 """Block the "Generated with Claude Code" footer and session URLs from anything
 that gets published: PR bodies, issues, comments, releases, commit messages.
 
-Yiming asked for this globally on 2026-09-01. The default harness instructions
-tell the model to append that footer to PR bodies; this hook is what makes the
-CLAUDE.md rule win over it, since prose alone lost.
+The default harness instructions tell the model to append that footer to PR
+bodies. This hook is what makes a repo's own rule win over that instruction,
+since prose alone lost.
 """
 import json
 import re
 import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+try:
+    import config as handrail_config
+except Exception:  # a missing or broken config must not disarm the guard
+    handrail_config = None
+
+
+def _policy():
+    """Effective policy, or None when it cannot be read.
+
+    None means "enforce with no citation": a config that fails to load is a
+    reason to keep guarding, never a reason to stop.
+    """
+    if handrail_config is None:
+        return None
+    try:
+        return handrail_config.load()
+    except Exception:
+        return None
 
 BANNED = [
     (re.compile(r"Generated with \[?Claude Code", re.I), 'the "Generated with Claude Code" footer'),
@@ -71,6 +91,10 @@ def main():
     except (json.JSONDecodeError, ValueError):
         sys.exit(0)
 
+    policy = _policy()
+    if policy is not None and not policy.enabled("ai_attribution"):
+        sys.exit(0)
+
     if payload.get("tool_name") != "Bash":
         sys.exit(0)
     command = payload.get("tool_input", {}).get("command", "")
@@ -80,13 +104,16 @@ def main():
     stripped = TRAILER.sub("", command)
     for pattern, label in BANNED:
         if pattern.search(stripped):
+            citation = policy.citation() if policy else ""
             print(
                 f"Blocked: this command would publish {label}.\n"
-                "Yiming's standing rule: never put AI-generation footers or session "
-                "URLs in anything other people read (PR bodies, issues, comments, "
-                "releases). Remove those lines and run it again.\n"
-                "Co-Authored-By and Claude-Session trailers in a git commit message "
-                "are fine and are not what this blocks.",
+                "Never put AI-generation footers or session URLs in anything "
+                "other people read: PR bodies, issues, comments, releases. "
+                "Remove those lines and run it again.\n"
+                "Co-Authored-By and Claude-Session trailers in a git commit "
+                "message are history attribution rather than publication, and "
+                "stay."
+                + (("\n" + citation) if citation else ""),
                 file=sys.stderr,
             )
             sys.exit(2)

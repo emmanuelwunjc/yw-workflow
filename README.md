@@ -146,6 +146,41 @@ maintainer. Branch protection is where "somebody else must approve" belongs.
 `SKIP_REVIEW_GATE=1` has no effect here. Bypassing a server-side gate is a
 branch-protection decision, and it belongs with the people who own the branch.
 
+## Config
+
+Every rule is on by default except negation-then-correction, which is the one
+heuristic with known false positives. To change that, write `.handrail.toml` in
+a repo, or `~/.handrail.toml` for your machine.
+
+```toml
+policy_doc = "ENGINEERING.md"     # cited in block messages when the file exists
+
+[rules]
+negation = true                   # off by default
+em_dash = false                   # only your user config may switch one off
+
+[git_safety]
+protected = ["main", "trunk"]
+
+[require_review]
+trivial_lines = 10
+```
+
+A repo config may switch a rule **on**. Only your user config may switch one
+**off**, so a repo you clone can make you stricter and never laxer. Thresholds
+sit outside that ratchet: a repo sets them freely, because a monorepo full of
+generated files has a real reason to move the review threshold. So the guarantee
+is that a repo cannot switch a guard off, rather than that a repo cannot weaken
+your guards.
+
+Block messages explain their rule on their own terms and append `See
+<policy_doc>.` only when that file is configured and present. A citation
+pointing at a file the reader does not have is worse than none.
+
+Where tomllib is missing (Python before 3.11), `.handrail.json` is read instead.
+With both files present a session reads the TOML and warns, while CI fails the
+job, because two configs disagreeing is an unanswered question.
+
 ## Checks
 
 ```bash
