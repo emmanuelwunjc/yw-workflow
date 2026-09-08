@@ -624,3 +624,31 @@ the ancestry refusal landed. Both corrected. A user-config typo arming an
 unknown rule had no case, and a DIRECTORY named `.handrail.toml` would have
 stopped the walk and silently lost the repo's real config, which is round
 three's `.exists()` defect one guard over.
+
+**Review round 7: the instance was fixed and the class was not.** Round 6 found
+that a `policy_doc` filename reaches a block message the model reads as its next
+instruction, and round 6's fix bounded `policy_doc`. Two other repo-controlled
+strings reach the same stderr and neither was touched: the directory path in the
+two-configs-present warning, which still carried newlines, and the parser's
+error message, which quotes the config back. A TOML duplicate-key error echoes
+the offending key, and a quoted key is arbitrary text of unbounded length. Both
+were driven end to end through a real clone.
+
+**Two different fixes, because the two surfaces differ.** A path is worth
+showing, so every character outside a plain path alphabet becomes `?`: the
+person reading it still recognises the path, and nothing left in it parses as
+prose. A parser message is not worth showing, because no length or character
+bound makes an attacker-authored sentence safe to hand a model, so only the
+exception type survives. Anyone debugging their own config can run the parser.
+
+**Considered and rejected: one sanitiser for both.** The first attempt collapsed
+whitespace, truncated and quoted, applied everywhere. It shrinks the surface
+without closing it: a quoted 120-character fragment is still a sentence. The
+test caught it, which is the first time in this branch that a fix failed its own
+new case before it failed a reviewer.
+
+**Also from round 7.** The 100-character cap on a `policy_doc` had no case, so
+widening the pattern to a hundred thousand passed everything. The
+spaces-and-punctuation case could not fail on the space, because its fixture
+also carried a comma and a question mark, and whitespace is the one character
+that most makes a filename read as a sentence.

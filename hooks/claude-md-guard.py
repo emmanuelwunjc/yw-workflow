@@ -72,8 +72,11 @@ def _policy(ci=False):
     try:
         return handrail_config.load(ci=ci)
     except Exception as exc:
+        # The kind of failure, never the parser's message: that message quotes
+        # the config back, and a TOML key is arbitrary text of unbounded length
+        # reaching a block reason the model reads as an instruction.
         sys.stderr.write("handrail: config unreadable (%s), enforcing "
-                         "defaults\n" % exc)
+                         "defaults\n" % handrail_config.safe_error(exc))
         return None
 
 

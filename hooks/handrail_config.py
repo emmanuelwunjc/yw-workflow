@@ -95,6 +95,36 @@ VALUE_DEFAULTS = {
 BASENAMES = (".handrail.toml", ".handrail.json")
 
 
+# A path is repo-controlled, and a guard's stderr is handed to the model as the
+# reason it was blocked, so a directory name is a place to write an instruction.
+# Collapsing whitespace and truncating shrinks that surface without closing it:
+# a quoted fragment can still be a sentence. Every character outside a plain
+# path alphabet becomes "?" instead, which keeps the path recognisable to the
+# person reading it and leaves nothing that parses as prose.
+_PATH_SAFE = re.compile(r"[^A-Za-z0-9._/-]")
+
+
+def safe_path(path, limit=120):
+    """A repo-controlled path, rendered so it cannot read as an instruction."""
+    flat = _PATH_SAFE.sub("?", str(path))
+    if len(flat) > limit:
+        flat = "..." + flat[-(limit - 3):]
+    return flat
+
+
+def safe_error(exc):
+    """The kind of a failure, never its message.
+
+    A parser quotes the file back: tomllib's duplicate-key error echoes the
+    offending key, and a TOML quoted key is arbitrary text of unbounded length.
+    There is no length or character bound that makes an attacker-authored
+    sentence safe to hand the model, so the message is dropped and only the
+    exception type survives. Anyone debugging their own config can run the
+    parser and read the full error themselves.
+    """
+    return type(exc).__name__
+
+
 class AmbiguousConfig(Exception):
     """Both a TOML and a JSON config exist in one directory."""
 
@@ -102,7 +132,8 @@ class AmbiguousConfig(Exception):
         self.directory = directory
         super().__init__(
             "two config files in %s: .handrail.toml and .handrail.json. "
-            "Delete one, because the effective policy is ambiguous." % directory
+            "Delete one, because the effective policy is ambiguous."
+            % safe_path(directory)
         )
 
 
@@ -113,7 +144,7 @@ def _parse(path):
     if tomllib is None:
         raise RuntimeError(
             "%s needs tomllib (Python 3.11+). Rename it to .handrail.json, "
-            "or run the guards on a newer Python." % path
+            "or run the guards on a newer Python." % safe_path(path)
         )
     return tomllib.loads(text)
 
@@ -132,7 +163,7 @@ def _read_dir(directory, strict):
             raise AmbiguousConfig(directory)
         sys.stderr.write(
             "handrail: two config files in %s, reading .handrail.toml and "
-            "ignoring .handrail.json\n" % directory
+            "ignoring .handrail.json\n" % safe_path(directory)
         )
     return _parse(present[0])
 
@@ -229,7 +260,7 @@ class Config:
         citation, so an unset or missing policy_doc yields nothing and the
         message stands on its own.
         """
-        return "See %s." % self._policy_doc if self._policy_doc else ""
+        return "See `%s`." % self._policy_doc if self._policy_doc else ""
 
 
 def load(cwd=None, ci=False):
@@ -286,7 +317,7 @@ def load(cwd=None, ci=False):
         doc = None  # a policy doc names a file in the tree, never one above it
     if doc and not (base and (base / doc).is_file()):
         if ci:
-            sys.stderr.write("handrail: policy_doc %r cannot be resolved, so "
-                             "messages will not cite it\n" % doc)
+            sys.stderr.write("handrail: policy_doc %s cannot be resolved, so "
+                             "messages will not cite it\n" % safe_path(doc))
         doc = None
     return Config(rules, values, doc, root)

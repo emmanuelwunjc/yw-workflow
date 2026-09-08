@@ -204,9 +204,13 @@ Where tomllib is missing (Python before 3.11), `.handrail.json` is read instead.
 With both files present a session reads the TOML and warns. The CI half of that
 rule, which fails the job instead, is written and not yet wired.
 
-A `policy_doc` is refused unless it is a plain relative path of letters, digits,
-dots, dashes, underscores and slashes. Its text reaches a block message that the
-model reads as an instruction, and a filename can be a paragraph.
+Repo-controlled text is kept out of block messages, because a guard's stderr is
+handed to the model as the reason it was blocked and anything in it reads as an
+instruction. A `policy_doc` is refused unless it is a plain relative path of
+letters, digits, dots, dashes, underscores and slashes, under 100 characters. A
+path printed in a warning has every other character replaced with `?`. A
+parser's error contributes its type and never its message, since a TOML key is
+arbitrary text and quoting the file back is how the file gets to speak.
 
 ## Checks
 
