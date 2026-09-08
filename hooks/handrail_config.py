@@ -153,7 +153,7 @@ def _git_root(start):
     try:
         done = subprocess.run(
             ["git", "-C", str(start), "rev-parse", "--show-toplevel"],
-            capture_output=True, text=True, timeout=5,
+            capture_output=True, text=True, errors="replace", timeout=5,
         )
     except (OSError, subprocess.SubprocessError):
         return None  # no git on PATH, or it hung: fall back to the cwd alone
@@ -181,6 +181,14 @@ def _repo_root(start):
         return None
 
     root = _git_root(start)
+    # git can name a toplevel that is not an ancestor of the cwd, which
+    # GIT_DIR and GIT_WORK_TREE do routinely and which the dotfiles-in-a-bare-repo
+    # pattern sets as a matter of course. The walk below stops at `root`, so a
+    # root off the cwd's ancestry means it never stops, climbs to the filesystem
+    # root, and takes the first config it meets. That is the unbounded walk
+    # again, reached by exporting two environment variables.
+    if root is not None and root != start and root not in start.parents:
+        root = None
     if root is None:
         return start if any((start / name).is_file() for name in BASENAMES) else None
 

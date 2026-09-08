@@ -550,15 +550,15 @@ dropping a member from it passed. And the README presented value keys as working
 configuration when no guard reads them; it now says so at the top of the section
 rather than leaving a reader to discover it by setting one.
 
-**The boundary is git\'s now.** `_repo_root` walks from the cwd to
+**The boundary is git's now.** `_repo_root` walks from the cwd to
 `git rev-parse --show-toplevel` and no further, and trusts only the cwd outside
 a repository. Worktrees, submodules, bare checkouts and `.git` files stop being
-this package\'s problem.
+this package's problem.
 
 Two behaviours changed and both are deliberate. A directory whose `.git` file is
-corrupt gets defaults rather than its parent\'s policy, because git refuses to
+corrupt gets defaults rather than its parent's policy, because git refuses to
 name a root and a directory with no establishable identity should not inherit
-someone else\'s rules. A submodule is its own boundary, so a superproject\'s
+someone else's rules. A submodule is its own boundary, so a superproject's
 config no longer reaches into it.
 
 **The tests had to become real repositories.** Every fixture used a hand-made
@@ -567,3 +567,30 @@ point: a planted marker no longer creates a boundary. The worktree fixture is a
 real `git worktree add` now, and two mutations survived the first rewrite
 because a config at the repo root is read whether the walk is precise or not, so
 a case with a config in a SUBDIRECTORY was needed to pin it.
+
+**Review round 5: the bound came back, through two environment variables.**
+Handing the boundary to git closed every layout attack, and left one open that
+has nothing to do with layouts. `git rev-parse --show-toplevel` can name a root
+that is not an ancestor of the current directory, which `GIT_DIR` and
+`GIT_WORK_TREE` do routinely and which the dotfiles-in-a-bare-repo pattern
+exports as a matter of course. The walk stops when it reaches the root, so a
+root off the ancestry never stops it: it climbs to the filesystem root and takes
+the first config it meets. Two exported variables and the bound was gone again,
+which is the same defect round 2 blocked on.
+
+A root that is neither the current directory nor one of its parents is refused
+now. The case sets those variables in the subprocess environment, because
+nothing in the suite could fail on this: the test process happens not to have
+them set, which is exactly why it went unnoticed.
+
+**Deliberately not covered, and it is correct.** With `GIT_WORK_TREE` pointing
+at a genuine ancestor, git really is saying the working tree is that ancestor,
+so its config is inside the repository by the definition this package adopts.
+
+**Three guarantees had no case behind them, again found by mutation.** The
+no-git-on-PATH fallback was never exercised, so making it return an ancestor
+passed everything. The middle of the walk was never exercised, since both
+existing cases put the config at the current directory or at the repository
+root, and a walk checking only those two ends passed. And the reordering that
+makes an ordinary Bash command skip the boundary lookup entirely had no case, so
+restoring the eager read cost nothing.

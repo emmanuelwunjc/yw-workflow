@@ -46,23 +46,22 @@ def init_repo(directory):
     return directory
 
 
-def load(home, repo, ci=False):
+def load(home, repo, ci=False, env=None):
     """Resolve with HOME pointed at a fixture, since Path.home() reads it.
 
     Warnings are captured so a passing run prints only its own result line.
     Several cases exist precisely to provoke one.
     """
-    previous = os.environ.get("HOME")
+    previous = dict(os.environ)
     os.environ["HOME"] = str(home)
+    os.environ.update(env or {})
     stderr, sys.stderr = sys.stderr, io.StringIO()
     try:
         return cfg.load(cwd=repo, ci=ci)
     finally:
         sys.stderr = stderr
-        if previous is None:
-            del os.environ["HOME"]
-        else:
-            os.environ["HOME"] = previous
+        os.environ.clear()
+        os.environ.update(previous)
 
 
 with tempfile.TemporaryDirectory() as tmp:
@@ -105,6 +104,13 @@ with tempfile.TemporaryDirectory() as tmp:
           c.value("git_safety", "protected"), ["trunk"])
     check("values: an unset key keeps its default",
           c.value("handoff", "path"), "docs/HANDOFF.md")
+    write(repo, ".handrail.toml", "[git_safety]\nnosuchkey = 1\n")
+    cases += 1
+    try:
+        load(home, repo).value("git_safety", "nosuchkey")
+        failures.append("FAIL values: an unknown key inside a known section was kept")
+    except KeyError:
+        pass
 
     # --- the policy doc -------------------------------------------------
     write(repo, ".handrail.toml", 'policy_doc = "ENGINEERING.md"\n')
@@ -147,6 +153,17 @@ with tempfile.TemporaryDirectory() as tmp:
     check("capture: an enclosing repository does not extend the bound",
           c.value("require_review", "trivial_lines"), 25)
     check("capture: nor does it move the root", c.root, inner.resolve())
+
+    # GIT_DIR and GIT_WORK_TREE make git name a toplevel that is not an
+    # ancestor of the cwd, which the dotfiles-in-a-bare-repo pattern does as a
+    # matter of course. The walk stops at the root, so a root off the ancestry
+    # never stops it: it climbs to the filesystem root and takes the first
+    # config it meets. Two exported variables, and the bound is gone.
+    elsewhere = init_repo(tmp / "elsewhere")
+    c = load(home, inner, env={"GIT_DIR": str(elsewhere / ".git"),
+                               "GIT_WORK_TREE": str(elsewhere)})
+    check("capture: a git root off the cwd's ancestry is refused",
+          c.value("require_review", "trivial_lines"), 25)
 
     # Outside any repository only the directory itself is trusted, or the same
     # stray config would capture every loose directory beneath it.
@@ -199,6 +216,14 @@ with tempfile.TemporaryDirectory() as tmp:
     (deep / ".handrail.toml").unlink()
     (bare / ".handrail.toml").unlink()
 
+    # A config partway between the cwd and the root. Replacing the walk with
+    # "the cwd, else the root" passed every other case.
+    middle = bare / "src"
+    write(middle, ".handrail.toml", "[rules]\nnegation = true\n")
+    c = load(home, deep)
+    check("resolution: a config partway up the tree wins", c.root, middle.resolve())
+    (middle / ".handrail.toml").unlink()
+
     write(inner, ".handrail.toml", 'policy_doc = "OK.md"\n')
     write(inner, "OK.md", "the repo's policy\n")
     c = load(home, inner)
@@ -228,16 +253,14 @@ with tempfile.TemporaryDirectory() as tmp:
 
     # The JSON fallback is a documented guarantee and had no case: deleting the
     # branch that reads it left every case green.
-    json_only = tmp / "jsononly"
-    (json_only / ".git").mkdir(parents=True)
+    json_only = init_repo(tmp / "jsononly")
     write(json_only, ".handrail.json", '{"rules": {"negation": true}}')
     check("format: a JSON config is read when it is the only one",
           load(home, json_only).enabled("negation"), True)
 
     # Without tomllib a .toml cannot be read, and silently applying defaults
     # would leave the user enforcing a policy they did not write.
-    toml_only = tmp / "tomlonly"
-    (toml_only / ".git").mkdir(parents=True)
+    toml_only = init_repo(tmp / "tomlonly")
     write(toml_only, ".handrail.toml", "[rules]\nnegation = true\n")
     real_tomllib, cfg.tomllib = cfg.tomllib, None
     cases += 1
@@ -348,14 +371,14 @@ with tempfile.TemporaryDirectory() as tmp:
 BLOCK, ALLOW = 2, 0
 
 
-def guard(script, payload, home, cwd, *args):
+def guard(script, payload, home, cwd, *args, env=None):
     """Run a guard with HOME and cwd pointed at fixtures.
 
     args carries the mode. Omitting it on a guard that needs one exits 0 with no
     output, which reads exactly like "did not block" and is how these cases
     first passed for the wrong reason.
     """
-    env = dict(os.environ, HOME=str(home))
+    env = dict(os.environ, HOME=str(home), **(env or {}))
     return subprocess.run([sys.executable, str(HOOKS / script), *args],
                           input=payload, capture_output=True, text=True,
                           timeout=20, cwd=str(cwd), env=env)
@@ -386,6 +409,38 @@ with tempfile.TemporaryDirectory() as tmp:
     check("wiring: a repo can switch it back on over the user's off",
           guard("no-ai-attribution.py", publish, home, repo).returncode, BLOCK)
     (home / ".handrail.toml").unlink()
+
+    # With no git on PATH the boundary cannot be established, and the fallback
+    # is the cwd alone. Nothing exercised that branch, so a mutation making it
+    # return an ancestor survived the whole suite.
+    nogit = tmp / "nogit-bin"
+    nogit.mkdir()
+    outer_capture = tmp / "nogit-tree"
+    inner_capture = outer_capture / "work"
+    inner_capture.mkdir(parents=True)
+    write(outer_capture, ".handrail.toml", "[rules]\nnegation = true\n")
+    got = guard("no-ai-attribution.py", publish, home, inner_capture,
+                env={"PATH": str(nogit)})
+    cases += 1
+    if got.returncode != BLOCK:
+        failures.append("FAIL wiring: the guard stopped blocking with no git "
+                        "on PATH (exit %d)" % got.returncode)
+    c = load(home, inner_capture, env={"PATH": str(nogit)})
+    check("no git on PATH: an ancestor config is not read",
+          c.enabled("negation"), False)
+
+    # An ordinary command must never pay for the boundary lookup, which is why
+    # the patterns are matched before the policy is resolved. A malformed config
+    # is the probe: reading it would warn, and nothing warns.
+    write(inner_capture, ".handrail.toml", "[rules\nnot toml\n")
+    harmless = json.dumps({"tool_name": "Bash",
+                           "tool_input": {"command": "ls -la"}})
+    got = guard("no-ai-attribution.py", harmless, home, inner_capture)
+    cases += 1
+    if got.returncode != ALLOW or got.stderr.strip():
+        failures.append("FAIL wiring: an ordinary command read the config "
+                        "(exit %d, stderr %r)" % (got.returncode,
+                                                  got.stderr.strip()[:80]))
 
     # A config that cannot be parsed must leave the guard armed. Failing to
     # read the policy is a reason to keep guarding, and a guard that disarms on
