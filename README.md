@@ -116,7 +116,9 @@ still scopes itself to what it reads, so a PR touching only `.py` files scans no
 prose and the review gate carries the run.
 
 The action assumes a Linux runner. `xargs -a`, `xargs -d` and process
-substitution are what the steps are built on.
+substitution are what the steps are built on. Its scratch files go in
+`$RUNNER_TEMP`, which is job-scoped, so two jobs on one self-hosted runner do
+not overwrite each other's file lists.
 
 | Rule | What it reads | What fails the job |
 |---|---|---|
