@@ -432,3 +432,16 @@ a public plugin was pointing at a file no reader could open and that was not
 there to open. The rule now describes the mechanism rather than naming an
 artifact. This repo's own house rule covers it: verify every reference before
 including it.
+
+## 2026-09-08: the guards action writes to RUNNER_TEMP
+
+Issue #5, filed as a nit during the CI gate review and fixed here. The action wrote its
+file lists to fixed `/tmp` paths. On a GitHub-hosted runner the VM is single-use
+so nothing collides. On a self-hosted runner two `guards` jobs share `/tmp`, one
+overwrites the other's list, and the loser scans the wrong file set while
+reporting success. A required check that passes on the wrong input is the
+failure mode this action exists to prevent, one layer up.
+
+`RUNNER_TEMP` is job-scoped and always set on a runner. The fallback to `/tmp`
+keeps the action working anywhere it is unset, which is what a local test of the
+steps does.
