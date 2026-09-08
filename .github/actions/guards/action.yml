@@ -18,7 +18,16 @@ runs:
     # composite step's working directory is the caller's checkout, not ours.
     - name: Locate guards
       shell: bash
-      run: echo "YW_HOOKS=$(cd "$GITHUB_ACTION_PATH/../../../hooks" && pwd)" >> "$GITHUB_ENV"
+      run: |
+        set -euo pipefail
+        echo "YW_HOOKS=$(cd "$GITHUB_ACTION_PATH/../../../hooks" && pwd)" >> "$GITHUB_ENV"
+        # RUNNER_TEMP is job-scoped. Fixed /tmp paths are fine on a
+        # GitHub-hosted runner, whose VM is single-use, and collide on a
+        # self-hosted one running jobs concurrently: two guards jobs share /tmp,
+        # one overwrites the other's file list, and the loser scans the wrong
+        # set while reporting success. Falling back to /tmp keeps the action
+        # working anywhere RUNNER_TEMP is unset.
+        echo "YW_TMP=${RUNNER_TEMP:-/tmp}" >> "$GITHUB_ENV"
 
     # pull_request_target is deliberately NOT accepted. It hands a privileged
     # token to a workflow whose checkout is usually the PR head, and these steps
@@ -42,29 +51,29 @@ runs:
         # The API list is authoritative and needs no fetch depth, so a shallow
         # default checkout still gives the right file set.
         gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR/files" \
-          --jq '.[] | select(.status != "removed") | .filename' > /tmp/yw-changed.txt
-        wc -l < /tmp/yw-changed.txt | xargs echo "changed files:"
+          --jq '.[] | select(.status != "removed") | .filename' > "$YW_TMP/yw-changed.txt"
+        wc -l < "$YW_TMP/yw-changed.txt" | xargs echo "changed files:"
 
     - name: Collect changed prose files
       shell: bash
       run: |
         set -euo pipefail
-        : > /tmp/yw-prose.txt
+        : > "$YW_TMP/yw-prose.txt"
         for suffix in .md .txt; do
           # Only files still present in the tree: a path renamed away would
           # otherwise fail the read and be reported as a finding.
           while IFS= read -r f; do
-            [ -f "$f" ] && printf '%s\n' "$f" >> /tmp/yw-prose.txt
-          done < <(grep -E "\\${suffix}\$" /tmp/yw-changed.txt || true)
+            [ -f "$f" ] && printf '%s\n' "$f" >> "$YW_TMP/yw-prose.txt"
+          done < <(grep -E "\\${suffix}\$" "$YW_TMP/yw-changed.txt" || true)
         done
-        sort -u -o /tmp/yw-prose.txt /tmp/yw-prose.txt
+        sort -u -o "$YW_TMP/yw-prose.txt" "$YW_TMP/yw-prose.txt"
 
     - name: claude-md
       shell: bash
       run: |
         set -euo pipefail
-        if [ ! -s /tmp/yw-prose.txt ]; then echo "no prose files changed"; exit 0; fi
-        xargs -a /tmp/yw-prose.txt -d '\n' "$YW_HOOKS/claude-md-guard.py" scan
+        if [ ! -s "$YW_TMP/yw-prose.txt" ]; then echo "no prose files changed"; exit 0; fi
+        xargs -a "$YW_TMP/yw-prose.txt" -d '\n' "$YW_HOOKS/claude-md-guard.py" scan
 
     - name: no-ai-attribution
       shell: bash
@@ -75,7 +84,7 @@ runs:
         PR_BODY: ${{ github.event.pull_request.body }}
       run: |
         set -euo pipefail
-        printf '%s' "$PR_BODY" > /tmp/yw-pr-body.txt
+        printf '%s' "$PR_BODY" > "$YW_TMP/yw-pr-body.txt"
         # The PR body plus changed prose, never every changed file. A guard, a
         # test, or a script that quotes the banned footer on purpose is source,
         # and scanning it reports the rule's own documentation as a violation.
@@ -83,9 +92,9 @@ runs:
         # The body is published text, so a Claude-Session line in it is the
         # violation rather than an exempt commit trailer. Files in the diff keep
         # the exemption, because a commit message quoted in one is legal.
-        "$YW_HOOKS/no-ai-attribution.py" scan --published /tmp/yw-pr-body.txt
-        if [ -s /tmp/yw-prose.txt ]; then
-          xargs -a /tmp/yw-prose.txt -d '\n' "$YW_HOOKS/no-ai-attribution.py" scan
+        "$YW_HOOKS/no-ai-attribution.py" scan --published "$YW_TMP/yw-pr-body.txt"
+        if [ -s "$YW_TMP/yw-prose.txt" ]; then
+          xargs -a "$YW_TMP/yw-prose.txt" -d '\n' "$YW_HOOKS/no-ai-attribution.py" scan
         fi
 
     - name: review-gate
