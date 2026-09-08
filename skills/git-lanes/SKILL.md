@@ -81,6 +81,9 @@ even briefly: a commit can capture a half-written file.
 Worktrees isolate the filesystem only. Ports, databases and external services
 are still shared and need their own coordination.
 
+A squash-merge leaves the source branch unmarked as merged, so `git branch
+--merged` will not list it. Do not read that as "never merged".
+
 ## A lane must not hold its own copy of gitignored data
 
 Untracked data (an export, a proposal file, a source spreadsheet) exists once
@@ -93,12 +96,13 @@ message and to a person before a reviewer running the same script from a
 normal checkout found it.
 
 Read and write that data from the main checkout. If a lane genuinely needs it,
-delete the lane's copy the moment the run is done. `twenty`'s
-`scripts/repo_paths.py` is the mechanism form of this rule: it refuses to
-resolve a gitignored path that exists in both places, and names both files.
+delete the lane's copy the moment the run is done.
 
-A squash-merge leaves the source branch unmarked as merged, so `git branch
---merged` will not list it. Do not read that as "never merged".
+The mechanism form of this rule is a path resolver every script routes through,
+which refuses to resolve a gitignored path that exists in both the lane and the
+main checkout, and names both files when it refuses. Prose asks each script
+author to remember; a resolver makes the ambiguous case impossible to run
+against silently.
 
 ## Built deliverables live in `deliverables/`, one folder, never the repo root
 
