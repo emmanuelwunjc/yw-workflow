@@ -81,6 +81,22 @@ even briefly: a commit can capture a half-written file.
 Worktrees isolate the filesystem only. Ports, databases and external services
 are still shared and need their own coordination.
 
+## A lane must not hold its own copy of gitignored data
+
+Untracked data (an export, a proposal file, a source spreadsheet) exists once
+per worktree. Copy it into a lane and a script run there reads and WRITES the
+lane's copy, reports success, and the file every other script reads is
+untouched. Both halves are quiet: the write succeeds, and the read that would
+show the truth happens somewhere else. One such run reported seven records
+updated, against a copy nobody else reads, and it was repeated in a commit
+message and to a person before a reviewer running the same script from a
+normal checkout found it.
+
+Read and write that data from the main checkout. If a lane genuinely needs it,
+delete the lane's copy the moment the run is done. `twenty`'s
+`scripts/repo_paths.py` is the mechanism form of this rule: it refuses to
+resolve a gitignored path that exists in both places, and names both files.
+
 A squash-merge leaves the source branch unmarked as merged, so `git branch
 --merged` will not list it. Do not read that as "never merged".
 
