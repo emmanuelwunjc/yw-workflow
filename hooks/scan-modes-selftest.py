@@ -12,6 +12,7 @@ three things that are different when the same rules run in CI:
 """
 import importlib.util
 import io
+import json
 import os
 import subprocess
 import sys
@@ -134,12 +135,12 @@ with tempfile.TemporaryDirectory() as tmp:
     hook_probe = subprocess.run(
         [sys.executable, "-c",
          "import pathlib, runpy, sys\n"
-         "real = pathlib.Path.read_text\n"
          "def boom(self, *a, **k): raise RuntimeError('injected')\n"
          "pathlib.Path.read_text = boom\n"
          "sys.argv = ['claude-md-guard.py', 'check']\n"
          "runpy.run_path(%r, run_name='__main__')\n" % str(CMG)],
-        input='{"transcript_path": "%s", "session_id": "s"}' % transcript,
+        input=json.dumps({"transcript_path": str(transcript),
+                          "session_id": "s"}),
         capture_output=True, text=True, timeout=20)
     cases += 1
     if hook_probe.returncode != 0:
@@ -250,6 +251,11 @@ cases += 1
 if wired.returncode != 1:
     failures.append("FAIL check-pr: the CLI exited %d with no gh available, "
                     "want 1" % wired.returncode)
+cases += 1
+if "BLOCKED" not in wired.stderr or "Traceback" in wired.stderr:
+    failures.append("FAIL check-pr: exit 1 with no gh must be the BLOCKED "
+                    "report, never a traceback, got: "
+                    + wired.stderr.strip()[:120])
 
 if failures:
     print("\n".join(failures))

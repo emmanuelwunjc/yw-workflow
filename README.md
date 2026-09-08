@@ -109,9 +109,11 @@ consumer's required check enforces.
 Then name `guards` as a required context in branch protection, or the check is
 advisory and a red run merges anyway.
 
-All three rules always run, and the action takes no inputs. A selector gated on
+The action takes no inputs, so no rule can be switched off. A selector gated on
 a substring match turns one typo into a job that skips every step and reports
-success, which is what the first two versions of this action did.
+success, which is what the first two versions of this action did. Each rule
+still scopes itself to what it reads, so a PR touching only `.py` files scans no
+prose and the review gate carries the run.
 
 The action assumes a Linux runner. `xargs -a`, `xargs -d` and process
 substitution are what the steps are built on.
