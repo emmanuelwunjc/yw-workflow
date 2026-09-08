@@ -100,12 +100,25 @@ BASENAMES = (".handrail.toml", ".handrail.json")
 # Collapsing whitespace and truncating shrinks that surface without closing it:
 # a quoted fragment can still be a sentence. Every character outside a plain
 # path alphabet becomes "?" instead, which keeps the path recognisable to the
-# person reading it and leaves nothing that parses as prose.
+# person reading it.
+#
+# What that leaves, stated rather than denied: ".", "-", "_" and "/" survive and
+# all work as word separators, so a directory named
+# "SYSTEM.NOTE.do.not.rewrite" still reads. It cannot start a line, it sits
+# mid-sentence inside a message of ours, and the directory has to exist on disk,
+# which is why this is the mechanism rather than a stronger one. Removing every
+# separator would stop a path being a path.
 _PATH_SAFE = re.compile(r"[^A-Za-z0-9._/-]")
 
 
 def safe_path(path, limit=120):
-    """A repo-controlled path, rendered so it cannot read as an instruction."""
+    """A repo-controlled path, rendered so it cannot start a line or run long.
+
+    The tail is kept because that is the part a person needs to recognise the
+    location. It is also the attacker-chosen leaf, so truncation caps the length
+    of an injection rather than removing it; the character substitution is what
+    does the security work.
+    """
     flat = _PATH_SAFE.sub("?", str(path))
     if len(flat) > limit:
         flat = "..." + flat[-(limit - 3):]
@@ -113,15 +126,23 @@ def safe_path(path, limit=120):
 
 
 def safe_error(exc):
-    """The kind of a failure, never its message.
+    """The kind of a failure, plus a message only when this module wrote it.
 
     A parser quotes the file back: tomllib's duplicate-key error echoes the
     offending key, and a TOML quoted key is arbitrary text of unbounded length.
     There is no length or character bound that makes an attacker-authored
-    sentence safe to hand the model, so the message is dropped and only the
-    exception type survives. Anyone debugging their own config can run the
-    parser and read the full error themselves.
+    sentence safe to hand the model, so a foreign message is dropped and only
+    the exception type survives.
+
+    This module's own exceptions are different. Their text is written here and
+    any path in it has already been through safe_path, and they are the only
+    explanation a user gets for a config that silently does nothing: on Python
+    3.10 a .handrail.toml cannot be read at all, and "RuntimeError" alone never
+    tells anyone that.
     """
+    message = getattr(exc, "safe_message", None)
+    if message:
+        return "%s: %s" % (type(exc).__name__, message)
     return type(exc).__name__
 
 
@@ -130,6 +151,8 @@ class AmbiguousConfig(Exception):
 
     def __init__(self, directory):
         self.directory = directory
+        self.safe_message = (
+            "two config files in %s. Delete one." % safe_path(directory))
         super().__init__(
             "two config files in %s: .handrail.toml and .handrail.json. "
             "Delete one, because the effective policy is ambiguous."
@@ -142,10 +165,14 @@ def _parse(path):
     if path.suffix == ".json":
         return json.loads(text)
     if tomllib is None:
-        raise RuntimeError(
+        error = RuntimeError(
             "%s needs tomllib (Python 3.11+). Rename it to .handrail.json, "
             "or run the guards on a newer Python." % safe_path(path)
         )
+        error.safe_message = (
+            "%s needs tomllib (Python 3.11+); rename it to .handrail.json"
+            % safe_path(path))
+        raise error
     return tomllib.loads(text)
 
 

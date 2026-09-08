@@ -49,6 +49,16 @@ TRAILER = re.compile(
     r"^[ \t]*Claude-Session:[ \t]*https://claude\.ai/code/session_\S+", re.M)
 
 
+def _safe_path(value):
+    return (handrail_config.safe_path(value) if handrail_config
+            else str(value))
+
+
+def _safe_error(exc):
+    return (handrail_config.safe_error(exc) if handrail_config
+            else type(exc).__name__)
+
+
 def scan(paths, exempt_trailer=True):
     """CI mode: check files instead of a Bash command.
 
@@ -70,7 +80,8 @@ def scan(paths, exempt_trailer=True):
             text = Path(name).read_text(encoding="utf-8", errors="replace")
         except OSError as exc:
             # Unreadable means unchecked, and unchecked must not read as clean.
-            print("%s: cannot read (%s)" % (name, exc), file=sys.stderr)
+            print("%s: cannot read (%s)" % (_safe_path(name),
+                                            _safe_error(exc)), file=sys.stderr)
             bad += 1
             continue
         stripped = TRAILER.sub("", text) if exempt_trailer else text
@@ -78,7 +89,8 @@ def scan(paths, exempt_trailer=True):
         if hits:
             bad += 1
             for label in hits:
-                print("%s: publishes %s" % (name, label), file=sys.stderr)
+                print("%s: publishes %s" % (_safe_path(name), label),
+                      file=sys.stderr)
     return bad
 
 

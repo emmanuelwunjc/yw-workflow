@@ -635,9 +635,8 @@ the offending key, and a quoted key is arbitrary text of unbounded length. Both
 were driven end to end through a real clone.
 
 **Two different fixes, because the two surfaces differ.** A path is worth
-showing, so every character outside a plain path alphabet becomes `?`: the
-person reading it still recognises the path, and nothing left in it parses as
-prose. A parser message is not worth showing, because no length or character
+showing, so every character outside a plain path alphabet becomes `?`, which
+keeps the path recognisable to the person reading it. A parser message is not worth showing, because no length or character
 bound makes an attacker-authored sentence safe to hand a model, so only the
 exception type survives. Anyone debugging their own config can run the parser.
 
@@ -652,3 +651,32 @@ widening the pattern to a hundred thousand passed everything. The
 spaces-and-punctuation case could not fail on the space, because its fixture
 also carried a comma and a question mark, and whitespace is the one character
 that most makes a filename read as a sentence.
+
+**Review round 8 passed, and corrected an over-claim in round 7's own record.**
+The comment and the entry above both said the path substitution "leaves nothing
+that parses as prose". That is false, and the reviewer built the counterexample:
+`.`, `-`, `_` and `/` survive and all work as word separators, so a directory
+named `SYSTEM.NOTE.do.not.rewrite` still reads. It is much weaker than what
+round 7 closed, since it cannot start a line, it sits mid-sentence inside a
+message of ours, and the directory has to exist on disk. The mechanism stays and
+the claim is now stated with its residual rather than denying it. Removing every
+separator would stop a path being a path.
+
+**`scan` was the one surface the round 7 fix did not reach.** It prints a
+repo-controlled path and a raw `OSError` string, and a directory name carrying a
+newline came out verbatim. Weaker again, because it lands in a CI log rather
+than being handed to the model as a block reason, and the action filters the
+file list through a test that drops paths split by a newline. Same class, so it
+is sanitised the same way.
+
+**`safe_error` was dropping this module's own messages too.** On Python 3.10 a
+`.handrail.toml` cannot be read at all, and the user saw `RuntimeError` while
+their config silently did nothing. The module's own exceptions carry a
+`safe_message` written here, with any path already sanitised, and that survives.
+Anything a parser or the OS raised still contributes only its type.
+
+**Two more mechanisms had no case:** the 120-character truncation, and
+`safe_message` itself. Both are pinned now. That is eight rounds running where
+mutation found a stated guarantee with nothing behind it, which is the most
+durable lesson on this branch: prose asserting a property and a test asserting it
+are different artifacts, and only one of them fails when the property does.

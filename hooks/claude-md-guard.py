@@ -84,6 +84,16 @@ def _on(policy, rule):
     return True if policy is None else policy.enabled(rule)
 
 
+def _safe_path(value):
+    return (handrail_config.safe_path(value) if handrail_config
+            else str(value))
+
+
+def _safe_error(exc):
+    return (handrail_config.safe_error(exc) if handrail_config
+            else type(exc).__name__)
+
+
 def _cite(policy):
     citation = policy.citation() if policy else ""
     return (" " + citation) if citation else ""
@@ -509,7 +519,10 @@ def scan(paths):
             text = Path(name).read_text(encoding="utf-8", errors="replace")
         except OSError as exc:
             # A path that cannot be read is a broken invocation, not a pass.
-            print("%s: cannot read (%s)" % (name, exc), file=sys.stderr)
+            # Sanitised like every other repo-controlled string: this lands in a
+            # CI log rather than a block reason, and it is the same class.
+            print("%s: cannot read (%s)" % (_safe_path(name),
+                                            _safe_error(exc)), file=sys.stderr)
             bad += 1
             continue
         prose = prose_only(text)
@@ -523,7 +536,7 @@ def scan(paths):
         if found:
             bad += 1
             for f in found:
-                print("%s: %s" % (name, f), file=sys.stderr)
+                print("%s: %s" % (_safe_path(name), f), file=sys.stderr)
     return bad
 
 
