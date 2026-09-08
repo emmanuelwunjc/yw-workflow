@@ -311,9 +311,8 @@ in the same shape: a guarantee the prose asserted and nothing tested.
   is gated on `contains(inputs.rules, '<name>')`, a substring match on
   unvalidated input. `rules: all`, an empty string, or one typo skipped every
   step, and a job whose steps all skip concludes SUCCESS. Branch protection
-  would show a green required check that ran nothing. There is now a validate
-  step that fails on an unknown token. The dogfood job passes no `with:`, so
-  this input was never going to be exercised by this repo's own CI.
+  would show a green required check that ran nothing. Superseded by round 2
+  below: the first fix was a validate step, and the input is now gone instead.
 - **`check-pr` had no test, only `review_status` did.** The reviewer mutated
   `check-pr` to return 0 for the `unknown` verdict, and then to discard the
   verdict entirely, and the suite stayed green at 22 cases both times. Testing
@@ -338,3 +337,33 @@ the blocking finding above. The suffix list is literal now.
 hands a privileged token to a workflow whose checkout is usually the PR head,
 and these steps execute `hooks/*.py` out of that checkout, so on a fork PR that
 is the author's code running with write scope.
+
+**Review round 2 (2026-09-08): the fix for round 1 was the defect.** This is why
+the fix gets reviewed and not only the original change.
+
+- **The validate step glob-expanded its own input.** It iterated `$RULES`
+  unquoted, and `set -euo pipefail` does not disable pathname expansion. In a
+  checkout containing a file named `claude-md`, an input of `[cn]*` passed
+  validation while `contains(inputs.rules, 'claude-md')` saw the raw string and
+  was false, so every step skipped and the job reported success. The round 1
+  hole, reopened by the guard written to close it.
+- **Nothing tested the validate step.** No selftest, no lint, not even a YAML
+  parse in `tools/check-repo.py`. It was the only new branching logic in the
+  change and it shipped with zero covering check, which is round 1's finding one
+  level up.
+
+**Decision: the `rules` input is deleted rather than fixed.** All three rules
+always run. One caller, never exercised with a non-default value, and two
+blocking findings and one confusing-error nit all lived in it. A consumer who
+wants a single rule calls that guard's entry point in a step of their own, which
+is what the README now says. This is the second input deleted from this action
+for the same reason; the first was `paths`.
+
+**Trap, and it cost a round.** A `str.replace` fix that does not match silently
+does nothing. Round 1 "fixed" the README's `@v1.3.0` pin to `@main` by
+substituting a string with the wrong indentation, so the pin survived and round
+2 found it again, pointing at a tag that does not exist. Check that an edit
+landed before reporting it as done.
+
+**Considered and rejected: matching GitHub's case-insensitive `contains()` in
+the shell.** Moot now that the input is gone.

@@ -78,8 +78,10 @@ with tempfile.TemporaryDirectory() as tmp:
     body_url.write_text("See https://claude.ai/code/session_xyz for context.\n")
 
     expect("attr scan: clean body passes", run(ATTR, "scan", body_clean), 0)
-    expect("attr scan: commit trailer alone still passes",
-           run(ATTR, "scan", body_clean), 0)
+    trailer_only = tmp / "trailer-only.md"
+    trailer_only.write_text("Claude-Session: https://claude.ai/code/session_abc\n")
+    expect("attr scan: a bare commit trailer still passes",
+           run(ATTR, "scan", trailer_only), 0)
     expect("attr scan: generation footer fails", run(ATTR, "scan", body_footer), 1)
     expect("attr scan: bare session URL fails", run(ATTR, "scan", body_url), 1)
     expect("attr scan: unreadable path fails closed",
@@ -202,9 +204,19 @@ check_pr_case("check-pr: small diff passes", 0, files=SMALL)
 check_pr_case("check-pr: docs-only passes", 0, files=DOCS)
 
 # A bare `check-pr` with no number must not fall through to the stdin hook path,
-# where empty input exits 0 and a broken invocation reads as a pass.
-expect("check-pr: missing PR number fails",
-       run(REVIEW, "check-pr", stdin=""), 1)
+# where empty input exits 0 and a broken invocation reads as a pass. The exit
+# code alone is not enough: an IndexError traceback exits 1 too, so this would
+# pass for a crash as readily as for the handled error.
+missing_arg = subprocess.run([sys.executable, str(REVIEW), "check-pr"], input="",
+                             capture_output=True, text=True, timeout=20)
+cases += 1
+if missing_arg.returncode != 1:
+    failures.append("FAIL check-pr: missing PR number gave exit %d, want 1"
+                    % missing_arg.returncode)
+cases += 1
+if "usage:" not in missing_arg.stderr or "Traceback" in missing_arg.stderr:
+    failures.append("FAIL check-pr: missing PR number should print usage and "
+                    "not a traceback, got: " + missing_arg.stderr.strip()[:120])
 
 if failures:
     print("\n".join(failures))

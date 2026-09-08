@@ -100,20 +100,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: emmanuelwunjc/yw-workflow/.github/actions/guards@v1.3.0
-        with:
-          rules: claude-md,no-ai-attribution,review-gate
+      - uses: emmanuelwunjc/yw-workflow/.github/actions/guards@main
 ```
 
-Pin a tag instead of `@main` once one exists for the version you want, so a
-change here cannot alter what a consumer's required check enforces.
+Pin a release tag in place of `@main` so a change here cannot alter what a
+consumer's required check enforces.
 
 Then name `guards` as a required context in branch protection, or the check is
 advisory and a red run merges anyway.
 
-An unrecognised `rules` value fails the job. Every step is gated on a substring
-match, so a typo would otherwise skip all of them, and a job whose steps all
-skip reports success.
+All three rules always run. There is no input to select a subset, because a
+selector gated on a substring match turns one typo into a job that skips every
+step and reports success. To run a single rule, call that guard's own entry
+point in a step of your own: `hooks/claude-md-guard.py scan FILE...`,
+`hooks/no-ai-attribution.py scan FILE...`, or
+`hooks/require-code-review.py check-pr N`.
 
 | Rule | What it reads | What fails the job |
 |---|---|---|
