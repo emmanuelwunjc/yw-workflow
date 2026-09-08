@@ -435,7 +435,7 @@ including it.
 
 ## 2026-09-08: the guards action writes to RUNNER_TEMP
 
-Filed as a nit during the CI gate review and fixed here. The action wrote its
+Issue #5, filed as a nit during the CI gate review and fixed here. The action wrote its
 file lists to fixed `/tmp` paths. On a GitHub-hosted runner the VM is single-use
 so nothing collides. On a self-hosted runner two `guards` jobs share `/tmp`, one
 overwrites the other's list, and the loser scans the wrong file set while
