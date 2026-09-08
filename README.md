@@ -82,6 +82,70 @@ lazygit, a Makefile target) runs git as a subprocess and every rule stops
 applying, so adding one means adding its command names to the hook in the same
 commit.
 
+## CI gate
+
+A hook protects one machine. Anyone who skips the install, sets
+`TEAMAI_HOOKS_DISABLED=1`, or clones on a fresh laptop is unguarded, and nothing
+says so. The same rules run server-side as a composite action, so a team gets
+them as a required status check:
+
+```yaml
+# .github/workflows/guards.yml in any repo
+on: pull_request
+permissions:
+  contents: read
+  pull-requests: read
+jobs:
+  guards:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: emmanuelwunjc/yw-workflow/.github/actions/guards@main
+```
+
+Pin a release tag in place of `@main` so a change here cannot alter what a
+consumer's required check enforces.
+
+Then name `guards` as a required context in branch protection, or the check is
+advisory and a red run merges anyway.
+
+The action takes no inputs, so no rule can be switched off. A selector gated on
+a substring match turns one typo into a job that skips every step and reports
+success, which is what the first two versions of this action did. Each rule
+still scopes itself to what it reads, so a PR touching only `.py` files scans no
+prose and the review gate carries the run.
+
+The action assumes a Linux runner. `xargs -a`, `xargs -d` and process
+substitution are what the steps are built on.
+
+| Rule | What it reads | What fails the job |
+|---|---|---|
+| `claude-md` | changed `.md` and `.txt` files | an em-dash or a negation-then-correction in prose, with code fences exempt |
+| `no-ai-attribution` | the PR body and changed prose files | a generation footer or a session URL, and in the PR body a `Claude-Session:` line too. That trailer still passes inside changed files |
+| `review-gate` | the PR's files, reviews, and comments | a 25+ line code diff with no approval and no verdict comment, including a verdict the author posted themselves |
+
+Three differences from the hook path, each deliberate:
+
+- **It fails closed.** A guard that crashes, or an API lookup that comes back
+  empty, fails the job. The hooks do the opposite, because a broken guard must
+  never wedge a live session. A required check that passes when it could not run
+  is a rubber stamp.
+- **`review-gate` skips the all-checks-green gate the hook runs first.** In CI
+  this check is one of those checks, so asking whether every check is green
+  would always find this one in progress.
+- **Attribution scanning stops at prose.** A guard, a test, or a script that
+  quotes the banned footer on purpose is source. This repo's own hooks are that
+  case, and scanning every changed file reports the rule's documentation as a
+  violation of itself.
+
+There is no author filter on that verdict comment, which is how this repo's own
+flow satisfies the gate: a review runs, its verdict is posted, the gate opens.
+Requiring a second GitHub account would make it unsatisfiable for a solo
+maintainer. Branch protection is where "somebody else must approve" belongs.
+
+`SKIP_REVIEW_GATE=1` has no effect here. Bypassing a server-side gate is a
+branch-protection decision, and it belongs with the people who own the branch.
+
 ## Checks
 
 ```bash
@@ -109,6 +173,7 @@ permission notice in full, which is what MIT actually requires.
 
 - `skills/` one directory per skill, one `SKILL.md` each.
 - `hooks/` the guards, their self-tests, and `hooks.json`.
+- `.github/actions/guards/` the composite action that runs the guards in CI.
 - `tools/check-repo.py` what the self-tests do not cover.
 - `docs/HANDOFF.md` why decisions went the way they did, and the traps.
 - `docs/DECISIONS.md` the dated measurements behind the skills.

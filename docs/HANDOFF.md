@@ -251,3 +251,161 @@ is the enforcement working. Use the file-edit tools for that text.
 - **Skipped: pre-commit and a PR template.** pre-commit is bypassable and this
   repo's own `harden` skill says never to treat it as the enforcement
   mechanism. A PR template would check nothing CI does not.
+
+## 2026-09-08: the guards run as a CI action
+
+Why now: a review of Tencent's `teamai-cli` (a tool for distributing skills,
+rules, and hooks across a team) turned up three ways local delivery of these
+guards silently does nothing. Its resource handlers cover skills, rules, docs,
+agents, env, hooks, and MCP, with no handler for executables, so a `hooks.yaml`
+entry pointing at `claude-md-guard.py` lands in a teammate's `settings.json`
+and fails with file-not-found. A PreToolUse hook that exits 127 is a
+non-blocking error, so the tool call proceeds and the config still looks right.
+The other two: `teamai install` is what carries a plugin, and `teamai pull`
+only prints a hint about it, so package sync is a prompt someone can ignore;
+and `TEAMAI_HOOKS_DISABLED=1` resolves team hooks to an empty set, which makes
+the next reconcile delete the guards from `settings.json` rather than merely
+skip installing them.
+
+**Decisions.**
+
+- **CI mode is a subcommand on each existing guard, never a second script.**
+  `claude-md-guard.py scan FILE...`, `no-ai-attribution.py scan FILE...`,
+  `require-code-review.py check-pr N`. The detection logic is shared, so the
+  server-side rule cannot drift from the one the hook enforces. A separate CI
+  linter would have been two policies with one name.
+- **CI fails closed, hooks fail open, and both are tested.** A crashing guard
+  exits 0 in hook mode, because it must never wedge a live session. In scan
+  mode it re-raises. `require-code-review` treats an empty `gh` lookup as
+  "unknown": the hook lets that through so a network blip cannot block a local
+  merge, and `check-pr` fails on it. `hooks/scan-modes-selftest.py` asserts
+  both directions, and every claimed guarantee was mutation-tested: deleting the
+  re-raise, making `scan` always return 0, counting an unreadable path as clean,
+  returning 0 for an `unknown` verdict, and discarding the review verdict
+  entirely each turn the suite red.
+- **`check-pr` runs the review gate only, never the all-checks-green gate.** In
+  CI this check is one of those checks, so gate 1 would always find itself in
+  progress and fail every run.
+- **Attribution scanning covers the PR body and changed prose, never every
+  changed file.** This repo's own `no-ai-attribution.py` and its self-test
+  contain the banned strings by necessity. Scanning all files reports the rule's
+  own implementation as a violation, which is how a gate teaches people to
+  disable it.
+- **Considered and rejected: line numbers in scan output.** `find_negation`
+  matches text with emphasis markers stripped, so a hit does not map back to a
+  raw file offset without re-deriving the position. The quote is greppable.
+  Revisit if GitHub annotations are ever wanted.
+
+**Trap.** `run:` in a composite action cannot start with a quoted scalar
+(`run: "$X/script.py" check-pr "$PR"` is a YAML parse error, not a shell
+error). Use a block scalar. Costs a round trip through a failed workflow to
+diagnose if the YAML is not validated locally first.
+
+**Proved by the PR's own runs.** Every composite step executes on a real
+`pull_request` event, and the only failing step is `review-gate`, which waits
+for a verdict comment on the PR that introduces it. The gate biting on its own
+change is the test.
+
+**Review round 1 (2026-09-08), and what it caught.** Two blocking findings, both
+in the same shape: a guarantee the prose asserted and nothing tested.
+
+- **An unrecognised `rules` value made the whole gate a green no-op.** Each step
+  is gated on `contains(inputs.rules, '<name>')`, a substring match on
+  unvalidated input. `rules: all`, an empty string, or one typo skipped every
+  step, and a job whose steps all skip concludes SUCCESS. Branch protection
+  would show a green required check that ran nothing. Superseded by round 2
+  below: the first fix was a validate step, and the input is now gone instead.
+- **`check-pr` had no test, only `review_status` did.** The reviewer mutated
+  `check-pr` to return 0 for the `unknown` verdict, and then to discard the
+  verdict entirely, and the suite stayed green at 22 cases both times. Testing
+  the helper and shipping the wrapper is the gap. `check_pr` is covered
+  directly now, and both mutations were re-run and fail the suite.
+
+  The lesson generalises past this PR: coverage of the pure function underneath
+  is not coverage of the entry point the world actually calls.
+
+**Considered and rejected: filtering the review verdict by author.** The gate is
+satisfied by any PR comment matching the verdict pattern, including one the
+author wrote. Filtering it would make the gate unsatisfiable for a solo
+maintainer, and it is how this repo's own flow opens the gate. The README now
+says so plainly rather than implying a second pair of eyes is enforced. Use
+branch protection for that.
+
+**Dropped: the `paths` input.** One caller, one value, no test. Config for a
+value that never changes, and the same shape as the `rules` input that produced
+the blocking finding above. The suffix list is literal now.
+
+**Rejected trigger: `pull_request_target`.** The first version accepted it. It
+hands a privileged token to a workflow whose checkout is usually the PR head,
+and these steps execute `hooks/*.py` out of that checkout, so on a fork PR that
+is the author's code running with write scope.
+
+**Review round 2 (2026-09-08): the fix for round 1 was the defect.** This is why
+the fix gets reviewed and not only the original change.
+
+- **The validate step glob-expanded its own input.** It iterated `$RULES`
+  unquoted, and `set -euo pipefail` does not disable pathname expansion. In a
+  checkout containing a file named `claude-md`, an input of `[cn]*` passed
+  validation while `contains(inputs.rules, 'claude-md')` saw the raw string and
+  was false, so every step skipped and the job reported success. The round 1
+  hole, reopened by the guard written to close it.
+- **Nothing tested the validate step.** No selftest, no lint, not even a YAML
+  parse in `tools/check-repo.py`. It was the only new branching logic in the
+  change and it shipped with zero covering check, which is round 1's finding one
+  level up.
+
+**Decision: the `rules` input is deleted rather than fixed.** All three rules
+always run. One caller, never exercised with a non-default value, and two
+blocking findings and one confusing-error nit all lived in it. A consumer who
+wants a single rule calls that guard's entry point in a step of their own, which
+is what the README now says. This is the second input deleted from this action
+for the same reason; the first was `paths`.
+
+**Trap, and it cost a round.** A `str.replace` fix that does not match silently
+does nothing. Round 1 "fixed" the README's `@v1.3.0` pin to `@main` by
+substituting a string with the wrong indentation, so the pin survived and round
+2 found it again, pointing at a tag that does not exist. Check that an edit
+landed before reporting it as done.
+
+**Considered and rejected: matching GitHub's case-insensitive `contains()` in
+the shell.** Moot now that the input is gone.
+
+**Review round 3 (2026-09-08).** The mechanism held. One blocking finding, in
+prose: the README offered "call that guard's own entry point in a step of your
+own" as the replacement for the deleted `rules` input, and a consumer running
+`actions/checkout` on their own repo has no `hooks/` directory, so that step
+dies on a missing file. The same shape as round 2's stale pin: a line that reads
+plausibly and fails when executed. The offer is withdrawn rather than repaired,
+because making it work needs a second checkout and a file list the action
+already builds.
+
+**Also fixed from round 3.** `review-gate` resolved the repo through `gh pr
+view`, which shells out to git, so a consumer checking out with `path:` got a
+failure blaming token permissions. It reads `GH_REPO` from the event now. And
+the PR body was scanned through the same trailer exemption that lets a commit
+message carry `Claude-Session:`, so a body with that line hand-written passed
+the check that exists to keep it out of published text. Published text is
+scanned with the exemption off.
+
+**Follow-up, not in this PR.** `main`'s protection requires only the `check`
+context, so this repo's own dogfood job is advisory until `guards` is added to
+`required_status_checks.contexts`. The API takes an arbitrary context string
+with no prior run, and waiting for one would wait forever: the `guards` job is
+gated on `pull_request`, so it never runs on a push to `main`.
+
+**Review round 4 (2026-09-08): a test that could not fail.** The case asserting
+the hook path still fails open pointed `transcript_path` at a file that does not
+exist. `check()` returns at its `if not turn` guard before it ever calls
+`Path.read_text`, so the injected fault never fired and the case passed whatever
+the guard did. Deleting the fail-open branch outright left the suite green at 31
+cases. It now feeds a real two-line JSONL transcript, and that same deletion
+fails it.
+
+The file's own comment warned about this exact trap for the sibling probe, and
+the trap was then walked into one function down. A comment is not a check.
+
+**Also from round 4.** `check_pr` was only ever called in-process, so mutating
+the argv wiring to `sys.exit(0)` left every case green. A subprocess case with
+`gh` removed from `PATH` covers it. And the README's rule table still promised
+that a `Claude-Session:` line passes, which stopped being true for the PR body
+in the previous commit.

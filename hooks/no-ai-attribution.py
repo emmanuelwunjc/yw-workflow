@@ -9,6 +9,7 @@ CLAUDE.md rule win over it, since prose alone lost.
 import json
 import re
 import sys
+from pathlib import Path
 
 BANNED = [
     (re.compile(r"Generated with \[?Claude Code", re.I), 'the "Generated with Claude Code" footer'),
@@ -23,7 +24,48 @@ TRAILER = re.compile(
     r"^[ \t]*Claude-Session:[ \t]*https://claude\.ai/code/session_\S+", re.M)
 
 
+def scan(paths, exempt_trailer=True):
+    """CI mode: check files instead of a Bash command.
+
+    The hook stops a publish at the moment it is typed. That only covers this
+    laptop, so CI re-checks the artefacts themselves: the PR body, and any file
+    in the diff.
+
+    exempt_trailer keeps a Claude-Session line legal, which is right for a
+    commit message and wrong for a PR body. Pass --published for text that other
+    people read, where the trailer is the thing being banned. Without that, a
+    hand-written trailer in a PR body walks straight through the check that
+    exists to stop it.
+
+    Returns the number of files with at least one finding.
+    """
+    bad = 0
+    for name in paths:
+        try:
+            text = Path(name).read_text(encoding="utf-8", errors="replace")
+        except OSError as exc:
+            # Unreadable means unchecked, and unchecked must not read as clean.
+            print("%s: cannot read (%s)" % (name, exc), file=sys.stderr)
+            bad += 1
+            continue
+        stripped = TRAILER.sub("", text) if exempt_trailer else text
+        hits = [label for pattern, label in BANNED if pattern.search(stripped)]
+        if hits:
+            bad += 1
+            for label in hits:
+                print("%s: publishes %s" % (name, label), file=sys.stderr)
+    return bad
+
+
 def main():
+    # scan takes paths on argv. CI has no hook payload and must not block on a
+    # stdin read that will never be fed.
+    if len(sys.argv) > 1 and sys.argv[1] == "scan":
+        args = sys.argv[2:]
+        published = "--published" in args
+        sys.exit(1 if scan([a for a in args if a != "--published"],
+                           exempt_trailer=not published) else 0)
+
     try:
         payload = json.load(sys.stdin)
     except (json.JSONDecodeError, ValueError):

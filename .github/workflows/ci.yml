@@ -28,3 +28,15 @@ jobs:
 
       - name: Repo checks
         run: ./tools/check-repo.py
+
+  # Dogfood: the same action other repos consume, run against this repo's own
+  # PRs. A gate nobody runs against themselves is a gate nobody has tested.
+  guards:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/guards

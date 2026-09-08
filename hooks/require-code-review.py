@@ -116,12 +116,99 @@ def gh(*args: str) -> str:
         return ""
 
 
+def review_status(pr: str):
+    """Gate 2 as a query: has anything reviewed PR #pr?
+
+    Returns (verdict, code_lines) where verdict is one of:
+      "ok"        nothing to stop: trivial, docs-only, or already reviewed
+      "unreviewed" a non-trivial code diff with no review and no verdict comment
+      "unknown"   the gh lookup came back empty, so the question is unanswered
+
+    The hook treats "unknown" as ok, because a network blip must not wedge a
+    local merge. CI treats it as a failure: a check that cannot see the PR has
+    proved nothing, and passing on it is how a required gate becomes a rubber
+    stamp.
+    """
+    files = gh("pr", "view", pr, "--json", "files",
+               "--jq", ".files[] | \"\\(.path) \\(.additions) \\(.deletions)\"")
+    if not files.strip():
+        return "unknown", 0
+
+    code_lines = 0
+    for line in files.strip().splitlines():
+        parts = line.rsplit(" ", 2)
+        if len(parts) != 3:
+            continue
+        path, add, dele = parts
+        if path.endswith(CODE_SUFFIXES):
+            try:
+                code_lines += int(add) + int(dele)
+            except ValueError:
+                pass
+
+    if code_lines == 0:
+        return "ok", 0            # docs or data only
+    if code_lines < TRIVIAL_LINES:
+        return "ok", code_lines   # trivial code change
+
+    states = gh("pr", "view", pr, "--json", "reviews",
+                "--jq", "[.reviews[].state] | join(\" \")")
+    if "APPROVED" in states or "CHANGES_REQUESTED" in states:
+        return "ok", code_lines
+
+    body = gh("pr", "view", pr, "--json", "comments", "--jq", ".comments[].body")
+    if has_verdict(body or ""):
+        return "ok", code_lines
+
+    return "unreviewed", code_lines
+
+
+def check_pr(pr: str) -> int:
+    """CI mode: fail the job when PR #pr carries an unreviewed code diff.
+
+    Gate 1 (every check green) is deliberately NOT run here. In CI this check is
+    itself one of those checks, so asking whether all checks are green would
+    always find this one in progress and fail every time.
+    """
+    verdict, code_lines = review_status(pr)
+    if verdict == "ok":
+        return 0
+    if verdict == "unknown":
+        print(
+            "BLOCKED: could not read PR #%s from the GitHub API, so whether it "
+            "was reviewed is unknown. Check the job's token permissions "
+            "(pull-requests: read)." % pr,
+            file=sys.stderr,
+        )
+        return 1
+    print(
+        "BLOCKED: PR #%s changes %d lines of code and nothing has reviewed it.\n"
+        "Green CI proves the tests pass. It does not prove the change matches "
+        "its issue, and it does not catch a bad design decision.\n"
+        "Approve it on GitHub, or post a review verdict as a PR comment."
+        % (pr, code_lines),
+        file=sys.stderr,
+    )
+    return 1
+
+
 def deny(msg: str) -> None:
     print(msg, file=sys.stderr)
     sys.exit(2)
 
 
 def main() -> None:
+    # check-pr takes a PR number on argv and never reads stdin. The mode is
+    # matched on its own, before the argument count: falling through to the hook
+    # path on a missing number reads an empty stdin and exits 0, so a broken
+    # invocation would look like a pass.
+    if len(sys.argv) > 1 and sys.argv[1] == "check-pr":
+        if len(sys.argv) < 3:
+            print("usage: require-code-review.py check-pr <pr-number>",
+                  file=sys.stderr)
+            sys.exit(1)
+        sys.exit(check_pr(sys.argv[2]))
+
     raw = sys.stdin.read()
     try:
         event = json.loads(raw)
@@ -168,36 +255,9 @@ def main() -> None:
             )
 
     # --- Gate 2: a code review must have run -------------------------------
-    files = gh("pr", "view", pr, "--json", "files",
-               "--jq", ".files[] | \"\\(.path) \\(.additions) \\(.deletions)\"")
-    if not files.strip():
-        sys.exit(0)  # cannot tell; do not block on a broken lookup
-
-    code_lines = 0
-    for line in files.strip().splitlines():
-        parts = line.rsplit(" ", 2)
-        if len(parts) != 3:
-            continue
-        path, add, dele = parts
-        if path.endswith(CODE_SUFFIXES):
-            try:
-                code_lines += int(add) + int(dele)
-            except ValueError:
-                pass
-
-    if code_lines == 0:
-        sys.exit(0)  # docs or data only
-    if code_lines < TRIVIAL_LINES:
-        sys.exit(0)  # trivial code change
-
-    states = gh("pr", "view", pr, "--json", "reviews",
-                "--jq", "[.reviews[].state] | join(\" \")")
-    if "APPROVED" in states or "CHANGES_REQUESTED" in states:
-        sys.exit(0)
-
-    body = gh("pr", "view", pr, "--json", "comments", "--jq", ".comments[].body")
-    if has_verdict(body or ""):
-        sys.exit(0)
+    verdict, code_lines = review_status(pr)
+    if verdict in ("ok", "unknown"):
+        sys.exit(0)  # "unknown" = broken lookup; the hook does not block on one
 
     deny(
         f"BLOCKED: PR #{pr} changes {code_lines} lines of code and nothing has "
