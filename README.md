@@ -80,7 +80,7 @@ plugin path only.
 | **require-code-review.py** | PreToolUse | Blocks `gh pr merge` on a 25+ line PR with no review. Override: `SKIP_REVIEW_GATE=1`. |
 | **no-ai-attribution.py** | PreToolUse | Keeps AI-generation footers out of anything people read. Commit trailers stay. |
 | **claude-md-guard.py** | UserPromptSubmit, Stop | Blocks em-dashes, negation-then-correction, and prose questions where checkboxes are required. |
-| **handoff-freshness.py** | Stop | Catches work piling up against an untouched `docs/HANDOFF.md`, and a handoff without the `## Start here` block from skill `handoff`. Override: `SKIP_HANDOFF_CHECK=1`. |
+| **handoff-freshness.py** | Stop | Catches work piling up against an untouched `docs/HANDOFF.md`, and a `docs/HANDOFF.md` that lacks the `## Start here` block, still opens with an "end of a session" preamble, or has a handoff-named `.md` tracked outside `docs/` (the shape in skill `handoff`). Override: `SKIP_HANDOFF_CHECK=1`. |
 
 Wire them in one place only. Wiring the same hook here and in
 `~/.claude/settings.json` fires it twice and halves its block budget.

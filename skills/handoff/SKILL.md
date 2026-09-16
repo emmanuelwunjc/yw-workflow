@@ -62,7 +62,10 @@ within hours. Derive them with `gh issue list` and the scripts in the repo.
   time gets a few lines when it happens. A handoff written at close comes
   from a compacted memory, and the reasoning drops out first.
 - **Dated sections, `## YYYY-MM-DD: what happened`, newest last.** The
-  reader scrolls to the end and finds the present.
+  reader scrolls to the end and finds the present. The dated closing
+  section is always the final `##` heading in the file, below any
+  topic-grouped sections such as traps or decisions, so step 2 of the block
+  ("read the LAST section") stays true.
 - **The closing section is the briefing.** Whoever closes a session
   rewrites the last section so it names, in this order:
   1. The one task to start first.

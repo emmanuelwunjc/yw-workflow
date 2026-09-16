@@ -823,4 +823,10 @@ Tickets, in order: none open in this repo for this work (recount:
 
 Waits on the owner: whether the five migrated repos also get a
 `.github/workflows/guards.yml` so the shape check runs in CI, which this
-plugin's action does not yet include. Nothing else.
+plugin's action does not yet include.
+
+Open after this PR: #13 (the stray-file check fires on every Stop in a repo
+where "handoff" is a domain word, e.g. the thesis repo's
+`submission/handoff/*.md`, and the only escape also kills the freshness
+warning). Fix is a per-repo allowlist read from handrail config, which
+already carries a handoff path nobody reads. Review round 1 on #12 found it.

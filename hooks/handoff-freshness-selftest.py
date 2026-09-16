@@ -9,13 +9,44 @@ Run: ./hooks/handoff-freshness-selftest.py
 """
 import os
 import pathlib
+import re
 import subprocess
 import sys
 import tempfile
 
 HOOK = str(pathlib.Path(__file__).with_name("handoff-freshness.py"))
 
-GOOD = "# Handoff\n\n## Start here\n\nRead the last section.\n\n## 2026-09-16\n\nFirst task: x.\n"
+SKILL = pathlib.Path(__file__).resolve().parent.parent / "skills" / "handoff" / "SKILL.md"
+REPO_HANDOFF = SKILL.parent.parent.parent / "docs" / "HANDOFF.md"
+
+# The block skills/handoff/SKILL.md tells every repo to paste. Pinned here so
+# the skill cannot drift from it without this test noticing.
+BLOCK = """# Handoff
+
+## Start here
+
+You are a fresh session and this file is your whole briefing. Nobody
+writes you a separate prompt. Do these in order, then work.
+
+1. Load skills `ship-loop`, `git-lanes` and `fresh-eye` before touching
+   anything. Read the repo `CLAUDE.md`.
+2. Read the LAST section of this file (the most recent date). It names
+   the first task, the tickets in order, and what waits on the owner.
+3. Run the recount commands that section carries before trusting any
+   number in it.
+4. Start the first task it names. Ask the owner nothing that section
+   already answers.
+
+Whoever closes a session rewrites the last section so step 2 stays true,
+and leaves this block alone.
+
+Judgment and reasoning only. No counts, no SHAs, no issue tallies: those rot
+within hours. Derive them with `gh issue list` and the scripts in the repo.
+"""
+
+GOOD = BLOCK + "\n## 2026-09-16\n\nFirst task: x.\n"
+# the phrase past the 40-line window is body text, e.g. a quote of the old rule
+LATE_PREAMBLE = GOOD + "\n" * 20 + "The old rule said: written at the end of the session.\n"
 NO_BLOCK = "# Handoff\n\n## 2026-09-16\n\nFirst task: x.\n"
 OLD_PREAMBLE = ("# Handoff\n\n## Start here\n\nWritten at the end of a session, "
                 "this file says where things stand.\n")
@@ -46,6 +77,8 @@ CASES = [
      {"README.md": "x\n"}, ["README.md"], [], ["HANDOFF SHAPE"]),
     ("untracked but present handoff is still shape-checked",
      {"docs/HANDOFF.md": NO_BLOCK}, [], ["HANDOFF SHAPE"], []),
+    ("preamble phrase past line 40 is body text, no warning",
+     {"docs/HANDOFF.md": LATE_PREAMBLE}, ["docs/HANDOFF.md"], [], ["HANDOFF SHAPE"]),
 ]
 
 
@@ -58,7 +91,7 @@ def run_hook(cwd, env_extra=None):
     env = {k: v for k, v in os.environ.items() if k != "SKIP_HANDOFF_CHECK"}
     env.update(env_extra or {})
     return subprocess.run([sys.executable, HOOK], input="{}", cwd=cwd, env=env,
-                          capture_output=True, text=True).stderr
+                          capture_output=True, text=True)
 
 
 def make_repo(tmp, files, tracked):
@@ -76,20 +109,23 @@ def main():
     for name, files, tracked, want, forbid in CASES:
         with tempfile.TemporaryDirectory() as tmp:
             make_repo(tmp, files, tracked)
-            err = run_hook(tmp)
+            got = run_hook(tmp)
+        err = got.stderr
         missing = [w for w in want if w not in err]
         present = [f for f in forbid if f in err]
-        if missing or present:
+        # warn only, never block: a Stop hook that exits non-zero strands work
+        if missing or present or got.returncode != 0:
             failures += 1
-            print(f"FAIL {name}: missing={missing} unwanted={present}\n--- stderr ---\n{err}")
+            print(f"FAIL {name}: exit={got.returncode} missing={missing} "
+                  f"unwanted={present}\n--- stderr ---\n{err}")
 
     # the escape hatch silences the shape check as well as the freshness one
     with tempfile.TemporaryDirectory() as tmp:
         make_repo(tmp, {"docs/HANDOFF.md": NO_BLOCK}, ["docs/HANDOFF.md"])
-        err = run_hook(tmp, {"SKIP_HANDOFF_CHECK": "1"})
-    if err:
+        got = run_hook(tmp, {"SKIP_HANDOFF_CHECK": "1"})
+    if got.stderr or got.returncode != 0:
         failures += 1
-        print(f"FAIL SKIP_HANDOFF_CHECK=1 still printed:\n{err}")
+        print(f"FAIL SKIP_HANDOFF_CHECK=1 still printed (exit {got.returncode}):\n{got.stderr}")
 
     # the pre-existing freshness warning still fires: two commits of real work,
     # nothing touching the handoff
@@ -99,10 +135,20 @@ def main():
         pathlib.Path(tmp, "b.py").write_text("2\n")
         git(tmp, "add", "b.py")
         git(tmp, "commit", "-q", "-m", "two")
-        err = run_hook(tmp)
-    if "HANDOFF STALE" not in err:
+        got = run_hook(tmp)
+    if "HANDOFF STALE" not in got.stderr or got.returncode != 0:
         failures += 1
-        print(f"FAIL freshness warning did not fire:\n{err}")
+        print(f"FAIL freshness warning did not fire cleanly (exit {got.returncode}):\n{got.stderr}")
+
+    # the block pinned above is the block the skill tells repos to paste, and
+    # the block this repo's own handoff opens with
+    fenced = re.search(r"```\n(# Handoff\n.*?)```", SKILL.read_text(), re.S)
+    if not fenced or fenced.group(1) != BLOCK:
+        failures += 1
+        print("FAIL skills/handoff/SKILL.md fenced block differs from the pinned BLOCK")
+    if not REPO_HANDOFF.read_text().startswith(BLOCK):
+        failures += 1
+        print("FAIL docs/HANDOFF.md does not open with the pinned BLOCK")
 
     print("handoff-freshness: all checks pass" if not failures
           else f"handoff-freshness: {failures} FAILED")

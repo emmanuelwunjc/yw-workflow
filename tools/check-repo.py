@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Repo checks that the four hook self-tests do not cover.
+"""Repo checks that the hook self-tests do not cover.
 
 Runnable locally and in CI, deliberately the same command in both, so a green
 result before pushing means the same thing as a green result on the PR.
