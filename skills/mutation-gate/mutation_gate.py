@@ -8,15 +8,14 @@ Edit it in the plugin, then re-copy; `diff` against the plugin's file is the dri
 Why: review rounds kept finding the production code right and the assertion unable to fail.
 Each entry breaks a script like a real defect would; its `--demo` must then fail, or this exits 1.
 
-THE RULE FOR ADDING AN ENTRY. An entry is added only when a ticket names the rule as one
-that must be provable by mutation, or when a review found an assertion that could not
-fail. The entry's `source` cites that ticket or PR. No entry for a rule nobody has seen
-break. An entry with no `source` fails `--list` by name.
+THE RULE FOR ADDING AN ENTRY. Only when a ticket names the rule as one that must be provable
+by mutation, or when a review found an assertion that could not fail; `source` cites that
+ticket or PR. No entry for a rule nobody has seen break. No `source` fails `--list` by name.
 
 `mutations.json` is `{"mutations": [...], "retired": [...]}`. An entry is `{script, label,
-find, replace, source}`; a retired one adds `retired` (the date) and the run skips it, so a
-finished one-shot script's record survives at no cost. `script` is a bare filename beside the
-JSON file. `find` occurs exactly once, in production code, outside the script's own `_demo`.
+find, replace, source}`; a retired one adds `retired` (the date) and the run skips it. `script`
+is a bare filename beside the JSON file; `find` occurs exactly once, in production code, outside
+that script's own `_demo`.
 
     python3 scripts/mutation_gate.py [--list [--retired]] [--demo] [other.json]
 """
@@ -63,9 +62,9 @@ def check_entries(scripts_dir, entries):
     """Every entry is usable against the live code. Returns the problems."""
     sources, seen, problems = {}, set(), []
     for e in entries:
-        src = sources.setdefault(e["script"], open(os.path.join(scripts_dir, e["script"])).read())
+        src = sources.setdefault(e["script"], open(p).read() if os.path.exists(p := os.path.join(scripts_dir, e["script"])) else None)
         key = (e["script"], e["find"], e["replace"])
-        problem = "duplicate of an earlier entry" if key in seen else entry_problem(src, e["find"], e["replace"])
+        problem = "duplicate of an earlier entry" if key in seen else "no such script" if src is None else entry_problem(src, e["find"], e["replace"])
         seen.add(key)
         problems += [f"{e['script']}: {e['label']!r}: {problem}"] if problem else []
     return problems
@@ -110,14 +109,14 @@ def main(argv):
     if survivors:
         raise SystemExit(f"{len(survivors)} mutation(s) survived: the assertions covering them do not exist or cannot fail.")
 
-def _demo():
-    """Self-check on fixtures: the entry rules, the source rule, retired, the timeout."""
+def _demo():  # on fixtures: the entry rules, the source rule, retired, the timeout
     global DEMO_TIMEOUT_SECONDS
     assert entry_problem("a = 1\n", "a = 1", "a = 2") == ""
     assert "empty" in entry_problem("a = 1\n", "", "x") and "changes nothing" in entry_problem("a = 1\n", "a = 1", "a = 1")
     assert "no longer matches" in entry_problem("a = 1\n", "b = 1", "b = 2") and "occurs 2 times" in entry_problem("a = 1\na = 1\n", "a = 1", "a = 2")
     src = "X = 1\n\n\ndef main():\n    later = 3\n\n\ndef _demo():\n    assert X == 1\n    fixture = 2\n"
     assert "inside" in entry_problem(src, "fixture = 2", "fixture = 3")
+    assert "inside" in entry_problem(src, "assert X == 1", "assert X == 2"), "the first statement of the body is inside"
     assert entry_problem(src, "later = 3", "later = 4") == "", "main() after _demo is production"
     with tempfile.TemporaryDirectory() as tmp:
         os.makedirs(scripts := os.path.join(tmp, "scripts"))
@@ -128,6 +127,7 @@ def _demo():
         active, retired = load(path)
         assert [e["label"] for e in active] == ["x flipped"] and [e["label"] for e in retired] == ["old"]
         assert check_entries(scripts, active) == [] and "duplicate" in check_entries(scripts, [good, good])[0]
+        assert "no such script" in check_entries(scripts, [dict(good, script="gone.py")])[0], "a named message, never a traceback"
         assert run_demo(scripts, "s.py") is True and run_demo(scripts, "s.py", good) is False, "a real mutant is killed"
         for broken, word in ((dict(good, source=""), "source"), (dict(good, retired=""), "retired")):
             json.dump({"mutations": [good], "retired": [broken]}, open(path, "w"))

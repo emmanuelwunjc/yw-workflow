@@ -18,7 +18,7 @@ Adversarial review rounds on one repo kept returning the same finding: the
 production code was right and the assertion written to prove it could not fail.
 Each round relocated the hole to whatever the newest commit had added, and
 reviewing harder did not close it. This closes it mechanically. Measured on
-2026-09-16: 281 recorded breakages (`--list | wc -l` on that repo before #186),
+2026-09-16: 281 recorded breakages (`--list | tail -1` on that repo before #186),
 and the gate is what caught them.
 
 ## The rule for adding an entry
