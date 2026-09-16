@@ -23,7 +23,18 @@ Fires on Stop, only when ALL of these hold:
   - none of those commits touched the handoff
   - the handoff was not modified in the working tree either
 
-Escape hatch: SKIP_HANDOFF_CHECK=1 in the environment.
+A second check runs on the same Stop whenever the cwd is a git repo, whatever
+the commit count. The owner decided on 2026-09-16 that pointing a fresh agent
+at docs/HANDOFF.md is the whole prompt, which only works if the file has the
+shape skills/handoff/SKILL.md describes. So it warns when:
+  - docs/HANDOFF.md exists and has no "## Start here" line
+  - its first 40 lines still carry the old "end of a session" preamble, which
+    told the reader the file was written at close and contradicts the block
+  - a file named like a handoff (HANDOFF.md, AGENT_HANDOFF.md, *handoff*.md,
+    any case) is tracked anywhere outside docs/, because two handoffs means
+    the next session reads the wrong one
+
+Escape hatch: SKIP_HANDOFF_CHECK=1 in the environment, for all of it.
 """
 
 from __future__ import annotations
@@ -41,6 +52,12 @@ DOC_SUFFIXES = (".md", ".txt", ".rst")
 # Below this, a session is too small to be worth a handoff entry.
 MIN_COMMITS = 2
 
+START_HERE = "## Start here"
+OLD_PREAMBLE = ("end of a session", "end of the session")
+PREAMBLE_LINES = 40
+SHAPE_HELP = ("The shape, with the block to paste, is in the yw-workflow skill "
+              "skills/handoff (invoke /yw-workflow:handoff).")
+
 
 def git(*args: str) -> str:
     try:
@@ -52,6 +69,40 @@ def git(*args: str) -> str:
         return ""
 
 
+def shape_problems(top: str) -> list[str]:
+    """Each string is one warning; empty means the handoff has the right shape."""
+    problems = []
+    handoff = os.path.join(top, HANDOFF)
+    if os.path.isfile(handoff):
+        try:
+            with open(handoff, encoding="utf-8", errors="replace") as fh:
+                lines = fh.read().splitlines()
+        except OSError:
+            lines = []
+        if not any(ln.strip() == START_HERE for ln in lines):
+            problems.append(
+                f"{HANDOFF} has no `{START_HERE}` line. A fresh session reads this "
+                f"file as its whole prompt, so paste the Start here block at the "
+                f"top, above everything else.")
+        head = "\n".join(lines[:PREAMBLE_LINES]).lower()
+        hit = next((p for p in OLD_PREAMBLE if p in head), None)
+        if hit:
+            problems.append(
+                f"{HANDOFF} still says \"{hit}\" in its first {PREAMBLE_LINES} "
+                f"lines. That preamble told the reader the file was written at "
+                f"close; the file is appended to as work happens. Delete it.")
+    tracked = git("-C", top, "ls-files", "-z").split("\0")
+    stray = [f for f in tracked
+             if "handoff" in os.path.basename(f).lower()
+             and f.lower().endswith(".md")
+             and not f.startswith("docs/")]
+    if stray:
+        problems.append(
+            f"handoff-named files tracked outside docs/: {', '.join(sorted(stray))}. "
+            f"The one handoff lives at {HANDOFF}. Fold these into it and delete them.")
+    return problems
+
+
 def main() -> None:
     try:
         json.loads(sys.stdin.read() or "{}")
@@ -60,8 +111,13 @@ def main() -> None:
 
     if os.environ.get("SKIP_HANDOFF_CHECK") == "1":
         sys.exit(0)
-    if not git("rev-parse", "--is-inside-work-tree").strip():
+    top = git("rev-parse", "--show-toplevel").strip()
+    if not top:
         sys.exit(0)
+
+    for problem in shape_problems(top):
+        print(f"HANDOFF SHAPE: {problem}\n{SHAPE_HELP}\n"
+              f"Deliberate skip: SKIP_HANDOFF_CHECK=1\n", file=sys.stderr)
 
     # Commits made in roughly this session. Wall-clock is the only signal
     # available here, so it is deliberately generous: a false negative (no
