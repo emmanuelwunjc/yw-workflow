@@ -1,11 +1,11 @@
 # yw-workflow
 
-Nine skills and five hooks that make an engineering workflow mechanical
+Ten skills and five hooks that make an engineering workflow mechanical
 instead of remembered.
 
 ## Install
 
-Pick one. Both serve the same nine skills, and installing both leaves
+Pick one. Both serve the same ten skills, and installing both leaves
 duplicates that drift apart.
 
 ```bash
@@ -39,6 +39,7 @@ Each one carries a one-line summary at the top.
 | **fresh-eye** | Sends someone who did not write the code to try to break it. |
 | **need-me** | Shows only what is waiting on you, answerable in one word. |
 | **harden** | Gives a repo the CI and branch protection that make its review gate real. |
+| **mutation-gate** | Proves each self-check can fail, by breaking the code it covers and requiring it to notice. |
 | **eli5** | Explains a topic to someone with zero background, as a page of big pictures and few words. |
 | **eli5-text** | Explains a topic to someone with zero background, in the conversation, with nothing to open. |
 
@@ -53,7 +54,9 @@ grill -> wayfinder -> git-lanes -> ship-loop -> fresh-eye
               +--------> need-me <------+------------+
 ```
 
-`harden` runs once per repo, before any of it merges.
+`harden` runs once per repo, before any of it merges. `mutation-gate` is the
+one skill that ships a script: a repo copies `skills/mutation-gate/mutation_gate.py`
+verbatim and adds a data file, and `fresh-eye` findings are where its entries come from.
 
 `eli5` and `eli5-text` are off the diagram because they explain a thing rather
 than ship one. They are still in the graph: `grill` and `need-me` reach
