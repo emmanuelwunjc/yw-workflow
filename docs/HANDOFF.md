@@ -735,3 +735,30 @@ substitution inline.
 behind as two stray lines that read as a repeated sentence. A line-index edit on
 a wrapped paragraph is not a rewrap, and the check that caught it was reading
 the result rather than trusting the edit.
+
+## 2026-09-16: the mutation gate becomes a skill with a script
+
+The runner that proves a repo's self-checks can fail lived as 1,123 lines
+inside one repo (`scripts/mutation_gate.py` in the Twenty CRM repo, recount
+with `git show 09d8af9:scripts/mutation_gate.py | wc -l` there), of which
+about 60 were the mechanism and the rest were that repo's list of recorded
+breakages. Ticket #186 there split them: the list is a data file the repo
+owns, the runner is here, once, at `skills/mutation-gate/mutation_gate.py`,
+under 150 lines.
+
+Decided: a repo copies the runner verbatim rather than calling into the
+plugin. CI on a GitHub runner has no plugin installed, and a call into a
+path that exists only on one laptop is the failure `harden` exists to stop.
+`diff` against this file is the drift check. Rejected: fetching the runner
+from this repo in CI. It adds a network dependency to a gate whose whole
+claim is that it runs offline, and it cannot work until this PR merges.
+
+Decided: the rule for adding an entry lives in the runner's docstring and
+in the skill, and the runner enforces its citation half (`--list` fails on
+an entry with no `source`). The other half, that the rule was seen to break
+before it earned an entry, is a judgment the reviewer makes.
+
+Trap: a `find` string written with `\n` escapes in Python source does not
+match `git log -S` on the real newline. Searching by the entry's label, then
+by the first line of `find`, found the originating PR for every one of the
+281 entries.
