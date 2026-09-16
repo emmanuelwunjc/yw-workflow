@@ -1,11 +1,11 @@
 # yw-workflow
 
-Ten skills and five hooks that make an engineering workflow mechanical
+Eleven skills and five hooks that make an engineering workflow mechanical
 instead of remembered.
 
 ## Install
 
-Pick one. Both serve the same ten skills, and installing both leaves
+Pick one. Both serve the same eleven skills, and installing both leaves
 duplicates that drift apart.
 
 ```bash
@@ -40,6 +40,7 @@ Each one carries a one-line summary at the top.
 | **need-me** | Shows only what is waiting on you, answerable in one word. |
 | **harden** | Gives a repo the CI and branch protection that make its review gate real. |
 | **mutation-gate** | Proves each self-check can fail, by breaking the code it covers and requiring it to notice. |
+| **handoff** | Keeps `docs/HANDOFF.md` in the shape that lets a fresh session start from the file alone. |
 | **eli5** | Explains a topic to someone with zero background, as a page of big pictures and few words. |
 | **eli5-text** | Explains a topic to someone with zero background, in the conversation, with nothing to open. |
 
@@ -58,6 +59,10 @@ grill -> wayfinder -> git-lanes -> ship-loop -> fresh-eye
 one skill that ships a script: a repo copies `skills/mutation-gate/mutation_gate.py`
 verbatim and adds a data file, and `fresh-eye` findings are where its entries come from.
 
+`handoff` closes a session: the last section of `docs/HANDOFF.md` is the next
+session's whole prompt, and `handoff-freshness.py` warns when the file lacks
+the shape that makes that true.
+
 `eli5` and `eli5-text` are off the diagram because they explain a thing rather
 than ship one. They are still in the graph: `grill` and `need-me` reach
 `eli5-text` when a decision is blocked on understanding, and `ship-loop` and
@@ -75,7 +80,7 @@ plugin path only.
 | **require-code-review.py** | PreToolUse | Blocks `gh pr merge` on a 25+ line PR with no review. Override: `SKIP_REVIEW_GATE=1`. |
 | **no-ai-attribution.py** | PreToolUse | Keeps AI-generation footers out of anything people read. Commit trailers stay. |
 | **claude-md-guard.py** | UserPromptSubmit, Stop | Blocks em-dashes, negation-then-correction, and prose questions where checkboxes are required. |
-| **handoff-freshness.py** | Stop | Catches work piling up against an untouched `docs/HANDOFF.md`. |
+| **handoff-freshness.py** | Stop | Catches work piling up against an untouched `docs/HANDOFF.md`, and a `docs/HANDOFF.md` that lacks the `## Start here` block, still opens with an "end of a session" preamble, or has a handoff-named `.md` tracked outside `docs/` (the shape in skill `handoff`). Override: `SKIP_HANDOFF_CHECK=1`. |
 
 Wire them in one place only. Wiring the same hook here and in
 `~/.claude/settings.json` fires it twice and halves its block budget.

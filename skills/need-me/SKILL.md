@@ -138,7 +138,9 @@ options:
 - Every answer is in: `/yw-workflow:ship-loop` resumes, or `/yw-workflow:wayfinder` records the decision
   on the map and closes the ticket.
 - A decision here supersedes one already recorded: update `docs/HANDOFF.md` with
-  the date and what replaced it.
+  the date and what replaced it, in the shape `/yw-workflow:handoff` carries.
+- The session is closing: `/yw-workflow:handoff` writes what the next one
+  starts from, and this skill runs first so it inherits no hidden queue.
 - The answer opens more questions than it settles: `/yw-workflow:grill`.
 - They are stuck because the choice needs background they do not have:
   `/yw-workflow:eli5-text`, then ask again.

@@ -1,5 +1,25 @@
 # Handoff
 
+## Start here
+
+You are a fresh session and this file is your whole briefing. Nobody
+writes you a separate prompt. Do these in order, then work.
+
+1. Load skills `ship-loop`, `git-lanes` and `fresh-eye` before touching
+   anything. Read the repo `CLAUDE.md`.
+2. Read the LAST section of this file (the most recent date). It names
+   the first task, the tickets in order, and what waits on the owner.
+3. Run the recount commands that section carries before trusting any
+   number in it.
+4. Start the first task it names. Ask the owner nothing that section
+   already answers.
+
+Whoever closes a session rewrites the last section so step 2 stays true,
+and leaves this block alone.
+
+Judgment and reasoning only. No counts, no SHAs, no issue tallies: those rot
+within hours. Derive them with `gh issue list` and the scripts in the repo.
+
 What this repo is: Yiming's engineering workflow packaged as a Claude Code
 plugin. See `README.md` for what each skill and hook does, and
 `docs/DECISIONS.md` for the dated measurements behind them. The counts live in
@@ -762,3 +782,51 @@ Trap: a `find` string written with `\n` escapes in Python source does not
 match `git log -S` on the real newline. Searching by the entry's label, then
 by the first line of `find`, found the originating PR for every one of the
 281 entries.
+
+## 2026-09-16: the handoff gets one shape and a hook that checks it
+
+Six repos each carried a handoff in its own shape, and every fresh session
+still needed a hand-written opening prompt on top of it. The owner decided
+that pointing an agent at `docs/HANDOFF.md` is the whole prompt. That is
+only true if every file opens the same way, so the shape lives here once:
+`skills/handoff/SKILL.md` carries the `## Start here` block verbatim, and
+`hooks/handoff-freshness.py` warns (`HANDOFF SHAPE`) when a repo's file
+lacks the block, still opens with the old "written at the end of a session"
+preamble, or has a second handoff-named `.md` tracked outside `docs/`.
+
+Decided: warn, never block, same as the freshness check it joins. A Stop
+blocked over a doc strands real work. Decided: the shape check runs on
+every Stop in a git repo, whatever the commit count, because the freshness
+check's two-commit floor exists to skip trivial sessions and a wrong-shaped
+file is wrong in a trivial session too. Rejected: a separate hook. One
+script, one `SKIP_HANDOFF_CHECK=1`, one row in the README.
+
+Decided: the skill emits no prompt for the next session. Every earlier
+`/handoff` produced a file and then a paste-me prompt beside it, and the
+prompt was the part that got lost. The last dated section is that prompt
+now, which is why this section ends the way it does.
+
+This repo is one of the six being migrated, and it migrates in this PR so
+the plugin passes its own hook. The body above the dated sections was left
+alone, per the skill's own migration rule. `## Decisions, newest first` up
+there predates the newest-last rule and stays as a superseded layout until a
+real milestone earns a reorganize.
+
+### Next session
+
+First task: migrate the other five repos' `docs/HANDOFF.md` to the block,
+one PR each, and let each repo's Stop hook confirm silence. List them with
+`grep -L "## Start here" ~/code/*/docs/HANDOFF.md` (recount: that command).
+
+Tickets, in order: #13, the stray-file check on domain-word repos (recount:
+`gh issue list --repo emmanuelwunjc/yw-workflow --state open`).
+
+Waits on the owner: whether the five migrated repos also get a
+`.github/workflows/guards.yml` so the shape check runs in CI, which this
+plugin's action does not yet include.
+
+Open after this PR: #13 (the stray-file check fires on every Stop in a repo
+where "handoff" is a domain word, e.g. the thesis repo's
+`submission/handoff/*.md`, and the only escape also kills the freshness
+warning). Fix is a per-repo allowlist read from handrail config, which
+already carries a handoff path nobody reads. Review round 1 on #12 found it.
