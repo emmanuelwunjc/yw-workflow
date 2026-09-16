@@ -818,7 +818,7 @@ First task: migrate the other five repos' `docs/HANDOFF.md` to the block,
 one PR each, and let each repo's Stop hook confirm silence. List them with
 `grep -L "## Start here" ~/code/*/docs/HANDOFF.md` (recount: that command).
 
-Tickets, in order: none open in this repo for this work (recount:
+Tickets, in order: #13, the stray-file check on domain-word repos (recount:
 `gh issue list --repo emmanuelwunjc/yw-workflow --state open`).
 
 Waits on the owner: whether the five migrated repos also get a
