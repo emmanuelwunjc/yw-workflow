@@ -77,7 +77,7 @@ plugin path only.
 | | | |
 |---|---|---|
 | **git-safety-guard.sh** | PreToolUse, `git *` | Blocks commits straight to `main` and tree moves that collide with another agent. |
-| **require-code-review.py** | PreToolUse | Blocks `gh pr merge` on a 25+ line PR with no review. Override: `SKIP_REVIEW_GATE=1`. |
+| **require-code-review.py** | PreToolUse | Blocks `gh pr merge <number>` on a 25+ line PR with no review, looked up in the repo the command targets (`cd`, `-R`, a PR URL, `GH_REPO`) rather than the folder the session started in. A merge it finds and cannot tie to a literal PR and repo is blocked with a request for `-R owner/repo`. It reads the merge from the command text, so a command that only mentions one with a number is judged as a merge, and a merge with no number is invisible to it (#17). Override: `export SKIP_REVIEW_GATE=1;` in front of the command, announced on stderr when honored. |
 | **no-ai-attribution.py** | PreToolUse | Keeps AI-generation footers out of anything people read. Commit trailers stay. |
 | **claude-md-guard.py** | UserPromptSubmit, Stop | Blocks em-dashes, negation-then-correction, and prose questions where checkboxes are required. |
 | **handoff-freshness.py** | Stop | Catches work piling up against an untouched `docs/HANDOFF.md`, and a `docs/HANDOFF.md` that lacks the `## Start here` block, still opens with an "end of a session" preamble, or has a handoff-named `.md` tracked outside `docs/` (the shape in skill `handoff`). Override: `SKIP_HANDOFF_CHECK=1`. |

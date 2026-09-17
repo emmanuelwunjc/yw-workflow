@@ -830,3 +830,89 @@ where "handoff" is a domain word, e.g. the thesis repo's
 `submission/handoff/*.md`, and the only escape also kills the freshness
 warning). Fix is a per-repo allowlist read from handrail config, which
 already carries a handoff path nobody reads. Review round 1 on #12 found it.
+
+## 2026-09-17: the review gate asks the repo the merge targets
+
+`require-code-review.py` ran every `gh` call in the session's start folder. A
+session in one repo that merged a PR of a second repo with `cd <second repo> &&
+gh pr merge 24` had the first repo's PR 24 judged instead. It blocked a
+reviewed PR, and with the numbers the other way round it would have passed an
+unreviewed one. The full record, with what was decided and what was rejected,
+is in `docs/DECISIONS.md` under the same date.
+
+The judgment worth keeping: the hook does not work out `owner/repo`. It copies
+the merge's directory, `GH_REPO`, `-R` and PR argument onto its own `gh` calls
+and lets `gh` pick, so the precedence lives in one place. And a target it
+cannot read blocks with a request for `-R owner/repo`, while a failed lookup
+still passes. The difference is that a blip cannot be fixed by the caller and
+an unreadable target can, with one flag.
+
+Review round 1 came back BLOCK with three false passes, one a regression
+from 1.6.0 (a quoted merge behind `timeout`, `env` or `sudo` went unchecked).
+All three were the same shape: the hook saw a merge and passed it with no
+lookup. The lesson that reshaped the code: a runner allowlist ("read quoted
+text as a command when bash runs it") fails open on every runner nobody
+listed.
+
+~~The rule now runs the other way. Every quoted merge is a command unless it is
+an argument of something that only ever treats it as data, and the walk ends
+with a fallback that blocks whatever matched the prefilter and was never
+read.~~ **Superseded 2026-09-17 by review round 2.** That rule made the word
+walk the thing that decides what is and is not a merge, which is a shell
+parser. It regressed shapes 1.6.0 caught and blocked 23 of 48 realistic
+read-only commands against 1.6.0's 11. What replaced it: detection is 1.6.0's
+text pattern again, and the walk only answers which repo to ask about a merge
+the pattern already found. Nothing named in the struck-through sentence is in
+the hook now, so `grep -n "DATA_COMMANDS\|prefilter\|MERGE_TEXT" hooks/require-code-review.py`
+returns nothing. `docs/DECISIONS.md` has both rounds and what each cost.
+
+Review round 3 came back BLOCK with two findings, and the count fell from four.
+The one worth remembering: the override that every block message names did not
+work on the path that blocks a merge the walk could not tie to a command, so
+the hook printed "review gate skipped", blocked anyway, and told you to do the
+thing you had just done. A workaround a message recommends is part of the
+message, and nothing tested it.
+
+Trap: a mutation run edits the hook in place. I restored it once with `git
+checkout` on a file holding uncommitted work and lost the round. A copy in the
+scratchpad saved it. Commit before mutating, or mutate a copy.
+
+Trap: `shlex` with `punctuation_chars` returns a run of punctuation such as
+`);` as ONE token. The first version compared tokens to `")"` and never closed
+a subshell, so a `cd` inside `( ... )` leaked out. The self-test case "a cd
+inside a subshell ends with it" is what caught it.
+
+Not verified: that Claude Code's hook event `cwd` follows a `cd` made in an
+earlier Bash call. The hook prefers it over its own process cwd on the reading
+that it does, and falls back to the process cwd when the field is absent.
+
+Deliberately not done: a real shell parser. `popd` makes the target unknown,
+which blocks. A `cd` inside `if`/`for` counts as taken. `gh api ... /merge`, and
+a function, alias or script wrapping the merge, are invisible to any text
+match. All of it is listed in the comment block above `merge_targets`.
+
+### Next session
+
+First task: unchanged from 2026-09-16. Migrate the other five repos'
+`docs/HANDOFF.md` to the block, one PR each. List them with
+`grep -L "## Start here" ~/code/*/docs/HANDOFF.md` (recount: that command).
+
+Tickets, in order: #15 (`git-safety-guard.sh` lets a commit onto main through
+a quoted `cd`, rated high), #13 (the stray-file check on domain-word repos),
+#16 (the lower-stakes session-folder assumptions) (recount:
+`gh issue list --repo emmanuelwunjc/yw-workflow --state open`).
+
+Follow-ups found while fixing this, same class of defect, filed as #15 and
+#16: `git-safety-guard.sh` `target_dir` misses a quoted `cd` path, a `~` path and
+`pushd`, and falls back to `$PWD` silently, so `cd "/repo/on/main" && git
+commit` from a feature-branch session is allowed. Its dirty-tree note and its
+worktree-count note also run plain `git` in `$PWD` while the rest of the script
+uses the resolved directory. `handoff-freshness.py`, `no-ai-attribution.py` and
+`claude-md-guard.py` read the session cwd only (the last two through
+`handrail_config.load()`), so a command that `cd`s into a second repo is judged
+under the first repo's config. Lower stakes: a repo config can only switch
+rules on.
+
+Waits on the owner: whether the five migrated repos also get a
+`.github/workflows/guards.yml`, carried over from 2026-09-16.
+
