@@ -340,6 +340,25 @@ TARGET_CASES = [
      "R3: env GH_REPO in front of the runner"),
     ("bash -c 'gh pr merge 24'", BLOCK, ["sess/repo#24"],
      "R3: the same runner with no assignment still blocks"),
+
+    # --- Review round 4 of this change, 2026-09-17: PASS, six nits -----------
+    # Both of these pin one part of the dedupe key. Two targets that agree on
+    # the PR, the repo, the directory and the environment can still need
+    # separate answers, and collapsing them keeps the FIRST, which is the
+    # permissive one in both shapes below.
+    #
+    # `skip`: the skipped merge and the real one are the same PR in the same
+    # repo. Drop it from the key and they collapse into the skipped one, so an
+    # unreviewed merge runs with the gate never asked.
+    ("SKIP_REVIEW_GATE=1 gh pr merge 24 && gh pr merge 24", BLOCK, ["sess/repo#24"],
+     "R4: an override on one merge does not cover the same PR merged again"),
+    ("SKIP_REVIEW_GATE=1 gh pr merge 24 && gh pr merge 25", ALLOW, ["sess/repo#25"],
+     "R4: the same shape where the second merge is reviewed"),
+    # `unreadable`: `xargs` makes the second target unreadable while the first
+    # is fine, and everything else about them matches. Drop it from the key and
+    # they collapse into the readable one, which is allowed.
+    ("gh pr merge 25 && echo --squash | xargs gh pr merge 25", BLOCK, ["sess/repo#25"],
+     "R4: a readable merge does not cover an unreadable one for the same PR"),
 ]
 
 

@@ -31,11 +31,14 @@ walk both miss, such as `env -C <dir> gh pr merge 25`, is looked up in the
 session's repo without a word, the way 1.6.0 does it.
 
 Escape hatch: SKIP_REVIEW_GATE=1, as a real assignment. In the hook's own
-environment it covers the session. In the command it counts as a prefix on the
-merge, an `env` argument, or an `export` earlier in the same command. The text
-appearing elsewhere (inside a --body, in a trailing comment) does not count.
-When it is honored the hook says so on stderr, so a skipped gate is visible
-after the fact rather than only in the shell history.
+environment it covers the session. In a command whose words the hook could read,
+it counts as a prefix on the merge, an `env` argument, or an `export` earlier in
+the same command. For a merge the hook found and could NOT read down to a
+command, only `export SKIP_REVIEW_GATE=1;` in front of the whole command counts,
+which is the one spelling every block message gives. The text appearing
+elsewhere (inside a --body, in a trailing comment) does not count. When it is
+honored the hook says so on stderr, so a skipped gate is visible after the fact
+rather than only in the shell history.
 """
 
 from __future__ import annotations
