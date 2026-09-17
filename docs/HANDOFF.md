@@ -830,3 +830,58 @@ where "handoff" is a domain word, e.g. the thesis repo's
 `submission/handoff/*.md`, and the only escape also kills the freshness
 warning). Fix is a per-repo allowlist read from handrail config, which
 already carries a handoff path nobody reads. Review round 1 on #12 found it.
+
+## 2026-09-17: the review gate asks the repo the merge targets
+
+`require-code-review.py` ran every `gh` call in the session's start folder. A
+session in one repo that merged a PR of a second repo with `cd <second repo> &&
+gh pr merge 24` had the first repo's PR 24 judged instead. It blocked a
+reviewed PR, and with the numbers the other way round it would have passed an
+unreviewed one. The full record, with what was decided and what was rejected,
+is in `docs/DECISIONS.md` under the same date.
+
+The judgment worth keeping: the hook does not work out `owner/repo`. It copies
+the merge's directory, `GH_REPO`, `-R` and PR argument onto its own `gh` calls
+and lets `gh` pick, so the precedence lives in one place. And a target it
+cannot read blocks with a request for `-R owner/repo`, while a failed lookup
+still passes. The difference is that a blip cannot be fixed by the caller and
+an unreadable target can, with one flag.
+
+Trap: `shlex` with `punctuation_chars` returns a run of punctuation such as
+`);` as ONE token. The first version compared tokens to `")"` and never closed
+a subshell, so a `cd` inside `( ... )` leaked out. The self-test case "a cd
+inside a subshell ends with it" is what caught it.
+
+Not verified: that Claude Code's hook event `cwd` follows a `cd` made in an
+earlier Bash call. The hook prefers it over its own process cwd on the reading
+that it does, and falls back to the process cwd when the field is absent.
+
+Deliberately not done: a real shell parser. `popd`, a `cd` inside `if`/`for`,
+and a function or alias wrapping `gh` are not tracked. The first makes the
+target unknown, which blocks. The other two are listed in the `ponytail:`
+comment on `merge_targets`.
+
+### Next session
+
+First task: unchanged from 2026-09-16. Migrate the other five repos'
+`docs/HANDOFF.md` to the block, one PR each. List them with
+`grep -L "## Start here" ~/code/*/docs/HANDOFF.md` (recount: that command).
+
+Tickets, in order: #13 (the stray-file check on domain-word repos), then the
+`git-safety-guard.sh` follow-up below (recount:
+`gh issue list --repo emmanuelwunjc/yw-workflow --state open`).
+
+Follow-up found while fixing this, same class of defect, not yet ticketed:
+`git-safety-guard.sh` `target_dir` misses a quoted `cd` path, a `~` path and
+`pushd`, and falls back to `$PWD` silently, so `cd "/repo/on/main" && git
+commit` from a feature-branch session is allowed. Its dirty-tree note and its
+worktree-count note also run plain `git` in `$PWD` while the rest of the script
+uses the resolved directory. `handoff-freshness.py`, `no-ai-attribution.py` and
+`claude-md-guard.py` read the session cwd only (the last two through
+`handrail_config.load()`), so a command that `cd`s into a second repo is judged
+under the first repo's config. Lower stakes: a repo config can only switch
+rules on.
+
+Waits on the owner: whether the five migrated repos also get a
+`.github/workflows/guards.yml`, carried over from 2026-09-16.
+

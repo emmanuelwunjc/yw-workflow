@@ -18,6 +18,12 @@ Trivial diffs are exempt: a PR touching no code file, or under the line
 threshold, merges without ceremony. The point is to stop unreviewed
 *behaviour* changes, not to add friction to a typo fix.
 
+The PR is looked up in the repo the merge command targets, which is often a
+different repo from the one the session started in: `cd <elsewhere> && gh pr
+merge 24`, `-R owner/repo`, a PR URL, `GH_REPO=owner/repo`. When the target
+cannot be read from the command text, the hook blocks and asks for an explicit
+`-R owner/repo` instead of guessing. See merge_targets below.
+
 Escape hatch: set SKIP_REVIEW_GATE=1 for the single command. That is
 deliberate and visible, unlike forgetting.
 """
@@ -27,6 +33,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shlex
 import subprocess
 import sys
 
@@ -106,18 +113,198 @@ CODE_SUFFIXES = (".py", ".yml", ".yaml", ".toml", ".cfg", ".sh", ".ts", ".js")
 TRIVIAL_LINES = 25
 
 
-def gh(*args: str) -> str:
+# --- Which repo does the merge command target? ------------------------------
+#
+# Until 2026-09-17 every gh call here ran in the hook's own working directory,
+# which is the folder the session started in. That day a session started in one
+# repo ran `cd <a second repo> && gh pr merge 24 --squash`. The hook looked up
+# PR 24 of the SESSION's repo, an old unreviewed PR, and blocked, although the
+# second repo's PR 24 carried a posted "Verdict: PASS". The only way through was
+# SKIP_REVIEW_GATE=1. The mirror is worse and was equally possible: the session
+# repo's PR with that number is reviewed or trivial, so the hook passes the
+# merge of an unreviewed PR somewhere else.
+#
+# The fix does not reimplement gh's repo resolution. It reads the four things
+# that steer it out of the command text (the directory the shell is in when gh
+# runs, a GH_REPO assignment, -R/--repo, and the PR argument itself, which may
+# be a URL) and hands the same four to every gh call the hook makes. gh then
+# applies its own precedence (URL, then -R, then GH_REPO, then the directory's
+# git remote), so the hook asks about exactly the PR the merge would merge.
+#
+# gh flags that take a value, so the value is never mistaken for the PR.
+MERGE_VALUE_FLAGS = {"-R", "--repo", "-b", "--body", "-F", "--body-file", "-t",
+                     "--subject", "-A", "--author-email", "--match-head-commit"}
+# Words that can stand in front of a command without changing what it is.
+# Without these, `{ cd /elsewhere; gh pr merge 5; }` hides its cd behind the `{`.
+SHELL_PREFIXES = {"{", "}", "!", "then", "do", "else", "elif", "if", "while",
+                  "until", "time", "command", "builtin", "exec"}
+# Commands whose quoted argument is itself a command line.
+SHELL_RUNNERS = {"bash", "sh", "zsh", "eval"}
+MERGE_TEXT = re.compile(r"\bgh\s+pr\s+merge\b")
+ASSIGNMENT = re.compile(r"^[A-Za-z_]\w*=")
+
+
+def _cd(words: list, cwd):
+    """Where `cd`/`pushd` with these arguments lands, or None when that cannot
+    be known from the text alone: a variable, a glob, `cd -`, a bare `cd`, or a
+    directory that does not exist (after `cd missing; gh ...` the shell is still
+    in the old directory, after `cd missing && gh ...` gh never runs, and the
+    hook cannot tell which it is looking at from one token)."""
+    args = [w for w in words if w not in ("--", "-P", "-L", "-e", "-@")]
+    if len(args) != 1 or args[0] == "-" or any(c in args[0] for c in "$`*?"):
+        return None
+    path = os.path.expanduser(args[0])
+    if not os.path.isabs(path):
+        if cwd is None:
+            return None
+        path = os.path.join(cwd, path)
+    path = os.path.normpath(path)
+    return path if os.path.isdir(path) else None
+
+
+def merge_targets(cmd: str, cwd, env_repo=None) -> list:
+    """Every `gh pr merge` in cmd, each with the context it would run in.
+
+    Returns dicts with: pr (the PR argument as typed: a number, a URL, a branch,
+    or None for the current branch), repo (-R/--repo), env_repo (GH_REPO), cwd
+    (the directory gh would run in, None when it cannot be known).
+
+    ponytail: this walks shell words, it does not parse shell. Known ceilings:
+    `popd` makes the directory unknown instead of tracking the stack, a cd
+    inside `if`/`for` counts as taken, and a function or alias that wraps gh is
+    invisible. Each of those errs toward "unknown", which blocks and asks for
+    -R, never toward a guess. Upgrade path is a real shell parser, and nothing
+    measured so far justifies one.
+    """
+    # `2>&1` would otherwise leave a bare "2" that reads as a PR number.
+    text = re.sub(r"(?<=\s)\d+(?=[<>])", "", cmd.replace("\\\n", " "))
+    # shlex treats a newline as plain whitespace, and a newline ends a command.
+    lex = shlex.shlex(text.replace("\n", " ; "), posix=True, punctuation_chars=True)
+    lex.whitespace_split = True
+    lex.commenters = ""   # a `#` in a PR URL fragment or a body is not a comment
+    try:
+        tokens = list(lex)
+    except ValueError:
+        # Unbalanced quotes: the words cannot be trusted, so neither can a cd
+        # among them. Keep the old number match and call the target unknown.
+        m = re.search(r"\bgh\s+pr\s+merge\s+(\d+)", cmd)
+        return [{"pr": m.group(1), "repo": None, "env_repo": None, "cwd": None}] if m else []
+
+    found, subshells, seg = [], [], []
+    skip_next = False
+    for tok in tokens + [";"]:
+        if skip_next:                       # the file name after a redirect
+            skip_next = False
+            continue
+        if not all(c in "();<>|&" for c in tok):
+            seg.append(tok)
+            continue
+        if "<" in tok or ">" in tok:
+            skip_next = True
+            continue
+
+        # --- one simple command is complete: judge it -----------------------
+        raw, seg = seg, []
+        words = list(raw)
+        while words and (words[0] in SHELL_PREFIXES or ASSIGNMENT.match(words[0])):
+            words.pop(0)
+        if words and words[0] in ("cd", "pushd"):
+            cwd = _cd(words[1:], cwd)
+        elif words and words[0] == "popd":
+            cwd = None
+        elif words and words[0] == "export":
+            for w in words[1:]:
+                if w.startswith("GH_REPO="):
+                    env_repo = w[len("GH_REPO="):]
+        elif words and os.path.basename(words[0]) in SHELL_RUNNERS:
+            # Only here is quoted text a command. Everywhere else a string that
+            # mentions a merge (a commit message, a PR comment) is just a string.
+            for w in words[1:]:
+                if MERGE_TEXT.search(w):
+                    found += merge_targets(w, cwd, env_repo)
+
+
+        # --- the merge itself, judged where the shell is standing right now ---
+        # Searched in the raw words so that `GH_REPO=o/r gh ...`, `env GH_REPO=o/r
+        # gh ...` and `xargs gh pr merge` are all seen.
+        for j in range(len(raw) - 2):
+            if os.path.basename(raw[j]) != "gh" or raw[j + 1:j + 3] != ["pr", "merge"]:
+                continue
+            target = {"pr": None, "repo": None, "env_repo": env_repo, "cwd": cwd}
+            for w in raw[:j]:
+                if w.startswith("GH_REPO="):
+                    target["env_repo"] = w[len("GH_REPO="):]
+            args = raw[j + 3:]
+            k = 0
+            while k < len(args):
+                a = args[k]
+                if a in ("-R", "--repo"):
+                    target["repo"] = args[k + 1] if k + 1 < len(args) else None
+                elif a.startswith("--repo="):
+                    target["repo"] = a[len("--repo="):]
+                elif a.startswith("-R") and len(a) > 2:
+                    target["repo"] = a[2:]
+                elif not a.startswith("-") and target["pr"] is None:
+                    target["pr"] = a
+                k += 2 if a in MERGE_VALUE_FLAGS else 1
+            found.append(target)
+
+        # A subshell's cd ends with the subshell. Per character, because shlex
+        # hands back a run of punctuation such as `);` as one token.
+        for c in tok:
+            if c == "(":
+                subshells.append(cwd)
+            elif c == ")" and subshells:
+                cwd = subshells.pop()
+    return found
+
+
+def target_known(target: dict) -> bool:
+    """Can gh be pointed at the same repo the merge will hit? Yes when anything
+    names the repo outright, or when the directory gh would run in is known."""
+    return bool(
+        target["cwd"] or target["repo"] or target["env_repo"]
+        or os.environ.get("GH_REPO")
+        or re.match(r"https?://", target["pr"] or "")
+    )
+
+
+def describe(target: dict) -> str:
+    """The PR and where the hook looked for it. A block that does not say which
+    repo it asked is how a wrong-repo lookup stayed invisible until 2026-09-17."""
+    pr = target["pr"]
+    if re.match(r"https?://", pr or ""):
+        return pr
+    name = ("PR #" + pr) if (pr or "").isdigit() else (
+        "the PR for branch " + pr if pr else "the current branch's PR")
+    where = (target["repo"] or target["env_repo"] or os.environ.get("GH_REPO")
+             or target["cwd"])
+    return f"{name} in {where}"
+
+
+def gh(sub: str, target: dict, *args: str) -> str:
+    """Run `gh pr <sub>` against the merge's own target: same PR argument, same
+    -R, same GH_REPO, same directory. See the block comment above."""
+    argv = ["gh", "pr", sub]
+    if target["pr"]:
+        argv.append(target["pr"])
+    if target["repo"]:
+        argv += ["-R", target["repo"]]
+    env = dict(os.environ)
+    if target["env_repo"]:
+        env["GH_REPO"] = target["env_repo"]
     try:
         out = subprocess.run(
-            ["gh", *args], capture_output=True, text=True, timeout=25
+            argv + list(args), capture_output=True, text=True, timeout=25,
+            cwd=target["cwd"], env=env,
         )
         return out.stdout if out.returncode == 0 else ""
     except Exception:
         return ""
 
 
-def review_status(pr: str):
-    """Gate 2 as a query: has anything reviewed PR #pr?
+def review_status(target: dict):
+    """Gate 2 as a query: has anything reviewed the PR this target names?
 
     Returns (verdict, code_lines) where verdict is one of:
       "ok"        nothing to stop: trivial, docs-only, or already reviewed
@@ -129,7 +316,7 @@ def review_status(pr: str):
     proved nothing, and passing on it is how a required gate becomes a rubber
     stamp.
     """
-    files = gh("pr", "view", pr, "--json", "files",
+    files = gh("view", target, "--json", "files",
                "--jq", ".files[] | \"\\(.path) \\(.additions) \\(.deletions)\"")
     if not files.strip():
         return "unknown", 0
@@ -151,12 +338,12 @@ def review_status(pr: str):
     if code_lines < TRIVIAL_LINES:
         return "ok", code_lines   # trivial code change
 
-    states = gh("pr", "view", pr, "--json", "reviews",
+    states = gh("view", target, "--json", "reviews",
                 "--jq", "[.reviews[].state] | join(\" \")")
     if "APPROVED" in states or "CHANGES_REQUESTED" in states:
         return "ok", code_lines
 
-    body = gh("pr", "view", pr, "--json", "comments", "--jq", ".comments[].body")
+    body = gh("view", target, "--json", "comments", "--jq", ".comments[].body")
     if has_verdict(body or ""):
         return "ok", code_lines
 
@@ -170,7 +357,10 @@ def check_pr(pr: str) -> int:
     itself one of those checks, so asking whether all checks are green would
     always find this one in progress and fail every time.
     """
-    verdict, code_lines = review_status(pr)
+    # CI names its repo through GH_REPO in the job's environment (see the guards
+    # action), which gh reads by itself. cwd None means "wherever the job runs".
+    verdict, code_lines = review_status(
+        {"pr": pr, "repo": None, "env_repo": None, "cwd": None})
     if verdict == "ok":
         return 0
     if verdict == "unknown":
@@ -219,13 +409,47 @@ def main() -> None:
         sys.exit(0)
     cmd = (event.get("tool_input") or {}).get("command", "")
 
-    m = re.search(r"\bgh\s+pr\s+merge\s+(\d+)", cmd)
-    if not m:
+    if not MERGE_TEXT.search(cmd):
         sys.exit(0)
     if os.environ.get("SKIP_REVIEW_GATE") == "1" or "SKIP_REVIEW_GATE=1" in cmd:
         sys.exit(0)
 
-    pr = m.group(1)
+    # The event's cwd is where the Bash tool's shell stands now. An earlier call
+    # may have cd'd it away from the folder this process was started in.
+    start = event.get("cwd") or os.getcwd()
+    # Every merge in the command is judged, each against its own target. The
+    # first one that fails blocks the whole command, because the command runs
+    # as a whole or not at all.
+    for target in merge_targets(cmd, start):
+        check_merge(target)
+    sys.exit(0)
+
+
+def check_merge(target: dict) -> None:
+    """Both gates for one `gh pr merge`. Returns when it may go ahead."""
+    # --- Gate 0: know which repo this is about ------------------------------
+    # Added 2026-09-17. `cd "$DIR" && gh pr merge 24` names a PR in a repo the
+    # hook cannot see from the text. It must not fall back to the session's
+    # repo: that is the defect this gate exists for, and it fails in both
+    # directions. It also must not pass the way a failed lookup does below. A
+    # failed lookup is a network blip, it is transient, and nothing the caller
+    # types will fix it. An unreadable target is permanent for that command and
+    # costs one flag to fix. A gate that waves through what it cannot see is a
+    # rubber stamp, so this one blocks and says what to type.
+    if not target_known(target):
+        deny(
+            f"BLOCKED: cannot tell which repo this `gh pr merge "
+            f"{target['pr'] or ''}` targets. The command changes directory in a "
+            f"way that cannot be read from its text (a variable, `cd -`, `popd`, "
+            f"a directory that does not exist, or unbalanced quotes), so the "
+            f"review check would be guessing which PR to look up.\n\n"
+            f"Name the repo on the merge itself:\n"
+            f"  gh pr merge {target['pr'] or '<number>'} -R owner/repo ...\n\n"
+            f"Deliberate override: SKIP_REVIEW_GATE=1 gh pr merge ...\n"
+        )
+
+    pr = target["pr"] or ""
+    label = describe(target)
 
     # --- Gate 1: every check must be passing -------------------------------
     # Added 2026-08-04. The review gate below is not enough on its own: a PR
@@ -236,7 +460,7 @@ def main() -> None:
     # This runs BEFORE the triviality check on purpose. A one-line change that
     # turns CI red is exactly the merge worth stopping, and skipping the gate
     # for small diffs would let the most common red slip through.
-    checks = gh("pr", "checks", pr, "--json", "name,state",
+    checks = gh("checks", target, "--json", "name,state",
                 "--jq", '.[] | "\\(.state) \\(.name)"')
     if checks.strip():
         bad = []
@@ -246,7 +470,7 @@ def main() -> None:
                 bad.append(f"  {state.lower():<12} {name}")
         if bad:
             deny(
-                f"BLOCKED: PR #{pr} is not 100% green.\n\n"
+                f"BLOCKED: {label} is not 100% green.\n\n"
                 + "\n".join(bad)
                 + "\n\nA pending check is not a passing check: wait for it "
                 "rather than merging past it.\n"
@@ -255,19 +479,19 @@ def main() -> None:
             )
 
     # --- Gate 2: a code review must have run -------------------------------
-    verdict, code_lines = review_status(pr)
+    verdict, code_lines = review_status(target)
     if verdict in ("ok", "unknown"):
-        sys.exit(0)  # "unknown" = broken lookup; the hook does not block on one
+        return  # "unknown" = broken lookup; the hook does not block on one
 
     deny(
-        f"BLOCKED: PR #{pr} changes {code_lines} lines of code and nothing has "
+        f"BLOCKED: {label} changes {code_lines} lines of code and nothing has "
         f"reviewed it.\n\n"
         f"CLAUDE.md Section 2 step 3: run the code-review skill on non-trivial "
         f"diffs before calling anything done. Green CI proves the tests pass. "
         f"It does not prove the change matches its issue, and it does not catch "
         f"a bad design decision.\n\n"
         f"Do one of:\n"
-        f"  1. Run an independent code-review on #{pr}, post the verdict as a PR "
+        f"  1. Run an independent code-review on it, post the verdict as a PR "
         f"comment, then merge.\n"
         f"  2. Approve it on GitHub if a human read it.\n"
         f"  3. SKIP_REVIEW_GATE=1 gh pr merge {pr} ...  (deliberate, and it shows)\n"

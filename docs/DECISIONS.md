@@ -75,3 +75,49 @@ that quietly succeeds against the wrong file into a run that will not start.
 
 Nobody has built it. Recorded here rather than in the skill because a skill is
 procedure a reader can follow, and a design nobody has implemented is not.
+
+## 2026-09-17: the review gate asks the repo the merge targets, and blocks when it cannot tell
+
+Supports `hooks/require-code-review.py`.
+
+Reproduced 2026-09-17. A session started in repo A ran
+`cd <a second repo> && gh pr merge 24 --squash --delete-branch`. The hook ran
+`gh pr view 24` in its own working directory, so it read repo A's PR 24: old,
+merged, 36 code lines, no review. It blocked. The second repo's PR 24 carried a
+posted "Verdict: PASS". The only way through was `SKIP_REVIEW_GATE=1`.
+
+The mirror case needs no bad luck, only a shared PR number: repo A's PR is
+reviewed or trivial, and the hook passes the merge of an unreviewed PR in the
+second repo. Both directions are pinned in
+`hooks/require-code-review-selftest.py`, which runs the hook against a fake `gh`
+that answers per repo and logs which repo each call resolved to.
+
+Decided: the hook copies the merge's context and lets `gh` resolve it. It reads
+the directory the shell is in when `gh` runs (`cd`, `pushd`, subshells, starting
+from the hook event's `cwd`), a `GH_REPO=` assignment, `-R`/`--repo`, and the PR
+argument as typed, which may be a URL. It passes all four to every `gh` call.
+`gh` applies its own precedence: URL, then `-R`, then `GH_REPO`, then the
+directory's remote. Rejected: resolving `owner/repo` inside the hook, which
+would be a second copy of that precedence to keep in step with `gh`.
+
+Decided: a target the hook cannot read blocks, with a message asking for
+`-R owner/repo`. Examples: `cd "$DIR"`, `cd -`, `popd`, a directory that does
+not exist, unbalanced quotes. The hook already passes when a lookup comes back
+empty, because a network blip must not wedge a local merge. That reasoning
+stops short of this case. A blip is transient and nothing the caller types
+fixes it. An unreadable target is permanent for that command and one flag fixes
+it. Falling back to the session repo is the defect itself.
+
+Also changed, because the old number-only match could not carry the fix: the
+hook now sees `gh pr merge -R owner/repo 24`, `gh pr merge --squash 24` and a
+bare `gh pr merge` (the current branch's PR), all of which the old regex let
+through unchecked. A quoted string that mentions a merge, e.g. a commit
+message, is no longer treated as one unless `bash -c`, `sh -c`, `zsh -c` or
+`eval` runs it.
+
+Measured the same day in `hooks/git-safety-guard.sh`, not fixed here: its
+`target_dir` reads an unquoted `cd /path` and misses a quoted path, a `~` path
+and `pushd`. Run from a feature branch, `cd /repo/on/main && git commit` is
+denied, and the same command with the path in quotes or written with `~` is
+allowed. It falls back to `$PWD` without saying so, which is the guess this
+decision refuses.
