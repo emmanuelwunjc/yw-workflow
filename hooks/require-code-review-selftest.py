@@ -26,6 +26,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 
 HOOK = pathlib.Path(__file__).with_name("require-code-review.py")
 
@@ -153,22 +154,41 @@ TARGET_CASES = [
      "two merges, two targets, both reviewed"),
     ("gh pr merge 25 && cd {O} && gh pr merge 25", BLOCK, ["sess/repo#25", "other/repo#25"],
      "two merges, the second target unreviewed"),
-    # No number means the current branch's PR, in the target.
-    ("cd {O} && gh pr merge --squash", BLOCK, ["other/repo#current"], "no number: current branch in the target"),
+    # A merge with no number is invisible to detection, as it was in 1.6.0.
+    # Filed as emmanuelwunjc/yw-workflow#17.
+    ("cd {O} && gh pr merge --squash", ALLOW, [], "no number: detection cannot see it (#17)"),
     ("gh pr merge 24 --squash 2>&1", BLOCK, ["sess/repo#24"], "a redirect is not a PR number"),
+    # Flags between `merge` and the number, with a value flag's value skipped.
+    ("gh pr merge --squash 24", BLOCK, ["sess/repo#24"], "a flag before the number"),
+    ("gh pr merge --body text 24", BLOCK, ["sess/repo#24"], "--body's value is not the PR"),
+    ("gh pr merge -t subject 24", BLOCK, ["sess/repo#24"], "-t's value is not the PR"),
+    ("gh pr merge --body text 25", ALLOW, ["sess/repo#25"], "--body before the number, mirror"),
     # Gate 1 asks the target too.
     ("cd {O} && gh pr merge 26", BLOCK, ["other/repo#26"], "pending check in the target repo"),
     # A target that cannot be worked out blocks and asks for -R.
     ('cd "$SOMEWHERE" && gh pr merge 25', BLOCK, [], "cd to a variable: blocked, nothing guessed"),
-    ("cd /no/such/dir/anywhere && gh pr merge 25", BLOCK, [], "cd to a missing directory"),
+    # A cd to a path that does not exist is not unknown, it is unchanged: the cd
+    # fails, so `;` leaves the shell where it was and `&&` drops the merge.
+    ("cd /no/such/dir/anywhere && gh pr merge 25", ALLOW, ["sess/repo#25"],
+     "cd to a missing directory: the old directory still answers"),
+    ("cd /no/such/dir/anywhere && gh pr merge 24", BLOCK, ["sess/repo#24"],
+     "cd to a missing directory, mirror: still checked, in the old directory"),
     ("cd - && gh pr merge 25", BLOCK, [], "cd -"),
     ('cd "$SOMEWHERE" && gh pr merge 24 -R flag/repo', ALLOW, ["flag/repo#24"],
      "an explicit -R makes an unknown cd irrelevant"),
     ('cd "$SOMEWHERE" && cd {O} && gh pr merge 24', ALLOW, ["other/repo#24"],
      "an absolute cd after an unknown one is known again"),
-    # Text that mentions a merge is not a merge.
-    ('git commit -m "then gh pr merge 24"', ALLOW, [], "a commit message mentioning a merge"),
+    # Text that only MENTIONS a merge is judged as a merge. That is 1.6.0's
+    # known false block, kept deliberately: the alternative is a walk that
+    # decides what is and is not a merge, and review round 2 measured what that
+    # costs. The workaround is in every block message.
+    ('git commit -m "then gh pr merge 24"', BLOCK, ["sess/repo#24"],
+     "1.6.0's false block: a commit message is judged as a merge"),
+    ('git commit -m "then gh pr merge 25"', ALLOW, ["sess/repo#25"],
+     "the same mention of a reviewed PR goes through"),
     ("SKIP_REVIEW_GATE=1 gh pr merge 24", ALLOW, [], "the override still works"),
+    ("SKIP_REVIEW_GATE=0 gh pr merge 24", BLOCK, ["sess/repo#24"], "=0 is not the override"),
+    ("SKIP_REVIEW_GATE=true gh pr merge 24", BLOCK, ["sess/repo#24"], "=true is not the override"),
 
     # --- Review round 1 of this change, 2026-09-17: BLOCK, three false passes ---
     # Each shape below went through with NO gh call at all. The rule they pin:
@@ -182,34 +202,58 @@ TARGET_CASES = [
     ("echo `gh pr merge 24`", BLOCK, ["sess/repo#24"], "B1: backticks"),
     ("cd {O} && echo `gh pr merge 24`", ALLOW, ["other/repo#24"], "B1: backticks, judged in the target"),
     ("echo $(gh pr merge 24)", BLOCK, ["sess/repo#24"], "B1: $( ) still caught"),
-    # B2: a variable where a literal is needed. The lookup failed, a failed
-    # lookup reads as a network blip, and hook mode allows a blip.
-    ("cd {O} && for n in 25; do gh pr merge $n; done", BLOCK, [], "B2: loop variable as the PR"),
-    ("PR=25; cd {O} && gh pr merge $PR --squash", BLOCK, [], "B2: variable as the PR"),
+    # B2: a variable where a literal is needed. Where the variable stands in for
+    # the PR number, detection never sees a merge at all, exactly as in 1.6.0,
+    # and that gap is emmanuelwunjc/yw-workflow#17. Where it stands in for the
+    # repo, the merge IS detected and the target is unreadable, which blocks.
+    ("cd {O} && for n in 25; do gh pr merge $n; done", ALLOW, [], "B2: loop variable as the PR (#17)"),
+    ("PR=25; cd {O} && gh pr merge $PR --squash", ALLOW, [], "B2: variable as the PR (#17)"),
+    ("gh pr merge 2$n", BLOCK, [], "B2: a variable spliced onto the number"),
     ("gh pr merge 25 -R $REPO", BLOCK, [], "B2: variable as -R"),
     ("export GH_REPO=$R; gh pr merge 25", BLOCK, [], "B2: variable in an exported GH_REPO"),
     ("GH_REPO=$R gh pr merge 25", BLOCK, [], "B2: variable in a GH_REPO prefix"),
-    ("gh pr merge `cat n`", BLOCK, [], "B2: backticks as the PR"),
-    ("echo 25 | xargs -I{{}} gh pr merge {{}}", BLOCK, [], "B2: an xargs placeholder as the PR"),
+    ("GH_HOST=$H gh pr merge 25", BLOCK, [], "B2: variable in a GH_HOST prefix"),
+    ("gh pr merge `cat n`", ALLOW, [], "B2: backticks as the PR (#17)"),
+    ("echo 25 | xargs -I{{}} gh pr merge {{}}", ALLOW, [], "B2: an xargs placeholder as the PR (#17)"),
+    # xargs with a literal number IS detected, and what xargs appends is not in
+    # the text, so the merge cannot be tied to one PR.
+    ("echo --squash | xargs gh pr merge 24", BLOCK, [], "xargs in front of a literal merge"),
+    ("echo 24 | xargs gh pr merge", ALLOW, [], "xargs with no number in the text (#17)"),
     # B3: gh takes -R before the subcommand too, and the shell removes quotes
     # and line continuations before gh sees anything.
     ("gh -R flag/repo pr merge 25", BLOCK, ["flag/repo#25"], "B3: global -R"),
     ("gh --repo=flag/repo pr merge 24", ALLOW, ["flag/repo#24"], "B3: global --repo="),
     ("gh pr \\\n  merge 24", BLOCK, ["sess/repo#24"], "B3: line continuation inside the command"),
-    ('"gh" pr merge 24', BLOCK, ["sess/repo#24"], "B3: quoted gh"),
-    ("gh \"pr\" 'merge' 24", BLOCK, ["sess/repo#24"], "B3: quoted pr and merge"),
+    # Quoting that hides the words from the text pattern was 1.6.0's gap and
+    # still is: closing it means matching quote-stripped text, which newly
+    # blocks `rg "gh pr merge" --max-count 5`. Filed as #16.
+    ('"gh" pr merge 24', ALLOW, [], "B3: quoted gh is invisible to detection (#17)"),
+    ("gh \"pr\" 'merge' 24", ALLOW, [], "B3: quoted pr and merge (#17)"),
     ("gh pr merge 25 -R=flag/repo", BLOCK, ["flag/repo#25"], "B3: -R=owner/repo"),
     ("gh pr merge 25 -Rflag/repo", BLOCK, ["flag/repo#25"], "B3: attached -Rowner/repo"),
-    ("gh --no-such-flag value pr merge 25", BLOCK, [], "fallback: a merge the walker cannot read blocks"),
+    # The walk reading nothing is not a block by itself. Nothing in these aims
+    # the merge anywhere else, so the session's repo is the target and 1.6.0's
+    # answer stands.
+    ("gh --no-such-flag value pr merge 25", ALLOW, ["sess/repo#25"],
+     "the walk reads nothing, no redirect: the session repo answers"),
+    ("gh --no-such-flag value pr merge 24", BLOCK, ["sess/repo#24"],
+     "the walk reads nothing, no redirect: mirror, still checked"),
     ("gh pr merge 25 && gh --no-such-flag value pr merge 24", BLOCK, ["sess/repo#25"],
-     "fallback: an unreadable merge blocks even beside a readable one"),
-    ("gh pr\nmerge 25", BLOCK, [], "fallback: the prefilter matched and the walk read nothing"),
-    # Nits from the same round.
-    ("git switch feature && gh pr merge --squash", BLOCK, [], "numberless merge after a git switch"),
-    ("git checkout feature; gh pr merge", BLOCK, [], "numberless merge after a git checkout"),
-    ("gh pr checkout 7 && gh pr merge", BLOCK, [], "numberless merge after gh pr checkout"),
+     "fewer merges walked than detected: the untied one blocks"),
+    ("gh pr\nmerge 25", ALLOW, ["sess/repo#25"], "a newline inside the merge: the session repo answers"),
+    ("cd {O} && gh --no-such-flag value pr merge 24", BLOCK, [],
+     "the walk reads nothing and a cd could aim it elsewhere"),
+    # Nits from the same round. A numberless merge is invisible to detection.
+    ("git switch feature && gh pr merge --squash", ALLOW, [], "numberless merge after a git switch (#17)"),
+    ("git checkout feature; gh pr merge", ALLOW, [], "numberless merge after a git checkout (#17)"),
+    ("gh pr checkout 7 && gh pr merge", ALLOW, [], "numberless merge after gh pr checkout (#17)"),
     ("git switch feature && gh pr merge 25", ALLOW, ["sess/repo#25"], "a number makes the switch irrelevant"),
-    ("cat <<EOF\nit's unbalanced\nEOF\ngh pr merge --squash", BLOCK, [], "unbalanced quotes, numberless: fails closed"),
+    ("cat <<EOF\nit's unbalanced\nEOF\ngh pr merge --squash", ALLOW, [], "unbalanced quotes, numberless (#17)"),
+    ("cat <<EOF\nit's unbalanced\nEOF\ngh pr merge 24", BLOCK, ["sess/repo#24"],
+     "unbalanced quotes: the words cannot be read, the session repo answers"),
+    ("cat <<EOF\nit's unbalanced\nEOF\ncd {O} && gh pr merge 24", BLOCK, [],
+     "unbalanced quotes plus a cd: nothing is guessed"),
+    ("cd {O} && popd && gh pr merge 25", BLOCK, [], "popd leaves the directory unknown"),
     ('gh pr merge 24 --body "SKIP_REVIEW_GATE=1"', BLOCK, ["sess/repo#24"], "override text inside a body is not the override"),
     ("gh pr merge 24 # SKIP_REVIEW_GATE=1", BLOCK, ["sess/repo#24"], "override text in a trailing comment is not the override"),
     ("env SKIP_REVIEW_GATE=1 gh pr merge 24", ALLOW, [], "override as an env argument"),
@@ -217,13 +261,45 @@ TARGET_CASES = [
     ("SKIP_REVIEW_GATE=1 gh pr merge 24; gh pr merge 25", ALLOW, ["sess/repo#25"], "the override covers its own merge only"),
     ("SKIP_REVIEW_GATE=1 gh pr merge 25; gh pr merge 24", BLOCK, ["sess/repo#24"], "the override covers its own merge only, mirror"),
     ("GH_HOST=ghe.example.com gh pr merge 25", ALLOW, ["ghe.example.com:sess/repo#25"], "GH_HOST is copied"),
-    ("gh pr merge --squash 2>&1", ALLOW, ["sess/repo#current"], "numberless with a redirect: the 2 is not a PR"),
+    ("gh pr merge --squash 2>&1", ALLOW, [], "numberless with a redirect: the 2 is not a PR"),
     ('cd "$SOMEWHERE" && GH_REPO=flag/repo gh pr merge 25', BLOCK, ["flag/repo#25"], "unknown cd, GH_REPO names the repo"),
     ('cd "$SOMEWHERE" && gh pr merge https://github.com/flag/repo/pull/25', BLOCK, ["flag/repo#25"], "unknown cd, a URL names the repo"),
-    # Text that is data, never run.
-    ("echo gh pr merge 24", ALLOW, [], "an unquoted echo"),
-    ('gh pr comment 5 --body "then gh pr merge 24"', ALLOW, [], "a PR comment body mentioning a merge"),
+    # Text that is data is judged as a merge anyway, because detection is a text
+    # pattern. 1.6.0 did the same. Every one of these is measured in the PR body.
+    ("echo gh pr merge 24", BLOCK, ["sess/repo#24"], "an unquoted echo"),
+    ('gh pr comment 5 --body "then gh pr merge 24"', BLOCK, ["sess/repo#24"],
+     "a PR comment body mentioning a merge"),
     ("watch -n5 gh pr merge 24", BLOCK, ["sess/repo#24"], "watch runs it, so it is a merge"),
+
+    # --- Review round 2 of this change, 2026-09-17: BLOCK, four findings ------
+    # The rewrite had regressed detection. These are the shapes 1.6.0 caught and
+    # the rewrite passed, plus the read-only shapes the rewrite newly blocked.
+    # Each runs both ways: PR 24 is unreviewed in the session repo, 25 reviewed.
+    ('echo "out: $(gh pr merge 24)"', BLOCK, ["sess/repo#24"], "R2: merge in $( ) inside a quoted argument"),
+    ('echo "out: $(gh pr merge 25)"', ALLOW, ["sess/repo#25"], "R2: same shape, reviewed"),
+    ("echo 'gh pr merge 24' | sh", BLOCK, ["sess/repo#24"], "R2: a merge piped to sh"),
+    ("echo 'gh pr merge 25' | sh", ALLOW, ["sess/repo#25"], "R2: same shape, reviewed"),
+    ("git rebase --exec 'gh pr merge 24' main", BLOCK, ["sess/repo#24"], "R2: a merge git runs"),
+    ("git rebase --exec 'gh pr merge 25' main", ALLOW, ["sess/repo#25"], "R2: same shape, reviewed"),
+    ("sh -c 'gh pr merge 24'", BLOCK, ["sess/repo#24"], "R2: a bare sh -c"),
+    ("sh -c 'gh pr merge 25'", ALLOW, ["sess/repo#25"], "R2: a bare sh -c, reviewed"),
+    ("cd {O} && sh -c 'gh pr merge 25'", BLOCK, ["other/repo#25"], "R2: sh -c after a cd"),
+    # Read-only commands. No number after `merge`, so detection never fires and
+    # no lookup happens at all. These are the ones the rewrite blocked.
+    ('grep -rn "gh pr merge" hooks/', ALLOW, [], "R2: grep for the phrase"),
+    ("rg -n 'gh pr merge' --type py", ALLOW, [], "R2: rg for the phrase"),
+    ("sed -n '/gh pr merge/p' README.md", ALLOW, [], "R2: sed for the phrase"),
+    ("awk '/gh pr merge/ {{print NR}}' docs/DECISIONS.md", ALLOW, [], "R2: awk for the phrase"),
+    ("gh pr merge --help", ALLOW, [], "R2: the help text"),
+    ("gh pr merge --help | head -40", ALLOW, [], "R2: the help text, piped"),
+    ("git log --oneline --grep=\"gh pr merge\"", ALLOW, [], "R2: git log --grep"),
+    # A merge written inside a data structure. shlex glues the `]]` onto the
+    # number; that punctuation is not a shell expansion, so it comes off and the
+    # session repo answers, as it did in 1.6.0.
+    ("""echo '[["x", "gh pr merge 25"]]' > /dev/null""", ALLOW, ["sess/repo#25"],
+     "R2: a merge inside a JSON string"),
+    ("""echo '[["x", "gh pr merge 24"]]' > /dev/null""", BLOCK, ["sess/repo#24"],
+     "R2: the same, unreviewed"),
 ]
 
 
@@ -284,8 +360,15 @@ def run_target_cases(failures: list) -> int:
     # A block has to say which repo it looked in, or a wrong lookup is invisible.
     if "other" not in out.stderr:
         failures.append("  the block message does not name the target it asked about")
+
+    # An honored override says so on stderr. An override nobody sees is an
+    # override nobody reconsiders.
+    out, asked = run("SKIP_REVIEW_GATE=1 gh pr merge 24", dirs["S"], None)
+    judge("an honored override allows the merge", out, asked, ALLOW, [])
+    if "review gate skipped" not in out.stderr:
+        failures.append("  the honored override is not announced on stderr")
     shutil.rmtree(tmp, ignore_errors=True)
-    return len(TARGET_CASES) + 1
+    return len(TARGET_CASES) + 2
 
 
 def main() -> int:
@@ -294,12 +377,27 @@ def main() -> int:
     spec.loader.exec_module(gate)
 
     failures = []
+
+    # Detection has to fail fast on a long line of flag-shaped words. An earlier
+    # pattern let one flag be read as the previous flag's value, which gives two
+    # paths per word: 40 of them took about 15 seconds to come back empty, and a
+    # PreToolUse hook that slow is a hung session.
+    # getattr, because this file is also run against an older copy of the hook
+    # to recount how many cases that copy fails, and 1.6.0 has no DETECT.
+    slow = "gh pr merge " + " ".join("-f%d" % i for i in range(40)) + " end"
+    started = time.time()
+    if getattr(gate, "DETECT", None) is not None:
+        gate.DETECT.search(slow)
+    if time.time() - started > 2:
+        failures.append("  detection took %.1fs on 40 flag-shaped words"
+                        % (time.time() - started))
+
     for body, want, label in CASES:
         got = gate.has_verdict(body)
         if got != want:
             failures.append(f"  {label}: wanted {want}, got {got} for {body!r}")
 
-    total = len(CASES) + run_target_cases(failures)
+    total = len(CASES) + run_target_cases(failures) + 1
 
     if failures:
         print(f"FAIL: {len(failures)} failures in {total} cases", file=sys.stderr)
