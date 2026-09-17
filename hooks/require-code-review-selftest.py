@@ -401,6 +401,20 @@ def run_target_cases(failures: list) -> int:
     if "other" not in out.stderr:
         failures.append("  the block message does not name the target it asked about")
 
+    # One lookup per distinct target, however often the text names it. Two
+    # things hide this from an ordinary case: the `asked` list collapses
+    # consecutive duplicates, and a target that BLOCKS exits before the repeats
+    # are ever looked up. So it takes a reviewed PR, which is allowed and
+    # therefore checked every time, and the raw call count. Three targets cost
+    # twelve calls, one costs four.
+    out, asked = run("echo 'gh pr merge 25' 'gh pr merge 25' 'gh pr merge 25'",
+                     dirs["S"], None)
+    calls = len(log.read_text().split())
+    judge("three mentions of one PR", out, asked, ALLOW, ["sess/repo#25"])
+    if calls > 4:
+        failures.append("  three mentions of one PR cost %d gh calls, wanted 4"
+                        % calls)
+
     # An honored override says so on stderr. An override nobody sees is an
     # override nobody reconsiders.
     out, asked = run("SKIP_REVIEW_GATE=1 gh pr merge 24", dirs["S"], None)
@@ -408,7 +422,7 @@ def run_target_cases(failures: list) -> int:
     if "review gate skipped" not in out.stderr:
         failures.append("  the honored override is not announced on stderr")
     shutil.rmtree(tmp, ignore_errors=True)
-    return len(TARGET_CASES) + 2
+    return len(TARGET_CASES) + 3
 
 
 def main() -> int:
