@@ -20,9 +20,15 @@ threshold, merges without ceremony. The point is to stop unreviewed
 
 The PR is looked up in the repo the merge command targets, which is often a
 different repo from the one the session started in: `cd <elsewhere> && gh pr
-merge 24`, `-R owner/repo`, a PR URL, `GH_REPO=owner/repo`. When the target
-cannot be read from the command text, the hook blocks and asks for an explicit
-`-R owner/repo` instead of guessing. See the two-jobs comment below.
+merge 24`, `-R owner/repo`, a PR URL, `GH_REPO=owner/repo`. When a merge it
+found names a target it cannot read, the hook blocks and asks for an explicit
+`-R owner/repo` instead of guessing.
+
+Two limits on that sentence, both listed with the rest under the two-jobs
+comment below. It blocks only for a merge DETECTION found, so a merge the text
+pattern cannot see is not checked at all. And a redirect the pattern and the
+walk both miss, such as `env -C <dir> gh pr merge 25`, is looked up in the
+session's repo without a word, the way 1.6.0 does it.
 
 Escape hatch: SKIP_REVIEW_GATE=1, as a real assignment. In the hook's own
 environment it covers the session. In the command it counts as a prefix on the
@@ -168,8 +174,15 @@ TRIVIAL_LINES = 25
 #   - quoting or a variable that spells the words (`"gh" pr merge`, `$G pr
 #     merge`), a shell function, an alias, a `gh alias`, a gh extension
 #   - a script file, or a subprocess argv list, that runs the merge
-# The first, second and fourth are emmanuelwunjc/yw-workflow#17, with a
-# reproduction and the false-block numbers any fix has to beat.
+#   - `gh -Rowner/repo pr merge 25`, the attached spelling before `pr`. The skip
+#     stops at the `/`, so the pattern never reaches `pr merge`. The walk reads
+#     that spelling fine, and never gets the chance.
+#   - `env -C <dir> gh pr merge 25`, which moves the directory with no `cd`. The
+#     merge IS found, and the redirect is not, so it is looked up in the
+#     session's repo and nothing says so. Same class as the defect this file
+#     fixes, and 1.6.0 answers it the same way.
+# All of these are emmanuelwunjc/yw-workflow#17, with a reproduction and the
+# false-block numbers any fix has to beat.
 #
 # The number must not run into another token, so `gh pr merge --squash 2>&1`
 # does not read the redirect's `2` as PR 2.
@@ -199,8 +212,11 @@ ASSIGNMENT = re.compile(r"^[A-Za-z_]\w*=")
 TRACKED_ENV = ("GH_REPO", "GH_HOST", "SKIP_REVIEW_GATE")
 OVERRIDE = "SKIP_REVIEW_GATE=1"
 # The override in front of the whole command, the one spelling every block
-# message gives, for the case where the words cannot be walked at all.
-OVERRIDE_PREFIX = re.compile(r"^\s*(?:export\s+)?%s\b" % re.escape(OVERRIDE))
+# message gives, for the targets no walked command backs. `export` only, and
+# deliberately: a bare `SKIP_REVIEW_GATE=1 gh ...` prefix binds to that one
+# command, which is why it covers its own merge and no other on the walked
+# path. Honoring it here would cover a merge we just said we could not read.
+OVERRIDE_PREFIX = re.compile(r"^\s*export\s+%s\b" % re.escape(OVERRIDE))
 # What a literal looks like. Anything else (`$n`, `{}`, a backtick) is a value
 # only the shell knows.
 LITERAL_PR = re.compile(r"^(\d+|https?://[\w./:@-]+/pull/\d+\S*)$")
@@ -218,6 +234,17 @@ def _pr_key(pr: str) -> str:
     for the purpose of counting what detection saw against what the walk read."""
     m = re.search(r"/pull/(\d+)", pr or "")
     return m.group(1) if m else (pr or "")
+
+
+def _scoped(words: list, env: dict) -> dict:
+    """env plus the assignments standing in front of a command: a prefix on it,
+    or the arguments of `env`. Both really do set the variable for what runs."""
+    out = dict(env)
+    for w in words:
+        key, _, value = w.partition("=")
+        if key in TRACKED_ENV:
+            out[key] = value
+    return out
 
 
 def _target(pr=None, repo=None, env=None, cwd=None, skip=False, unreadable=None):
@@ -380,12 +407,7 @@ def walk_targets(cmd: str, cwd, env=None, cwd_why="") -> list:
             # comes off. A `$` or a backtick is not glue, it is a value only the
             # shell knows, so it stays and the target reads as unreadable.
             target["pr"] = re.sub(r"[^\w$`/.:@-]+$", "", target["pr"])
-            # Assignments in front of gh: a prefix, or arguments of `env`.
-            scoped = dict(env)
-            for w2 in raw[:j]:
-                key, _, value = w2.partition("=")
-                if key in TRACKED_ENV:
-                    scoped[key] = value
+            scoped = _scoped(raw[:j], env)
             target["skip"] = scoped.pop("SKIP_REVIEW_GATE", "") == "1"
             target["env"] = scoped
             if any(os.path.basename(w2) == "xargs" for w2 in raw[:j]):
@@ -397,13 +419,17 @@ def walk_targets(cmd: str, cwd, env=None, cwd_why="") -> list:
         # an argument of: `bash -c '...'`, `echo '<merge>' | sh`, `git rebase
         # --exec`, a commit message. Whether it counts as a merge was
         # detection's call, and detection already said yes.
-        for w in raw:
+        # Assignments standing in front of whatever runs it come with it, so
+        # `env SKIP_REVIEW_GATE=1 bash -c '<a merge>'` really does set it for
+        # the subshell, and so does `env GH_REPO=o/r bash -c ...`.
+        for i, w in enumerate(raw):
             if re.search(r"\s", w) and DETECT.search(_join_lines(w)):
+                inner = _scoped(raw[:i], env)
                 try:
-                    here += walk_targets(w, cwd, env, cwd_why)
+                    here += walk_targets(w, cwd, inner, cwd_why)
                 except ValueError:       # prose with an apostrophe, most often
                     here += _blind(_join_lines(w), cwd,
-                                   env.get("SKIP_REVIEW_GATE") == "1")
+                                   inner.get("SKIP_REVIEW_GATE") == "1")
 
         for target in here:
             if target["unreadable"]:
@@ -451,15 +477,39 @@ def merge_targets(cmd: str, start, hook_skip: bool) -> list:
         walked = walk_targets(cmd, start, {"SKIP_REVIEW_GATE": "1"} if hook_skip else None)
     except ValueError:
         walked = []
+    # The override in front of the whole command, for the targets below that no
+    # walked command backs. Without it the hook prints "review gate skipped",
+    # blocks anyway, and names the workaround you just used. Found in review
+    # round 3, on `export SKIP_REVIEW_GATE=1; gh pr merge 24 && gh
+    # --no-such-flag v pr merge 24`.
+    prefixed = hook_skip or bool(OVERRIDE_PREFIX.match(cmd))
     if not walked:
-        return _blind(text, start, hook_skip or bool(OVERRIDE_PREFIX.match(cmd)))
+        return _dedupe(_blind(text, start, prefixed))
     missing = detected - collections.Counter(_pr_key(t["pr"]) for t in walked)
     for pr in sorted(missing.elements()):
         walked.append(_target(
-            pr=pr, skip=hook_skip,
+            pr=pr, skip=prefixed,
             unreadable="the text holds a merge of %s that could not be tied to "
                        "a command" % pr))
-    return walked
+    return _dedupe(walked)
+
+
+def _dedupe(targets: list) -> list:
+    """One lookup per distinct target, keeping the order they were read in.
+
+    Each target costs up to four `gh` calls, and detection counts every mention
+    of a merge, so a doc listing ten of them cost forty calls and about 14
+    seconds against 1.6.0's 1.5. The same PR in the same repo answers the same
+    way however many times the text names it.
+    """
+    seen, out = set(), []
+    for t in targets:
+        key = (t["pr"], t["repo"], t["cwd"], tuple(sorted(t["env"].items())),
+               t["skip"], t["unreadable"])
+        if key not in seen:
+            seen.add(key)
+            out.append(t)
+    return out
 
 
 def target_known(target: dict) -> bool:

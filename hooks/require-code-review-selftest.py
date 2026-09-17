@@ -300,6 +300,46 @@ TARGET_CASES = [
      "R2: a merge inside a JSON string"),
     ("""echo '[["x", "gh pr merge 24"]]' > /dev/null""", BLOCK, ["sess/repo#24"],
      "R2: the same, unreviewed"),
+
+    # --- Review round 3 of this change, 2026-09-17: BLOCK, two findings -------
+    # R3-1: the override every block message names has to work on the path that
+    # blocks a merge the walk could not tie to a command. It did not, so the
+    # hook printed "review gate skipped", blocked anyway, and named the
+    # workaround that had just been used.
+    ("gh pr merge 24 && gh --no-such-flag v pr merge 24", BLOCK, ["sess/repo#24"],
+     "R3-1: an untied merge blocks"),
+    ("export SKIP_REVIEW_GATE=1; gh pr merge 24 && gh --no-such-flag v pr merge 24",
+     ALLOW, [], "R3-1: the export unblocks an untied merge"),
+    ("gh pr merge 25 && gh --no-such-flag v pr merge 24", BLOCK, ["sess/repo#25"],
+     "R3-1: untied beside a readable merge"),
+    ("export SKIP_REVIEW_GATE=1; gh pr merge 25 && gh --no-such-flag v pr merge 24",
+     ALLOW, [], "R3-1: the export covers both"),
+    # An unknown value flag: the pattern skips its value and reads 25, the walk
+    # does not know it takes one and reads 24. So 24 is checked and 25 is untied.
+    ("gh pr merge -X 24 25", BLOCK, ["sess/repo#24"],
+     "R3-1: an unknown value flag splits what is read"),
+    ("export SKIP_REVIEW_GATE=1; gh pr merge -X 24 25", ALLOW, [],
+     "R3-1: the export unblocks that too"),
+    ("export SKIP_REVIEW_GATE=1; gh pr merge 2$n", ALLOW, [],
+     "R3-1: the export unblocks a spliced number"),
+    ("SKIP_REVIEW_GATE=1 gh pr merge 24 && gh --no-such-flag v pr merge 24",
+     BLOCK, [], "R3-1: a prefix on one merge does not cover an untied one"),
+    # R3 nit: the URL key is the PR number, so a query string does not make it a
+    # different PR from the one detection counted.
+    ("gh pr merge https://github.com/flag/repo/pull/24?x=1", ALLOW, ["flag/repo#24"],
+     "R3: a URL with a query string"),
+    ("gh pr merge https://github.com/flag/repo/pull/25?x=1", BLOCK, ["flag/repo#25"],
+     "R3: a URL with a query string, mirror"),
+    # R3 nit: one lookup per distinct target, however often the text names it.
+    ("echo 'gh pr merge 24' 'gh pr merge 24' 'gh pr merge 24'", BLOCK, ["sess/repo#24"],
+     "R3: the same target three times is asked once"),
+    # R3 nit: an assignment in front of the runner comes with it.
+    ("env SKIP_REVIEW_GATE=1 bash -c 'gh pr merge 24'", ALLOW, [],
+     "R3: env in front of the runner sets it for the subshell"),
+    ("env GH_REPO=flag/repo bash -c 'gh pr merge 25'", BLOCK, ["flag/repo#25"],
+     "R3: env GH_REPO in front of the runner"),
+    ("bash -c 'gh pr merge 24'", BLOCK, ["sess/repo#24"],
+     "R3: the same runner with no assignment still blocks"),
 ]
 
 
