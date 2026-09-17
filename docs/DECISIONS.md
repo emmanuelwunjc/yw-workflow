@@ -190,7 +190,40 @@ Decided in the same rounds and kept:
 Deliberately not handled, because a text pattern cannot see them: `gh api -X PUT
 repos/o/r/pulls/N/merge`; a shell function, shell alias, `gh alias` or gh
 extension that wraps the merge; a script file or a subprocess argv list that
-runs it.
+runs it; `gh -Rowner/repo pr merge 25`, where the attached spelling stops the
+flag skip at the `/` (the walk reads it fine and never gets the chance); and
+`env -C <dir> gh pr merge 25`, which moves the directory with no `cd`, so the
+merge is found, the redirect is not, and the session's repo is asked without a
+word. That last one is this decision's own defect in a shape the hook cannot
+see, and 1.6.0 answers it the same way. All of them are #17.
+
+## Review round 3, the same day: BLOCK, two findings
+
+Both were gaps between what the code does and what it says.
+
+The first: `export SKIP_REVIEW_GATE=1;` did not work on the path that blocks a
+merge the walk could not tie to a command. The hook printed "review gate
+skipped", blocked anyway, and named the workaround that had just been used. A
+workaround a message recommends is part of the message, and nothing tested it.
+Four commands hit it and every other blocked case already honored the export.
+
+Decided while fixing it: the phantom targets honor `export SKIP_REVIEW_GATE=1;`
+and NOT a bare `SKIP_REVIEW_GATE=1` prefix. A bare prefix binds to one command,
+which is why it covers its own merge and no other on the walked path, and
+honoring it for a merge the hook has just said it could not read would cover
+something nobody looked at. So the one spelling every block message gives is
+the one spelling this path honors.
+
+The second: `docs/HANDOFF.md` still described the design round 2 threw away.
+Marked superseded there with what replaced it, per this repo's own handoff rule
+that a decision is superseded and never deleted.
+
+Also fixed: one lookup per distinct target. Each target costs up to four `gh`
+calls and detection counts every mention, so a doc naming one PR 300 times cost
+36.6 seconds. It is 0.25 now. The cost that remains is one lookup per DISTINCT
+PR, which is inherent: 1.6.0 checks only the first merge in a command, and this
+hook checks each. 300 distinct PRs in one command take 20 seconds, and an
+ordinary single merge takes 0.1.
 
 Known false blocks, kept, because the alternative is a shell parser: a command
 that only mentions a merge with a number is judged as a merge. A commit message,

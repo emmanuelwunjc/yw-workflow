@@ -852,10 +852,26 @@ from 1.6.0 (a quoted merge behind `timeout`, `env` or `sudo` went unchecked).
 All three were the same shape: the hook saw a merge and passed it with no
 lookup. The lesson that reshaped the code: a runner allowlist ("read quoted
 text as a command when bash runs it") fails open on every runner nobody
-listed. The rule now runs the other way. Every quoted merge is a command
-unless it is an argument of something that only ever treats it as data, and
-the walk ends with a fallback that blocks whatever matched the prefilter and
-was never read. `docs/DECISIONS.md` has the list.
+listed.
+
+~~The rule now runs the other way. Every quoted merge is a command unless it is
+an argument of something that only ever treats it as data, and the walk ends
+with a fallback that blocks whatever matched the prefilter and was never
+read.~~ **Superseded 2026-09-17 by review round 2.** That rule made the word
+walk the thing that decides what is and is not a merge, which is a shell
+parser. It regressed shapes 1.6.0 caught and blocked 23 of 48 realistic
+read-only commands against 1.6.0's 11. What replaced it: detection is 1.6.0's
+text pattern again, and the walk only answers which repo to ask about a merge
+the pattern already found. Nothing named in the struck-through sentence is in
+the hook now, so `grep -n "DATA_COMMANDS\|prefilter\|MERGE_TEXT" hooks/require-code-review.py`
+returns nothing. `docs/DECISIONS.md` has both rounds and what each cost.
+
+Review round 3 came back BLOCK with two findings, and the count fell from four.
+The one worth remembering: the override that every block message names did not
+work on the path that blocks a merge the walk could not tie to a command, so
+the hook printed "review gate skipped", blocked anyway, and told you to do the
+thing you had just done. A workaround a message recommends is part of the
+message, and nothing tested it.
 
 Trap: a mutation run edits the hook in place. I restored it once with `git
 checkout` on a file holding uncommitted work and lost the round. A copy in the
