@@ -24,8 +24,10 @@ merge 24`, `-R owner/repo`, a PR URL, `GH_REPO=owner/repo`. When the target
 cannot be read from the command text, the hook blocks and asks for an explicit
 `-R owner/repo` instead of guessing. See merge_targets below.
 
-Escape hatch: set SKIP_REVIEW_GATE=1 for the single command. That is
-deliberate and visible, unlike forgetting.
+Escape hatch: set SKIP_REVIEW_GATE=1 for the single command, as a real
+assignment: a prefix on the merge, an `env` argument, or an `export` earlier in
+the same command. The text appearing elsewhere (a --body, a comment) does not
+count. That is deliberate and visible, unlike forgetting.
 """
 
 from __future__ import annotations
@@ -124,12 +126,37 @@ TRIVIAL_LINES = 25
 # repo's PR with that number is reviewed or trivial, so the hook passes the
 # merge of an unreviewed PR somewhere else.
 #
-# The fix does not reimplement gh's repo resolution. It reads the four things
-# that steer it out of the command text (the directory the shell is in when gh
-# runs, a GH_REPO assignment, -R/--repo, and the PR argument itself, which may
-# be a URL) and hands the same four to every gh call the hook makes. gh then
-# applies its own precedence (URL, then -R, then GH_REPO, then the directory's
-# git remote), so the hook asks about exactly the PR the merge would merge.
+# The fix does not reimplement gh's repo resolution. It reads what steers it
+# out of the command text (the directory the shell is in when gh runs, GH_REPO
+# and GH_HOST assignments, -R/--repo, and the PR argument itself, which may be a
+# URL) and hands the same to every gh call the hook makes. gh then applies its
+# own precedence (URL, then -R, then GH_REPO, then the directory's git remote),
+# so the hook asks about exactly the PR the merge would merge.
+#
+# THE RULE, from review round 1 of this change (2026-09-17, verdict BLOCK with
+# three false passes, one of them a regression): a merge the hook can SEE but
+# cannot read down to a fully literal target BLOCKS and asks for the literal
+# form. Seeing a merge and passing it unchecked is the failure this hook exists
+# to prevent. The three false passes were all that shape:
+#   - `timeout 60 bash -c 'gh pr merge 24'`: the first version read a quoted
+#     string as a command only when bash/sh/zsh/eval was the FIRST word. 1.6.0
+#     had caught this one with its plain text match, so it was a regression.
+#     Now every quoted string that holds a merge is read as a command, whatever
+#     runs it, except where it is an argument of a command that only ever
+#     treats it as data (DATA_COMMANDS, and gh itself).
+#   - `gh pr merge $n`: the lookup failed, a failed lookup reads as a network
+#     blip, and hook mode allows a blip. A PR, repo or host that is not literal
+#     is now unreadable, which blocks.
+#   - `gh -R o/r pr merge 25`: gh takes -R before the subcommand too. Both the
+#     text prefilter and the word match wanted `pr` right after `gh`.
+# And the walk ends with a fallback: text that matched the prefilter and
+# produced no target blocks. New unknown shapes fail closed by construction.
+#
+# Deliberately NOT handled, because no text match can see them:
+#   - `gh api -X PUT repos/o/r/pulls/N/merge`, which merges without `pr merge`
+#   - a shell function, a shell alias, a `gh alias` or a gh extension that
+#     wraps the merge
+#   - a script file that runs the merge
 #
 # gh flags that take a value, so the value is never mistaken for the PR.
 MERGE_VALUE_FLAGS = {"-R", "--repo", "-b", "--body", "-F", "--body-file", "-t",
@@ -138,10 +165,43 @@ MERGE_VALUE_FLAGS = {"-R", "--repo", "-b", "--body", "-F", "--body-file", "-t",
 # Without these, `{ cd /elsewhere; gh pr merge 5; }` hides its cd behind the `{`.
 SHELL_PREFIXES = {"{", "}", "!", "then", "do", "else", "elif", "if", "while",
                   "until", "time", "command", "builtin", "exec"}
-# Commands whose quoted argument is itself a command line.
-SHELL_RUNNERS = {"bash", "sh", "zsh", "eval"}
-MERGE_TEXT = re.compile(r"\bgh\s+pr\s+merge\b")
+# Commands whose arguments are data and are never run. `git commit -m "then gh
+# pr merge 24"` is a sentence. The installed 1.6.0 hook blocked this change's
+# own commit over exactly that. gh is handled the same way for its QUOTED
+# arguments (a --body), while its own words are still read as a command.
+DATA_COMMANDS = {"echo", "printf", "git"}
+# The cheap prefilter, run on text with quotes and line continuations removed,
+# because the shell removes them before gh sees anything: `"gh" pr merge` and a
+# backslash-newline between `pr` and `merge` are ordinary merges. Flags may sit
+# between `gh` and `pr`.
+MERGE_TEXT = re.compile(r"\bgh\s+(?:-\S+\s+(?:[^\s-]\S*\s+)?)*?pr\s+merge\b")
+# Environment names copied from the command onto the hook's own gh calls, plus
+# the override, which counts only as a real assignment (see merge_targets).
 ASSIGNMENT = re.compile(r"^[A-Za-z_]\w*=")
+TRACKED_ENV = ("GH_REPO", "GH_HOST", "SKIP_REVIEW_GATE")
+# What a literal looks like. Anything else (`$n`, `{}`, a backtick) is a value
+# only the shell knows.
+LITERAL_PR = re.compile(r"^(\d+|https?://[\w./:@-]+/pull/\d+\S*|[\w./@-]+)$")
+LITERAL_REPO = re.compile(r"^[\w.-]+(/[\w.-]+){1,2}$|^https?://[\w./:@-]+$")
+LITERAL_HOST = re.compile(r"^[\w.-]+(:\d+)?$")
+
+
+def _plain(text: str) -> str:
+    """Text as the prefilter should see it: no quotes, no line continuations."""
+    return re.sub(r"[\"']", "", text.replace("\\\n", " "))
+
+
+def _repo_flag(args: list, k: int):
+    """If args[k] is a -R/--repo flag in any of gh's spellings, (value, words
+    used). Otherwise (None, 0). `-R=o/r` is real: gh accepts it."""
+    a = args[k]
+    if a in ("-R", "--repo"):
+        return (args[k + 1] if k + 1 < len(args) else ""), 2
+    if a.startswith("--repo="):
+        return a[len("--repo="):], 1
+    if a.startswith("-R") and len(a) > 2:
+        return a[2:].lstrip("="), 1
+    return None, 0
 
 
 def _cd(words: list, cwd):
@@ -162,22 +222,35 @@ def _cd(words: list, cwd):
     return path if os.path.isdir(path) else None
 
 
-def merge_targets(cmd: str, cwd, env_repo=None) -> list:
+def _unreadable(why: str, pr=None) -> dict:
+    return {"pr": pr, "repo": None, "env": {}, "cwd": None, "skip": False,
+            "unreadable": why}
+
+
+def merge_targets(cmd: str, cwd, env=None, cwd_why="") -> list:
     """Every `gh pr merge` in cmd, each with the context it would run in.
 
     Returns dicts with: pr (the PR argument as typed: a number, a URL, a branch,
-    or None for the current branch), repo (-R/--repo), env_repo (GH_REPO), cwd
-    (the directory gh would run in, None when it cannot be known).
+    or None for the current branch), repo (-R/--repo), env (GH_REPO and GH_HOST
+    as assigned in the command), cwd (the directory gh would run in, None when
+    it cannot be known), skip (SKIP_REVIEW_GATE=1 was really assigned for this
+    merge), unreadable (None, or a sentence saying what could not be read).
 
     ponytail: this walks shell words, it does not parse shell. Known ceilings:
     `popd` makes the directory unknown instead of tracking the stack, a cd
-    inside `if`/`for` counts as taken, and a function or alias that wraps gh is
-    invisible. Each of those errs toward "unknown", which blocks and asks for
-    -R, never toward a guess. Upgrade path is a real shell parser, and nothing
-    measured so far justifies one.
+    inside `if`/`for` counts as taken, and a heredoc body is read as commands,
+    so a merge line written into a file is judged as a merge (a false block
+    1.6.0 had too). Each errs toward blocking, never toward a guess. Upgrade
+    path is a real shell parser, and nothing measured so far justifies one.
     """
+    env = dict(env or {})
     # `2>&1` would otherwise leave a bare "2" that reads as a PR number.
     text = re.sub(r"(?<=\s)\d+(?=[<>])", "", cmd.replace("\\\n", " "))
+    # Backticks are a subshell. Written as `$(` and `)`, the walk below already
+    # handles them: the inside is judged as a command, and used as an argument
+    # it leaves a `$` behind, which is not a literal.
+    ticks = iter(range(text.count("`")))
+    text = re.sub("`", lambda _m: " $( " if next(ticks) % 2 == 0 else " ) ", text)
     # shlex treats a newline as plain whitespace, and a newline ends a command.
     lex = shlex.shlex(text.replace("\n", " ; "), posix=True, punctuation_chars=True)
     lex.whitespace_split = True
@@ -185,13 +258,14 @@ def merge_targets(cmd: str, cwd, env_repo=None) -> list:
     try:
         tokens = list(lex)
     except ValueError:
-        # Unbalanced quotes: the words cannot be trusted, so neither can a cd
-        # among them. Keep the old number match and call the target unknown.
-        m = re.search(r"\bgh\s+pr\s+merge\s+(\d+)", cmd)
-        return [{"pr": m.group(1), "repo": None, "env_repo": None, "cwd": None}] if m else []
+        # The words cannot be trusted, so neither can a cd, a -R or an override
+        # among them. The digits are kept for the message only.
+        m = re.search(r"\bpr\s+merge\s+(\d+)", _plain(cmd))
+        return [_unreadable("the command has unbalanced quotes, so its words "
+                            "cannot be read", m.group(1) if m else None)]
 
     found, subshells, seg = [], [], []
-    skip_next = False
+    data_seen = switched = skip_next = False
     for tok in tokens + [";"]:
         if skip_next:                       # the file name after a redirect
             skip_next = False
@@ -208,46 +282,100 @@ def merge_targets(cmd: str, cwd, env_repo=None) -> list:
         words = list(raw)
         while words and (words[0] in SHELL_PREFIXES or ASSIGNMENT.match(words[0])):
             words.pop(0)
-        if words and words[0] in ("cd", "pushd"):
-            cwd = _cd(words[1:], cwd)
-        elif words and words[0] == "popd":
-            cwd = None
-        elif words and words[0] == "export":
-            for w in words[1:]:
-                if w.startswith("GH_REPO="):
-                    env_repo = w[len("GH_REPO="):]
-        elif words and os.path.basename(words[0]) in SHELL_RUNNERS:
-            # Only here is quoted text a command. Everywhere else a string that
-            # mentions a merge (a commit message, a PR comment) is just a string.
-            for w in words[1:]:
-                if MERGE_TEXT.search(w):
-                    found += merge_targets(w, cwd, env_repo)
+        name = os.path.basename(words[0]) if words else ""
+        mentions = bool(MERGE_TEXT.search(" ".join(raw)))
+        here = []
 
+        if name in ("cd", "pushd", "popd"):
+            cwd = _cd(words[1:], cwd) if name != "popd" else None
+            cwd_why = ("`%s` leaves the shell in a directory that cannot be "
+                       "read from the command text" % " ".join(words))
+        elif name == "export":
+            for w in words[1:]:
+                key, _, value = w.partition("=")
+                if key in TRACKED_ENV:
+                    env[key] = value
+        if "checkout" in words or "switch" in words:
+            switched = True   # git switch, git checkout, gh pr checkout
 
-        # --- the merge itself, judged where the shell is standing right now ---
-        # Searched in the raw words so that `GH_REPO=o/r gh ...`, `env GH_REPO=o/r
-        # gh ...` and `xargs gh pr merge` are all seen.
-        for j in range(len(raw) - 2):
-            if os.path.basename(raw[j]) != "gh" or raw[j + 1:j + 3] != ["pr", "merge"]:
-                continue
-            target = {"pr": None, "repo": None, "env_repo": env_repo, "cwd": cwd}
-            for w in raw[:j]:
-                if w.startswith("GH_REPO="):
-                    target["env_repo"] = w[len("GH_REPO="):]
-            args = raw[j + 3:]
-            k = 0
-            while k < len(args):
-                a = args[k]
-                if a in ("-R", "--repo"):
-                    target["repo"] = args[k + 1] if k + 1 < len(args) else None
-                elif a.startswith("--repo="):
-                    target["repo"] = a[len("--repo="):]
-                elif a.startswith("-R") and len(a) > 2:
-                    target["repo"] = a[2:]
-                elif not a.startswith("-") and target["pr"] is None:
-                    target["pr"] = a
-                k += 2 if a in MERGE_VALUE_FLAGS else 1
-            found.append(target)
+        if name in DATA_COMMANDS:
+            data_seen = data_seen or mentions
+        else:
+            # The merge itself, judged where the shell is standing right now.
+            # `gh` is looked for anywhere in the words, so that `timeout 60 gh`,
+            # `env X=1 gh`, `xargs gh` and `watch gh` are all seen.
+            for j, w in enumerate(raw):
+                if os.path.basename(w) != "gh":
+                    continue
+                target = {"pr": None, "repo": None, "cwd": cwd, "unreadable": None}
+                k = j + 1                    # gh's own flags, before the subcommand
+                while k < len(raw) and raw[k].startswith("-"):
+                    repo, used = _repo_flag(raw, k)
+                    if used:
+                        target["repo"] = repo
+                    k += used or 1
+                if raw[k:k + 2] != ["pr", "merge"]:
+                    continue
+                args = raw[k + 2:]
+                k = 0
+                while k < len(args):
+                    repo, used = _repo_flag(args, k)
+                    if used:
+                        target["repo"] = repo
+                    elif not args[k].startswith("-") and target["pr"] is None:
+                        target["pr"] = args[k]
+                    k += used or (2 if args[k] in MERGE_VALUE_FLAGS else 1)
+                # Assignments in front of gh: a prefix, or arguments of `env`.
+                scoped = dict(env)
+                for w2 in raw[:j]:
+                    key, _, value = w2.partition("=")
+                    if key in TRACKED_ENV:
+                        scoped[key] = value
+                target["skip"] = scoped.pop("SKIP_REVIEW_GATE", "") == "1"
+                target["env"] = scoped
+                here.append(target)
+
+            # A quoted string holding a merge is a command line for whatever
+            # runs it (bash -c, sudo sh -c, ssh, eval, watch). gh's own quoted
+            # arguments are the exception: a --body is data.
+            for w in raw:
+                if name != "gh" and re.search(r"\s", w) and MERGE_TEXT.search(_plain(w)):
+                    here += merge_targets(w, cwd, env, cwd_why)
+            # For gh, only its own words can be a merge. A mention that sits
+            # wholly inside a quoted argument is data.
+            bare = MERGE_TEXT.search(" ".join(w for w in raw if not re.search(r"\s", w)))
+            if name == "gh" and mentions and not bare:
+                data_seen = True
+
+            # Fail closed: this command mentions a merge and none was read.
+            if mentions and not here and (name != "gh" or bare):
+                here.append(_unreadable(
+                    "`%s` holds a merge in a form that cannot be read" % " ".join(raw)))
+
+        for target in here:
+            if target["unreadable"]:
+                pass
+            elif target["pr"] is not None and not LITERAL_PR.match(target["pr"]):
+                target["unreadable"] = ("the PR is written as `%s`, which is not a "
+                                        "literal number, URL or branch" % target["pr"])
+            elif target["repo"] is not None and not LITERAL_REPO.match(target["repo"]):
+                target["unreadable"] = ("the repo is written as `%s`, which is not "
+                                        "a literal owner/repo" % target["repo"])
+            elif "GH_REPO" in target["env"] and not LITERAL_REPO.match(target["env"]["GH_REPO"]):
+                target["unreadable"] = ("GH_REPO is set to `%s`, which is not a "
+                                        "literal owner/repo" % target["env"]["GH_REPO"])
+            elif "GH_HOST" in target["env"] and not LITERAL_HOST.match(target["env"]["GH_HOST"]):
+                target["unreadable"] = ("GH_HOST is set to `%s`, which is not a "
+                                        "literal host" % target["env"]["GH_HOST"])
+            elif target["pr"] is None and switched:
+                # "The current branch" is read now, and the command changes the
+                # branch before the merge runs.
+                target["unreadable"] = ("the merge names no PR, and a `git switch`, "
+                                        "`git checkout` or `gh pr checkout` earlier "
+                                        "in the command changes which branch that means")
+            elif not target_known(target):
+                target["unreadable"] = cwd_why or "the directory it runs in is unknown"
+        found += here
 
         # A subshell's cd ends with the subshell. Per character, because shlex
         # hands back a run of punctuation such as `);` as one token.
@@ -256,6 +384,12 @@ def merge_targets(cmd: str, cwd, env_repo=None) -> list:
                 subshells.append(cwd)
             elif c == ")" and subshells:
                 cwd = subshells.pop()
+
+    # The fallback that makes unknown shapes fail closed: the prefilter saw a
+    # merge, and the walk neither read one nor put it down to data.
+    if not found and not data_seen and MERGE_TEXT.search(_plain(cmd)):
+        found.append(_unreadable("the command holds a merge in a form that "
+                                 "cannot be read"))
     return found
 
 
@@ -263,7 +397,7 @@ def target_known(target: dict) -> bool:
     """Can gh be pointed at the same repo the merge will hit? Yes when anything
     names the repo outright, or when the directory gh would run in is known."""
     return bool(
-        target["cwd"] or target["repo"] or target["env_repo"]
+        target["cwd"] or target["repo"] or target["env"].get("GH_REPO")
         or os.environ.get("GH_REPO")
         or re.match(r"https?://", target["pr"] or "")
     )
@@ -277,26 +411,23 @@ def describe(target: dict) -> str:
         return pr
     name = ("PR #" + pr) if (pr or "").isdigit() else (
         "the PR for branch " + pr if pr else "the current branch's PR")
-    where = (target["repo"] or target["env_repo"] or os.environ.get("GH_REPO")
-             or target["cwd"])
+    where = (target["repo"] or target["env"].get("GH_REPO")
+             or os.environ.get("GH_REPO") or target["cwd"])
     return f"{name} in {where}"
 
 
 def gh(sub: str, target: dict, *args: str) -> str:
     """Run `gh pr <sub>` against the merge's own target: same PR argument, same
-    -R, same GH_REPO, same directory. See the block comment above."""
+    -R, same GH_REPO and GH_HOST, same directory. See the block comment above."""
     argv = ["gh", "pr", sub]
     if target["pr"]:
         argv.append(target["pr"])
     if target["repo"]:
         argv += ["-R", target["repo"]]
-    env = dict(os.environ)
-    if target["env_repo"]:
-        env["GH_REPO"] = target["env_repo"]
     try:
         out = subprocess.run(
             argv + list(args), capture_output=True, text=True, timeout=25,
-            cwd=target["cwd"], env=env,
+            cwd=target["cwd"], env=dict(os.environ, **target["env"]),
         )
         return out.stdout if out.returncode == 0 else ""
     except Exception:
@@ -360,7 +491,7 @@ def check_pr(pr: str) -> int:
     # CI names its repo through GH_REPO in the job's environment (see the guards
     # action), which gh reads by itself. cwd None means "wherever the job runs".
     verdict, code_lines = review_status(
-        {"pr": pr, "repo": None, "env_repo": None, "cwd": None})
+        {"pr": pr, "repo": None, "env": {}, "cwd": None})
     if verdict == "ok":
         return 0
     if verdict == "unknown":
@@ -409,9 +540,15 @@ def main() -> None:
         sys.exit(0)
     cmd = (event.get("tool_input") or {}).get("command", "")
 
-    if not MERGE_TEXT.search(cmd):
+    if not MERGE_TEXT.search(_plain(cmd)):
         sys.exit(0)
-    if os.environ.get("SKIP_REVIEW_GATE") == "1" or "SKIP_REVIEW_GATE=1" in cmd:
+    # The override in the hook's own environment covers the session. Written in
+    # the command, it counts only as a real assignment for the merge it fronts
+    # (a prefix, an `env` argument, an earlier `export`), which merge_targets
+    # reads. Until 2026-09-17 the text anywhere in the command was enough, so
+    # `--body "SKIP_REVIEW_GATE=1"` or a trailing comment switched the gate off
+    # without the shell ever setting anything.
+    if os.environ.get("SKIP_REVIEW_GATE") == "1":
         sys.exit(0)
 
     # The event's cwd is where the Bash tool's shell stands now. An earlier call
@@ -427,25 +564,30 @@ def main() -> None:
 
 def check_merge(target: dict) -> None:
     """Both gates for one `gh pr merge`. Returns when it may go ahead."""
-    # --- Gate 0: know which repo this is about ------------------------------
+    if target["skip"]:
+        return
+
+    # --- Gate 0: the target has to be readable ------------------------------
     # Added 2026-09-17. `cd "$DIR" && gh pr merge 24` names a PR in a repo the
-    # hook cannot see from the text. It must not fall back to the session's
-    # repo: that is the defect this gate exists for, and it fails in both
-    # directions. It also must not pass the way a failed lookup does below. A
-    # failed lookup is a network blip, it is transient, and nothing the caller
-    # types will fix it. An unreadable target is permanent for that command and
-    # costs one flag to fix. A gate that waves through what it cannot see is a
-    # rubber stamp, so this one blocks and says what to type.
-    if not target_known(target):
+    # hook cannot see from the text, and `gh pr merge $n` names a PR it cannot
+    # see at all. It must not fall back to the session's repo: that is the
+    # defect this gate exists for, and it fails in both directions. It also must
+    # not pass the way a failed lookup does below. A failed lookup is a network
+    # blip, it is transient, and nothing the caller types will fix it. An
+    # unreadable target is permanent for that command and costs one literal to
+    # fix. A gate that waves through what it cannot see is a rubber stamp, so
+    # this one blocks, says what it could not read, and says what to type.
+    if target["unreadable"]:
         deny(
-            f"BLOCKED: cannot tell which repo this `gh pr merge "
-            f"{target['pr'] or ''}` targets. The command changes directory in a "
-            f"way that cannot be read from its text (a variable, `cd -`, `popd`, "
-            f"a directory that does not exist, or unbalanced quotes), so the "
-            f"review check would be guessing which PR to look up.\n\n"
-            f"Name the repo on the merge itself:\n"
-            f"  gh pr merge {target['pr'] or '<number>'} -R owner/repo ...\n\n"
-            f"Deliberate override: SKIP_REVIEW_GATE=1 gh pr merge ...\n"
+            f"BLOCKED: this command runs `gh pr merge` and the review check "
+            f"cannot tell which PR in which repo it means: "
+            f"{target['unreadable']}.\n\n"
+            f"Looking up a guess would check the wrong PR, so write the merge "
+            f"with literal values, one command per PR:\n"
+            f"  gh pr merge {target['pr'] if (target['pr'] or '').isdigit() else '<number>'}"
+            f" -R owner/repo ...\n\n"
+            f"Deliberate override, as a prefix on the merge itself: "
+            f"SKIP_REVIEW_GATE=1 gh pr merge ...\n"
         )
 
     pr = target["pr"] or ""

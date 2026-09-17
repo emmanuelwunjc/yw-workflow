@@ -847,6 +847,20 @@ cannot read blocks with a request for `-R owner/repo`, while a failed lookup
 still passes. The difference is that a blip cannot be fixed by the caller and
 an unreadable target can, with one flag.
 
+Review round 1 came back BLOCK with three false passes, one a regression
+from 1.6.0 (a quoted merge behind `timeout`, `env` or `sudo` went unchecked).
+All three were the same shape: the hook saw a merge and passed it with no
+lookup. The lesson that reshaped the code: a runner allowlist ("read quoted
+text as a command when bash runs it") fails open on every runner nobody
+listed. The rule now runs the other way. Every quoted merge is a command
+unless it is an argument of something that only ever treats it as data, and
+the walk ends with a fallback that blocks whatever matched the prefilter and
+was never read. `docs/DECISIONS.md` has the list.
+
+Trap: a mutation run edits the hook in place. I restored it once with `git
+checkout` on a file holding uncommitted work and lost the round. A copy in the
+scratchpad saved it. Commit before mutating, or mutate a copy.
+
 Trap: `shlex` with `punctuation_chars` returns a run of punctuation such as
 `);` as ONE token. The first version compared tokens to `")"` and never closed
 a subshell, so a `cd` inside `( ... )` leaked out. The self-test case "a cd
@@ -856,10 +870,10 @@ Not verified: that Claude Code's hook event `cwd` follows a `cd` made in an
 earlier Bash call. The hook prefers it over its own process cwd on the reading
 that it does, and falls back to the process cwd when the field is absent.
 
-Deliberately not done: a real shell parser. `popd`, a `cd` inside `if`/`for`,
-and a function or alias wrapping `gh` are not tracked. The first makes the
-target unknown, which blocks. The other two are listed in the `ponytail:`
-comment on `merge_targets`.
+Deliberately not done: a real shell parser. `popd` makes the target unknown,
+which blocks. A `cd` inside `if`/`for` counts as taken. `gh api ... /merge`, and
+a function, alias or script wrapping the merge, are invisible to any text
+match. All of it is listed in the comment block above `merge_targets`.
 
 ### Next session
 
@@ -867,12 +881,13 @@ First task: unchanged from 2026-09-16. Migrate the other five repos'
 `docs/HANDOFF.md` to the block, one PR each. List them with
 `grep -L "## Start here" ~/code/*/docs/HANDOFF.md` (recount: that command).
 
-Tickets, in order: #13 (the stray-file check on domain-word repos), then the
-`git-safety-guard.sh` follow-up below (recount:
+Tickets, in order: #15 (`git-safety-guard.sh` lets a commit onto main through
+a quoted `cd`, rated high), #13 (the stray-file check on domain-word repos),
+#16 (the lower-stakes session-folder assumptions) (recount:
 `gh issue list --repo emmanuelwunjc/yw-workflow --state open`).
 
-Follow-up found while fixing this, same class of defect, not yet ticketed:
-`git-safety-guard.sh` `target_dir` misses a quoted `cd` path, a `~` path and
+Follow-ups found while fixing this, same class of defect, filed as #15 and
+#16: `git-safety-guard.sh` `target_dir` misses a quoted `cd` path, a `~` path and
 `pushd`, and falls back to `$PWD` silently, so `cd "/repo/on/main" && git
 commit` from a feature-branch session is allowed. Its dirty-tree note and its
 worktree-count note also run plain `git` in `$PWD` while the rest of the script

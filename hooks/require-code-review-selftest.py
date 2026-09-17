@@ -85,8 +85,9 @@ m = re.match(r"https://github\.com/([^/]+/[^/]+)/pull/(\d+)", sel)
 if m:
     repo, sel = m.group(1), m.group(2)
 repo = repo or os.environ.get("GH_REPO") or fx["cwds"].get(os.path.realpath(os.getcwd()))
+host = os.environ.get("GH_HOST")
 with open(os.environ["FAKE_GH_LOG"], "a") as log:
-    log.write("%s#%s\n" % (repo, sel))
+    log.write("%s%s#%s\n" % (host + ":" if host else "", repo, sel))
 pr = fx["repos"].get(repo or "", {}).get(sel)
 if pr is None:
     sys.exit(1)
@@ -168,6 +169,61 @@ TARGET_CASES = [
     # Text that mentions a merge is not a merge.
     ('git commit -m "then gh pr merge 24"', ALLOW, [], "a commit message mentioning a merge"),
     ("SKIP_REVIEW_GATE=1 gh pr merge 24", ALLOW, [], "the override still works"),
+
+    # --- Review round 1 of this change, 2026-09-17: BLOCK, three false passes ---
+    # Each shape below went through with NO gh call at all. The rule they pin:
+    # a merge the hook can see but cannot read down to a literal target blocks.
+    #
+    # B1, a regression the first version introduced: it read a quoted string as
+    # a command only when bash/sh/zsh/eval was the FIRST word.
+    ("timeout 60 bash -c 'gh pr merge 24'", BLOCK, ["sess/repo#24"], "B1: runner behind timeout"),
+    ("env bash -c 'gh pr merge 24'", BLOCK, ["sess/repo#24"], "B1: runner behind env"),
+    ("cd {O} && sudo -u me sh -c 'gh pr merge 25'", BLOCK, ["other/repo#25"], "B1: runner behind sudo, after a cd"),
+    ("echo `gh pr merge 24`", BLOCK, ["sess/repo#24"], "B1: backticks"),
+    ("cd {O} && echo `gh pr merge 24`", ALLOW, ["other/repo#24"], "B1: backticks, judged in the target"),
+    ("echo $(gh pr merge 24)", BLOCK, ["sess/repo#24"], "B1: $( ) still caught"),
+    # B2: a variable where a literal is needed. The lookup failed, a failed
+    # lookup reads as a network blip, and hook mode allows a blip.
+    ("cd {O} && for n in 25; do gh pr merge $n; done", BLOCK, [], "B2: loop variable as the PR"),
+    ("PR=25; cd {O} && gh pr merge $PR --squash", BLOCK, [], "B2: variable as the PR"),
+    ("gh pr merge 25 -R $REPO", BLOCK, [], "B2: variable as -R"),
+    ("export GH_REPO=$R; gh pr merge 25", BLOCK, [], "B2: variable in an exported GH_REPO"),
+    ("GH_REPO=$R gh pr merge 25", BLOCK, [], "B2: variable in a GH_REPO prefix"),
+    ("gh pr merge `cat n`", BLOCK, [], "B2: backticks as the PR"),
+    ("echo 25 | xargs -I{{}} gh pr merge {{}}", BLOCK, [], "B2: an xargs placeholder as the PR"),
+    # B3: gh takes -R before the subcommand too, and the shell removes quotes
+    # and line continuations before gh sees anything.
+    ("gh -R flag/repo pr merge 25", BLOCK, ["flag/repo#25"], "B3: global -R"),
+    ("gh --repo=flag/repo pr merge 24", ALLOW, ["flag/repo#24"], "B3: global --repo="),
+    ("gh pr \\\n  merge 24", BLOCK, ["sess/repo#24"], "B3: line continuation inside the command"),
+    ('"gh" pr merge 24', BLOCK, ["sess/repo#24"], "B3: quoted gh"),
+    ("gh \"pr\" 'merge' 24", BLOCK, ["sess/repo#24"], "B3: quoted pr and merge"),
+    ("gh pr merge 25 -R=flag/repo", BLOCK, ["flag/repo#25"], "B3: -R=owner/repo"),
+    ("gh pr merge 25 -Rflag/repo", BLOCK, ["flag/repo#25"], "B3: attached -Rowner/repo"),
+    ("gh --no-such-flag value pr merge 25", BLOCK, [], "fallback: a merge the walker cannot read blocks"),
+    ("gh pr merge 25 && gh --no-such-flag value pr merge 24", BLOCK, ["sess/repo#25"],
+     "fallback: an unreadable merge blocks even beside a readable one"),
+    ("gh pr\nmerge 25", BLOCK, [], "fallback: the prefilter matched and the walk read nothing"),
+    # Nits from the same round.
+    ("git switch feature && gh pr merge --squash", BLOCK, [], "numberless merge after a git switch"),
+    ("git checkout feature; gh pr merge", BLOCK, [], "numberless merge after a git checkout"),
+    ("gh pr checkout 7 && gh pr merge", BLOCK, [], "numberless merge after gh pr checkout"),
+    ("git switch feature && gh pr merge 25", ALLOW, ["sess/repo#25"], "a number makes the switch irrelevant"),
+    ("cat <<EOF\nit's unbalanced\nEOF\ngh pr merge --squash", BLOCK, [], "unbalanced quotes, numberless: fails closed"),
+    ('gh pr merge 24 --body "SKIP_REVIEW_GATE=1"', BLOCK, ["sess/repo#24"], "override text inside a body is not the override"),
+    ("gh pr merge 24 # SKIP_REVIEW_GATE=1", BLOCK, ["sess/repo#24"], "override text in a trailing comment is not the override"),
+    ("env SKIP_REVIEW_GATE=1 gh pr merge 24", ALLOW, [], "override as an env argument"),
+    ("export SKIP_REVIEW_GATE=1; gh pr merge 24", ALLOW, [], "override exported earlier in the command"),
+    ("SKIP_REVIEW_GATE=1 gh pr merge 24; gh pr merge 25", ALLOW, ["sess/repo#25"], "the override covers its own merge only"),
+    ("SKIP_REVIEW_GATE=1 gh pr merge 25; gh pr merge 24", BLOCK, ["sess/repo#24"], "the override covers its own merge only, mirror"),
+    ("GH_HOST=ghe.example.com gh pr merge 25", ALLOW, ["ghe.example.com:sess/repo#25"], "GH_HOST is copied"),
+    ("gh pr merge --squash 2>&1", ALLOW, ["sess/repo#current"], "numberless with a redirect: the 2 is not a PR"),
+    ('cd "$SOMEWHERE" && GH_REPO=flag/repo gh pr merge 25', BLOCK, ["flag/repo#25"], "unknown cd, GH_REPO names the repo"),
+    ('cd "$SOMEWHERE" && gh pr merge https://github.com/flag/repo/pull/25', BLOCK, ["flag/repo#25"], "unknown cd, a URL names the repo"),
+    # Text that is data, never run.
+    ("echo gh pr merge 24", ALLOW, [], "an unquoted echo"),
+    ('gh pr comment 5 --body "then gh pr merge 24"', ALLOW, [], "a PR comment body mentioning a merge"),
+    ("watch -n5 gh pr merge 24", BLOCK, ["sess/repo#24"], "watch runs it, so it is a merge"),
 ]
 
 
@@ -190,6 +246,7 @@ def run_target_cases(failures: list) -> int:
                HOME=str(tmp / "home"), FAKE_GH_FIXTURES=str(fixtures),
                FAKE_GH_LOG=str(log))
     env.pop("GH_REPO", None)
+    env.pop("GH_HOST", None)
     env.pop("SKIP_REVIEW_GATE", None)
 
     def run(command, cwd, event_cwd):
@@ -215,7 +272,9 @@ def run_target_cases(failures: list) -> int:
     for command, want_exit, want_asked, label in TARGET_CASES:
         out, asked = run(command.format(**paths), dirs["S"], None)
         judge(label, out, asked, want_exit, want_asked)
-        if label.startswith(("cd to a", "cd -")) and "-R owner/repo" not in out.stderr:
+        # Blocked without asking gh anything means the target was unreadable,
+        # and that message has to say what to type instead.
+        if want_exit == BLOCK and not want_asked and "-R owner/repo" not in out.stderr:
             failures.append(f"  {label}: the block message does not ask for -R owner/repo")
 
     # The event's cwd is where the Bash tool's shell is now, and an earlier

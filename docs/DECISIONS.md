@@ -94,15 +94,17 @@ that answers per repo and logs which repo each call resolved to.
 
 Decided: the hook copies the merge's context and lets `gh` resolve it. It reads
 the directory the shell is in when `gh` runs (`cd`, `pushd`, subshells, starting
-from the hook event's `cwd`), a `GH_REPO=` assignment, `-R`/`--repo`, and the PR
-argument as typed, which may be a URL. It passes all four to every `gh` call.
+from the hook event's `cwd`), `GH_REPO=` and `GH_HOST=` assignments,
+`-R`/`--repo` on either side of `pr merge`, and the PR argument as typed, which
+may be a URL. It passes all of them to every `gh` call.
 `gh` applies its own precedence: URL, then `-R`, then `GH_REPO`, then the
 directory's remote. Rejected: resolving `owner/repo` inside the hook, which
 would be a second copy of that precedence to keep in step with `gh`.
 
-Decided: a target the hook cannot read blocks, with a message asking for
-`-R owner/repo`. Examples: `cd "$DIR"`, `cd -`, `popd`, a directory that does
-not exist, unbalanced quotes. The hook already passes when a lookup comes back
+Decided: a target the hook cannot read blocks, with a message that says what
+was unreadable and asks for `gh pr merge <number> -R owner/repo`. Examples:
+`cd "$DIR"`, `cd -`, `popd`, a directory that does not exist, unbalanced quotes,
+and a PR, repo or host that is not a literal (`$n`, `{}`, backticks). The hook already passes when a lookup comes back
 empty, because a network blip must not wedge a local merge. That reasoning
 stops short of this case. A blip is transient and nothing the caller types
 fixes it. An unreadable target is permanent for that command and one flag fixes
@@ -111,11 +113,53 @@ it. Falling back to the session repo is the defect itself.
 Also changed, because the old number-only match could not carry the fix: the
 hook now sees `gh pr merge -R owner/repo 24`, `gh pr merge --squash 24` and a
 bare `gh pr merge` (the current branch's PR), all of which the old regex let
-through unchecked. A quoted string that mentions a merge, e.g. a commit
-message, is no longer treated as one unless `bash -c`, `sh -c`, `zsh -c` or
-`eval` runs it.
+through unchecked.
 
-Measured the same day in `hooks/git-safety-guard.sh`, not fixed here: its
+Review round 1 of this change, same day: BLOCK, three false passes. Each one
+was a merge the hook could see and then passed with no `gh` call.
+
+- A regression. The first version read a quoted string as a command only when
+  `bash`, `sh`, `zsh` or `eval` was the first word. `timeout 60 bash -c 'gh pr
+  merge 24'`, `env bash -c ...`, `sudo -u me sh -c ...` and a backticked merge
+  went through unchecked. 1.6.0 caught all four with its plain text match.
+- A variable where a literal is needed: `gh pr merge $n` in a `for` loop,
+  `-R $REPO`, `GH_REPO=$R`. The lookup failed, a failed lookup reads as a
+  network blip, and hook mode allows a blip.
+- `gh -R owner/repo pr merge 25`. `gh` takes `-R` before the subcommand, and
+  both the text prefilter and the word match wanted `pr` right after `gh`. Same
+  root: a line continuation between `pr` and `merge`, quoted words (`"gh" pr
+  merge`), and `-R=owner/repo`, which the hook passed on as `=owner/repo`.
+
+Decided after that round, as the rule the code is built around: a merge the
+hook can see but cannot read down to a fully literal target blocks and asks for
+the literal form. Every quoted string holding a merge is read as a command,
+whatever runs it. The exceptions are arguments that are only ever data: those
+of `echo`, `printf` and `git` (a commit message), and `gh`'s own quoted
+arguments (a `--body`). The walk ends with a fallback: text that matched the
+prefilter and produced no target blocks. So a shape nobody thought of fails
+closed.
+
+Decided in the same round:
+
+- A numberless `gh pr merge` after `git switch`, `git checkout` or `gh pr
+  checkout` in the same command blocks. The hook would read the branch checked
+  out before the switch.
+- `SKIP_REVIEW_GATE=1` counts only as a real assignment: a prefix on the merge,
+  an `env` argument, or an earlier `export` in the same command. It covers the
+  merge it fronts and no other. Before, the text anywhere was enough, so a
+  `--body "SKIP_REVIEW_GATE=1"` or a trailing comment switched the gate off.
+- `watch -n5 gh pr merge 24` is judged as a merge, because it is one.
+
+Deliberately not handled, because no text match can see them: `gh api -X PUT
+repos/o/r/pulls/N/merge`; a shell function, shell alias, `gh alias` or gh
+extension that wraps the merge; a script file that runs it.
+
+Known false blocks, kept because the fix is a shell parser: a heredoc written to
+a file whose text holds a merge line is judged as a merge (1.6.0 did the same),
+and `gh pr` at the end of one line with `merge` opening the next trips the
+fallback.
+
+Measured the same day in `hooks/git-safety-guard.sh`, not fixed here (#15): its
 `target_dir` reads an unquoted `cd /path` and misses a quoted path, a `~` path
 and `pushd`. Run from a feature branch, `cd /repo/on/main && git commit` is
 denied, and the same command with the path in quotes or written with `~` is
