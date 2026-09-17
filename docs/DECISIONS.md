@@ -207,12 +207,38 @@ skipped", blocked anyway, and named the workaround that had just been used. A
 workaround a message recommends is part of the message, and nothing tested it.
 Four commands hit it and every other blocked case already honored the export.
 
-Decided while fixing it: the phantom targets honor `export SKIP_REVIEW_GATE=1;`
-and NOT a bare `SKIP_REVIEW_GATE=1` prefix. A bare prefix binds to one command,
-which is why it covers its own merge and no other on the walked path, and
-honoring it for a merge the hook has just said it could not read would cover
-something nobody looked at. So the one spelling every block message gives is
-the one spelling this path honors.
+Decided while fixing it: for a merge the hook found and could not read down to a
+command, only `export SKIP_REVIEW_GATE=1;` counts, and not a bare
+`SKIP_REVIEW_GATE=1` prefix. That covers two paths, the targets for merges the
+walk could not tie AND the whole command when its words cannot be walked at all.
+The second is easy to miss. `SKIP_REVIEW_GATE=1 gh pr merge 24 --body "it's
+fine` has an unbalanced quote, so the words cannot be read. It went through
+before, announcing a skipped gate. It blocks now and says nothing about an
+override, because on that path the hook cannot tell what the assignment was
+attached to.
+
+Stated narrowly, because review round 4 pushed back on the general version of
+this reason. A bare prefix binds to one command, and that argument carries
+`SKIP_REVIEW_GATE=1 gh pr merge 24 && gh --no-such-flag v pr merge 24`, where
+the prefix really does bind to the first command and not the second. It does NOT
+carry `SKIP_REVIEW_GATE=1 gh pr merge -X 24 25` or `... 2$n`, which are one
+command whose own merge is the untied one, and where the shell really would set
+the variable for it. Those block anyway. Two things make that acceptable rather
+than merely convenient: blocking is the safe direction on a merge nobody could
+read, and no block message ever offers the bare prefix, so nobody is told to
+type a form that will not work. The rule is "the spelling the messages give is
+the spelling these paths take", and not "a bare prefix never binds".
+
+Decided in the same round: the dedupe key keeps `skip` and `unreadable`. Both
+look redundant, because a key of PR, repo, directory and environment already
+describes the lookup, and dropping either one passed every case when the dedupe
+landed. Each guards a false pass and each now has a case. Drop `skip` and
+`SKIP_REVIEW_GATE=1 gh pr merge 24 && gh pr merge 24` collapses the real merge
+into the skipped one, so an unreviewed merge runs with the gate never asked.
+Drop `unreadable` and `gh pr merge 25 && echo --squash | xargs gh pr merge 25`
+collapses the unreadable target into the readable one, which is allowed. The
+collapse keeps the first target, and in both shapes the first is the permissive
+one.
 
 The second: `docs/HANDOFF.md` still described the design round 2 threw away.
 Marked superseded there with what replaced it, per this repo's own handoff rule
