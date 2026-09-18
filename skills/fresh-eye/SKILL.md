@@ -72,6 +72,20 @@ and never exercised. Ask which regions of the input space no test renders.
 **Forbid fixing.** "Do not fix anything. Do not commit." A reviewer that fixes
 things stops reviewing.
 
+**When the change builds or fixes something, pair it with Matt Pocock's skills.**
+Breaking a change finds defects. It does not check the change against the
+repo's written standards or against what its ticket asked for, and it cannot
+tell a check that was written to fail first from one written after the code.
+
+- The author builds with `mattpocock-skills:tdd`, one failing test before each
+  slice of code. A bug fix starts with `mattpocock-skills:diagnosing-bugs`, which
+  refuses to theorise until one command already fails on this bug. The reviewer
+  asks for that failing-first evidence and treats its absence as a finding.
+- The reviewer also runs `mattpocock-skills:code-review` against the base. It
+  reports two axes, Standards (the repo's documented rules) and Spec (does the
+  diff do what the ticket asked). Both verdicts go in the posted comment, beside
+  the mutation results.
+
 ## Reading the result
 
 Believe measurements. Do not automatically believe conclusions: reviewers are
@@ -157,6 +171,10 @@ function, or line number, it belongs in Agent-facing specifics instead.
     5. What part of the input space does nothing exercise?
     6. Anything orphaned, dead, scope creep, or a comment claiming something the
        code does not do?
+    7. If this change builds or fixes code: show the test that failed before the
+       code existed (tdd) or the command that failed on the bug before the fix
+       (diagnosing-bugs). Then run mattpocock-skills:code-review against the
+       base and report its Standards and Spec verdicts.
 
     Report each finding with file:line, BLOCKING or nit, the concrete failure
     scenario (inputs -> wrong output), and how you verified it. Say plainly
