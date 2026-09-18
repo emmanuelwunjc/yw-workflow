@@ -72,6 +72,25 @@ and never exercised. Ask which regions of the input space no test renders.
 **Forbid fixing.** "Do not fix anything. Do not commit." A reviewer that fixes
 things stops reviewing.
 
+**When the change builds or fixes something, pair it with Matt Pocock's skills.**
+Breaking a change finds defects. It does not check the change against the
+repo's written standards or against what its ticket asked for, and it cannot
+tell a check that was written to fail first from one written after the code.
+
+- The author builds with `mattpocock-skills:tdd`, one failing test before each
+  slice of code. A bug fix starts with `mattpocock-skills:diagnosing-bugs`, which
+  refuses to theorize until one command already fails on this bug.
+- The reviewer checks that with something it can run. Revert the non-test part
+  of the diff and show the new test fails. For a bug fix, show the reproduction
+  command fails on the base and passes on the branch. A test that passes with the
+  code reverted is a finding.
+- The reviewer also runs `mattpocock-skills:code-review` against the base. Check
+  out the branch (detached) in the reviewer's worktree first, since code-review
+  diffs against HEAD. Use the ticket or PR body as the spec, and write "no spec"
+  if there is none. Its sub-agents read only. Its Standards and Spec verdicts go
+  under Agent-facing specifics, beside the mutation results.
+- If mattpocock-skills is not installed, say so in the verdict and skip that step.
+
 ## Reading the result
 
 Believe measurements. Do not automatically believe conclusions: reviewers are
@@ -157,6 +176,11 @@ function, or line number, it belongs in Agent-facing specifics instead.
     5. What part of the input space does nothing exercise?
     6. Anything orphaned, dead, scope creep, or a comment claiming something the
        code does not do?
+    7. If this change builds or fixes code: revert the non-test part of the
+       diff and show the new test fails (for a fix, show the reproduction fails
+       on the base and passes on the branch). Then check out the branch
+       detached and run mattpocock-skills:code-review against the base, using
+       the ticket or PR body as the spec. Report its Standards and Spec verdicts.
 
     Report each finding with file:line, BLOCKING or nit, the concrete failure
     scenario (inputs -> wrong output), and how you verified it. Say plainly
