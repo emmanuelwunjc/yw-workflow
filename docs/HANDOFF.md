@@ -43,6 +43,12 @@ plugin repo fixes all three.
 
 ## Decisions, newest first
 
+**2026-09-18 · fresh-eye now runs code-review beside its own adversarial pass.**
+The owner asked for Matt Pocock's code-review and tdd when building and
+debugging. Breaking a change finds defects; code-review adds the Standards and
+Spec axes, and a reverted-code run shows a new test really fails without the
+code. Supersedes the 2026-09-04 view that the two are kept separate.
+
 **2026-09-04 · eli5 and eli5-text are two skills, not one with a flag.**
 The output shapes barely overlap: `eli5` is per-panel around an SVG, and the
 text version wants a one-sentence opener, 3 to 6 labelled steps, and a closing

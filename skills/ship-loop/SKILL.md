@@ -124,6 +124,8 @@ clean.
 - `fresh-eye` for step 4. It carries the reviewer prompt skeleton and the
   mutation-testing instructions.
 - `mattpocock-skills:tdd` for step 3 when the change is behavioural.
+- `mattpocock-skills:diagnosing-bugs` for step 3 when the change fixes a bug: it
+  gets one command failing on the bug before any fix.
 - `security-review` in addition to `fresh-eye` for anything touching auth, input
   handling, secrets, or outbound calls.
 - `/loop` for unattended interval running.
