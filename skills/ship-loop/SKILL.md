@@ -142,8 +142,9 @@ steady, so the approach is wrong.
 
 Record every round in the PR body on one line: its verdict, its blocking count,
 and the reviewer's token count (the Agent tool's `subagent_tokens` for that
-review). Take the count from the reviewer's usage report, and post the round
-only after that report arrives. Never estimate it. The coordinating session
+review). Take the count from the usage block of the task notification that
+says the review finished, and post the round only after it arrives. Never
+estimate it, and never ask the reviewer for it. The coordinating session
 writes the line after round 1 and updates it after each round. The line
 starts exactly `Rounds:`, with no bullet, bold, backticks, placeholders or
 annotations. Rounds are separated by ` · `, and a
