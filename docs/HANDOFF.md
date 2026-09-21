@@ -14,8 +14,8 @@ writes you a separate prompt. Do these in order, then work.
 4. Start the first task it names. Ask the owner nothing that section
    already answers.
 
-The handoff pass rewrites the last section (`## Next`, or the closing
-section) so step 2 stays true, and leaves this block alone.
+Whoever closes a session rewrites the last section so step 2 stays true,
+and leaves this block alone.
 
 Judgment and reasoning only. No counts, no SHAs, no issue tallies: those rot
 within hours. Derive them with `gh issue list` and the scripts in the repo.

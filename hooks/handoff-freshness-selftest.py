@@ -37,8 +37,8 @@ writes you a separate prompt. Do these in order, then work.
 4. Start the first task it names. Ask the owner nothing that section
    already answers.
 
-The handoff pass rewrites the last section (`## Next`, or the closing
-section) so step 2 stays true, and leaves this block alone.
+Whoever closes a session rewrites the last section so step 2 stays true,
+and leaves this block alone.
 
 Judgment and reasoning only. No counts, no SHAs, no issue tallies: those rot
 within hours. Derive them with `gh issue list` and the scripts in the repo.
@@ -121,6 +121,10 @@ TOUCH = ("commit", {"docs/HANDOFF.md": GOOD + "\nlane edit\n"})
 OTHER_WORK = [("commit", {"e.py": "5\n"}), ("commit", {"f.py": "6\n"})]
 LANE = ["HANDOFF NOTES", "## Handoff notes"]
 QUIET = ["HANDOFF NOTES", "Lanes do not edit", "HANDOFF STALE"]
+NOTES_ASK = "section of this branch's PR body"
+# a handoff pass lands on origin/main from elsewhere; cwd ends on branch up
+UPSTREAM_PASS = [("git", "checkout", "-q", "-b", "up", "origin/main"), PASS,
+                 ("git", "push", "-q", "origin", "up:main")]
 STALE = ["HANDOFF STALE", "handoff pass"]
 
 # (name, first branch, steps, stderr must carry, stderr must not carry)
@@ -153,9 +157,14 @@ BRANCH_CASES = [
     ("detached HEAD is a lane and gets no trunk message",
      "main", [BASE, ("detach",), *LANE_WORK], [],
      ["HANDOFF STALE", "handoff pass", "HANDOFF NOTES"]),
-    ("detached HEAD that edited the handoff is warned",
+    ("detached HEAD that edited the handoff hears only the edit warning",
      "main", [BASE, ("detach",), LANE_WORK[0], TOUCH],
-     ["HANDOFF NOTES", "Lanes do not edit"], ["HANDOFF STALE"]),
+     ["HANDOFF NOTES", "Lanes do not edit"],
+     ["HANDOFF STALE", "changes real files", NOTES_ASK]),
+    ("lane whose only change is the handoff hears only the edit warning",
+     "main", [BASE, ("branch", "feat/doc"), TOUCH],
+     ["HANDOFF NOTES", "Lanes do not edit"],
+     ["HANDOFF STALE", "changes real files", NOTES_ASK]),
     # Round 2: judged by the net diff against the closest trunk ref, with a
     # real origin so origin/main and main can differ.
     ("lane that reverted its handoff edit is not told to revert again",
@@ -178,9 +187,9 @@ BRANCH_CASES = [
      "main", [BASE, ("git", "symbolic-ref", "refs/remotes/origin/HEAD",
                      "refs/remotes/origin/feat/x"), ("branch", "feat/x"), *WORK],
      LANE, ["HANDOFF STALE"]),
-    ("lane cut from local main ahead of origin by a handoff pass is silent",
-     "main", [BASE, ("remote",), ("git", "push", "-q", "origin", "main"), PASS,
-              ("branch", "feat/new")], [], QUIET),
+    ("lane cut from local main ahead of origin by work and a pass is silent",
+     "main", [BASE, ("remote",), ("git", "push", "-q", "origin", "main"),
+              *WORK, PASS, ("branch", "feat/new")], [], QUIET),
     ("lane cut from origin/main ahead of local main is silent",
      "main", [BASE, ("remote",), ("git", "push", "-q", "origin", "main"),
               ("branch", "up"), PASS, ("git", "push", "-q", "origin", "up:main"),
@@ -195,6 +204,21 @@ BRANCH_CASES = [
               ("git", "push", "-q", "origin", "main"),
               ("shallow", "feat/x"), *OTHER_WORK],
      [], QUIET),
+    # Round 3: a local trunk that diverged from origin is closest to the lane,
+    # but the lane's handoff matches origin/main, so the lane did not edit it.
+    ("lane merged origin/main's pass while local main is 2 unpushed ahead",
+     "main", [BASE, ("remote",), ("git", "push", "-q", "origin", "main"),
+              ("commit", {"local1.py": "1\n"}), ("commit", {"local2.py": "2\n"}),
+              ("branch", "feat/x"), ("commit", {"x.py": "x\n"}),
+              *UPSTREAM_PASS, ("git", "checkout", "-q", "feat/x"),
+              ("git", "merge", "-q", "--no-edit", "origin/main")],
+     LANE, ["Lanes do not edit", "HANDOFF STALE"]),
+    ("lane off a local-only master merged origin/main's pass",
+     "master", [BASE, ("remote",), ("git", "push", "-q", "origin", "master:main"),
+                *WORK, ("branch", "feat/x"), *LANE_WORK,
+                *UPSTREAM_PASS, ("git", "checkout", "-q", "feat/x"),
+                ("git", "merge", "-q", "--no-edit", "origin/main")],
+     LANE, ["Lanes do not edit", "HANDOFF STALE"]),
 ]
 
 

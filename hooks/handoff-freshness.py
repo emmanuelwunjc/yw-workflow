@@ -36,9 +36,11 @@ a lane that reverts a handoff edit is clean again:
 There is no time window for lanes.
 
 A named lane whose diff changes real files gets HANDOFF NOTES: put the notes
-in the PR body's "## Handoff notes" section. Any lane whose diff changes the
-handoff is told lanes do not edit it. A detached HEAD hears only that second
-part. The hook does not look at the PR itself, because that needs the
+in the PR body's "## Handoff notes" section. A lane has edited the handoff
+only when its copy differs from the copy in every trunk ref (a detached HEAD:
+from its base), because the closest base can be a local trunk that diverged
+from origin. Such a lane is told lanes do not edit it. A detached HEAD, or a
+lane that changes nothing but docs, hears only that warning. The hook does not look at the PR itself, because that needs the
 network and a Stop hook must work offline.
 
 On trunk or a docs/handoff-* branch it prints HANDOFF STALE, as before, only
@@ -142,30 +144,37 @@ def trunks() -> set[str]:
     return names
 
 
-def lane_base(branch: str, names: set[str]) -> str:
-    """The commit a lane's own work is diffed from, or "" when none exists."""
+def lane_base(branch: str, names: set[str]) -> tuple[str, list[str]]:
+    """The commit a lane's work is diffed from ("" when none exists), and the
+    refs its handoff is compared with."""
     if not branch:
         # ponytail: a detached HEAD that merged another unpushed line is
         # judged from its oldest unpushed commit; fine for reviewer worktrees
         own = git("rev-list", "--reverse", "--topo-order", "HEAD",
                   "--not", "--branches", "--remotes").split()
         start = own[0] + "^" if own else "HEAD"
-        return git("rev-parse", "--verify", "--quiet", start).strip()
-    best, best_n = "", -1
+        base = git("rev-parse", "--verify", "--quiet", start).strip()
+        return base, [base] if base else []
+    best, best_n, refs = "", -1, []
     for ref in [f"{r}{n}" for n in sorted(names) for r in ("origin/", "")]:
         base = git("merge-base", "HEAD", ref).strip()
         if base:
+            refs.append(ref)
             n = int(git("rev-list", "--count", f"{base}..HEAD").strip() or 0)
             if best_n < 0 or n < best_n:
                 best, best_n = base, n
-    return best
+    return best, refs
 
 
-def lane_notes(touched_handoff: bool) -> None:
+def lane_notes(touched_handoff: bool, real: bool) -> None:
     edited = (f"Lanes do not edit {HANDOFF}: this branch touched it, and every "
               f"concurrent lane that does hits a merge conflict there. Move "
               f"those lines into the PR body and revert the file.\n\n"
               if touched_handoff else "")
+    if not real:
+        print(f"HANDOFF NOTES: {edited}Deliberate skip: SKIP_HANDOFF_CHECK=1\n",
+              file=sys.stderr)
+        return
     print(
         f"HANDOFF NOTES: this lane changes real files.\n\n"
         f"{edited}"
@@ -198,14 +207,19 @@ def main() -> None:
     branch = git("branch", "--show-current").strip()
     names = trunks()
     if branch not in names and not branch.startswith(HANDOFF_BRANCH_PREFIX):
-        base = lane_base(branch, names)
+        base, refs = lane_base(branch, names)
         if not base:
             sys.exit(0)
-        files = git("diff", "--name-only", f"{base}..HEAD").split()
-        touched = HANDOFF in files
-        real = any(not f.endswith(DOC_SUFFIXES) for f in files)
-        if touched or (branch and real):
-            lane_notes(touched)
+        files = git("diff", "--name-only", f"{base}..HEAD").splitlines()
+        real = bool(branch) and any(not f.endswith(DOC_SUFFIXES) for f in files)
+        # Edited only if the handoff differs from EVERY trunk ref. The closest
+        # base can be a local trunk that diverged from origin, and a lane that
+        # merged origin's handoff pass must not be told to revert it.
+        touched = bool(refs) and all(
+            git("diff", "--name-only", ref, "HEAD", "--", HANDOFF).strip()
+            for ref in refs)
+        if touched or real:
+            lane_notes(touched, real)
         sys.exit(0)
 
     # Trunk or a handoff branch: commits made in roughly this session.

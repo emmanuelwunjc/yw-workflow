@@ -46,8 +46,8 @@ writes you a separate prompt. Do these in order, then work.
 4. Start the first task it names. Ask the owner nothing that section
    already answers.
 
-The handoff pass rewrites the last section (`## Next`, or the closing
-section) so step 2 stays true, and leaves this block alone.
+Whoever closes a session rewrites the last section so step 2 stays true,
+and leaves this block alone.
 
 Judgment and reasoning only. No counts, no SHAs, no issue tallies: those rot
 within hours. Derive them with `gh issue list` and the scripts in the repo.
@@ -93,7 +93,9 @@ within hours. Derive them with `gh issue list` and the scripts in the repo.
 ## The handoff pass
 
 After PRs merge, one pass on a `docs/handoff-*` branch folds their notes into
-the log. The session that merges the PRs runs it before it stops.
+the log. The session that merges the PRs runs it before it stops, so the pass
+is the "whoever closes a session" that the Start here block names. A lane
+session never closes one this way.
 
 1. Branch `docs/handoff-<date>` from trunk.
 2. Print the notes of every PR merged since the last pass. Change the date
