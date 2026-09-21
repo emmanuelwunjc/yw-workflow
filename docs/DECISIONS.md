@@ -7,17 +7,16 @@ moving tool version does not rot them.
 A decision is superseded, never deleted. Mark it with the date and what
 replaced it.
 
-## 2026-09-21: owner's calls before the build, sources before sentences, fix-only middle rounds
+## 2026-09-21: owner's calls before the build, sources before sentences, a Rounds line
 
 Supports `ship-loop` and `fresh-eye`. The owner read one day of review-loop
 data from one repo (edsim_funder_impact): 25 review rounds over 9 PRs on
-09/21/2026 (7 merged: #74, #76, #89, #92, #94, #95, #98; #71 and #100 still
-open, and #71 began on 09/18/2026). That is about 2.8 rounds per PR. In
-that session's Agent tool reports, the review agents' `subagent_tokens` ranged
-from 78,776 to 155,942 per review round. The one fix-only round run on the
-smaller model (PR #100, round 3) used 110,568, inside the same range, so the
-fix-only saving did not show on its first use. The extra rounds had four
-causes:
+2026-09-21. As of 4:20 PM ET on 2026-09-21, 7 were merged (#74, #76, #89, #92,
+#94, #95, #98), and #71 and #100 were open. #71 began on 2026-09-18. #100
+merged later that day with Rounds BLOCK 3 · BLOCK 2 · fix PASS · PASS. That is
+about 2.8 rounds per PR. In that session's Agent tool reports, the review
+agents' `subagent_tokens` ranged from 78,776 to 155,942 per review round. The
+extra rounds had four causes:
 
 1. Guards that could not fail.
 2. A fix that made a new defect, most often in copy checked against sources.
@@ -28,21 +27,27 @@ causes:
 4. Guards for work not built yet. One PR.
 
 The owner chose three changes. Ask the owner's calls before building UI or
-copy. Write each claim's source line before its sentence. Review the fix only
-in the rounds after round 1, with every round's verdict and blocking count on a
-`Rounds:` line in the PR body. Keeping the reviewer's breaks as a script was
-considered and not chosen.
+copy. Write each claim's source line before its sentence. Record every round
+on a `Rounds:` line in the PR body. Keeping the reviewer's breaks as a script
+was considered and not chosen.
 
-The owner then decided (09/21/2026) that the final full round runs only after
-two or more fix rounds. One fix whose fix-only round comes back clean ends the
-loop.
+The third change first came with cheaper fix-only rounds: a fix-only prompt, an
+optional smaller model, and a final full round after two or more fix rounds.
+The owner dropped all of it on 2026-09-21, after the data came in, for three
+reasons. The one fix-only round run on the smaller model (#100, round 3) used
+110,568 tokens, inside the full-round range, so it saved nothing. The forced
+final full round would have added a round to most PRs. And the stop rule's own
+text took four review rounds in yw-workflow PR #24. The loop now stops on a
+clean round, and three rounds whose blocking count does not fall means change
+direction. Each round's token count now goes on the `Rounds:` line, so the
+cost question can be decided later from data.
 
 Correction, same day: the first version of this entry said 25 rounds over 9
 merged PRs, and gave a rounded token figure with no source. Both came from the
 coordinating session's summary, and that summary was wrong about the merges.
 The counts above replace it.
 
-Recount once PR bodies carry the line: the command in `ship-loop` step 6.
+Recount from PR bodies: the command in `ship-loop` step 6.
 
 ## 2026-08-27: rebuild venvs per lane, never copy one
 
