@@ -13,7 +13,7 @@ Supports `ship-loop` and `fresh-eye`. The owner read one day of review-loop
 data from edsim_funder_impact. Extra review rounds had four causes:
 
 1. Guards that could not fail.
-2. A fix that made a new defect, most often in copy checked against sources
+2. A fix that made a new defect, for example in copy checked against sources
    (#92).
 3. A call only the owner could make, arriving after the build (#89, #71, #92,
    #100).
@@ -28,8 +28,9 @@ on a `Rounds:` line in the PR body. Keeping the reviewer's breaks as a script
 was considered and not chosen.
 
 A cheaper design came first and was dropped the same day: fix-only review
-rounds, an optional smaller model, and a forced final full round. A trial
-fix-only round used about as many tokens as a full one. A forced final round
+rounds, an optional smaller model, and a forced final full round. Per the
+coordinating session's notes, a trial fix-only round used about as many tokens
+as a full one. A forced final round
 would add a round to most PRs. And the rule's own wording took several review
 rounds to get right. The loop now stops on a clean round.
 

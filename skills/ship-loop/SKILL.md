@@ -73,7 +73,8 @@ exact quote (or, for a number or a behavior claim, the command that measures
 it), where it lives, and its date. Write the sentence after it, and
 never stronger than the quote. Keep the source line beside the sentence (a
 comment, a sources file, or the PR body), so the review becomes a diff of
-sentence against quote. Copy is where fixes most often make new defects.
+sentence against quote. A fix to copy can make a new defect, as in
+edsim_funder_impact #92.
 
 Write the failing probe before the fix, or you will ship something that never
 runs. Then the smallest change that passes, at the root cause: grep every caller
@@ -124,7 +125,9 @@ is mandatory: you have just changed the code, and the change is unreviewed.
 
 Stop on a clean round. A round is clean when it returns `PASS`. A `REVIEW`
 counts as clean only when the owner's answer needs no code change. If the
-answer changes code, that change gets another round.
+answer changes code, that change gets another round. A clean round ends the
+loop only when nothing changes after it. Nits fixed in code after a `PASS` get
+one more round; otherwise they go to a ticket.
 
 Three rounds whose blocking count does not fall means change direction. "Does
 not fall" means the third of three consecutive rounds has a blocking count no
@@ -141,9 +144,10 @@ Record every round in the PR body on one line: its verdict, its blocking count,
 and the reviewer's token count (the Agent tool's `subagent_tokens` for that
 review). The coordinating session writes the line after round 1 and updates it
 after each round. The line starts exactly `Rounds:`, with no bullet, bold,
-backticks, placeholders or annotations. Rounds are separated by ` · `:
+backticks, placeholders or annotations. Rounds are separated by ` · `, and a
+`REVIEW` carries its blocking count like a `BLOCK`:
 
-    Rounds: BLOCK 3 (95k) · PASS (88k)
+    Rounds: BLOCK 3 (95k) · REVIEW 0 (90k) · PASS (88k)
 
 That makes the three-round rule checkable at a glance. The averages are one
 command, which reads the first `Rounds:` line of each PR:

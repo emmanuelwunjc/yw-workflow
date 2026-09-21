@@ -55,10 +55,8 @@ grill -> wayfinder -> git-lanes -> ship-loop -> fresh-eye
               +--------> need-me <------+------------+
 ```
 
-`ship-loop` and `fresh-eye` share one review procedure: the owner's calls on
-UI or copy come before the build, every factual sentence follows its source
-line, and the loop stops on a clean round. Each PR body carries a `Rounds:`
-line with every round's verdict, blocking count and tokens.
+`ship-loop` and `fresh-eye` share one review procedure. `ship-loop` step 6
+has when the loop stops and the `Rounds:` line each PR body carries.
 
 `harden` runs once per repo, before any of it merges. `mutation-gate` is the
 one skill that ships a script: a repo copies `skills/mutation-gate/mutation_gate.py`
