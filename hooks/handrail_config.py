@@ -64,12 +64,14 @@ DEFAULTS = {
     "ai_attribution": True,
     "require_review": True,
     "git_safety": True,
+    "context_warning": True,
 }
 
-# What the CI action enforces no matter what a repo's config says. Two rules are
+# What the CI action enforces no matter what a repo's config says. Three rules are
 # absent because they cannot run server-side rather than by choice:
-# ask_user_question needs a live turn to inspect, and git_safety blocks a git
-# command as it is typed, which branch protection covers in CI.
+# ask_user_question needs a live turn to inspect, git_safety blocks a git
+# command as it is typed, which branch protection covers in CI, and
+# context_warning reads a live session's transcript, which CI has none of.
 CI_FLOOR = ("em_dash", "ai_attribution", "require_review", "handoff_freshness")
 
 # Rules a repo may add to the CI floor. Enabling is one-way: CI ignores a later
@@ -85,6 +87,10 @@ VALUE_DEFAULTS = {
         "wrappers": [],
     },
     "handoff": {"path": "docs/HANDOFF.md"},
+    # Tokens of context. The first warning fires at `first`, then one more at
+    # each `step` past it. 120k is where mattpocock's ask-matt skill puts the
+    # end of the "smart zone"; the step is the owner's call, 2026-09-21.
+    "context_warning": {"first": 120000, "step": 100000},
     "require_review": {
         "trivial_lines": 25,
         "code_suffixes": [".py", ".yml", ".yaml", ".toml", ".cfg", ".sh", ".ts", ".js"],

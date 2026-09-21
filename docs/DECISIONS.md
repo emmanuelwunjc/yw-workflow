@@ -262,3 +262,42 @@ and `pushd`. Run from a feature branch, `cd /repo/on/main && git commit` is
 denied, and the same command with the path in quotes or written with `~` is
 allowed. It falls back to `$PWD` without saying so, which is the guess this
 decision refuses.
+
+## 2026-09-21: warn the model when its context passes the smart zone
+
+Supports `handoff`. Adds `hooks/context-warning.py`.
+
+The owner decided the numbers: the first warning at 120k tokens, then one more
+at every 100k past it (220k, 320k). 120k comes from mattpocock's `ask-matt`
+skill, which calls it the smart zone, "the window (~120k tokens on
+state-of-the-art models) within which the model still reasons sharply", and
+says to `/handoff` and continue in a fresh thread when a session nears it. Both
+numbers are settings in `.handrail.toml` (`[context_warning] first`, `step`),
+and the switch is `[rules] context_warning`, so the ratchet applies: a repo can
+switch it on, and only the user config can switch it off.
+
+The warning tells the model to wait for the agents it is waiting on before the
+handoff pass. A coordinator that hands off with lanes still running loses their
+reports.
+
+Event: PostToolUse and UserPromptSubmit, both through
+`hookSpecificOutput.additionalContext`. The Claude Code hooks docs say
+PostToolUse's `additionalContext` "may" be incorporated "into the next model
+call", and UserPromptSubmit's is context "that Claude sees before processing
+the prompt". Stop was rejected: its docs say exit codes other than 2 and JSON
+output "have no effect on the flow", and `systemMessage` goes to the debug log
+"but not to Claude's transcript". That is the path open issue #22 asks about.
+
+Size: the sum of `input_tokens`, `cache_read_input_tokens` and
+`cache_creation_input_tokens` on the last main-thread assistant message in the
+transcript. The docs warn the transcript "may lag", so the number can be one
+message old. At a 100k granularity that does not matter.
+
+Main thread only. Inside a subagent the hook input carries `agent_id`, and
+the docs do not say whose transcript `transcript_path` names then. A warning
+there would reach the wrong model and use up the parent's step, so the hook
+skips it.
+
+Cost: about 0.25 s per tool call on the owner's laptop, most of it Python start
+and the `git rev-parse` inside config loading. Only the last 2 MB of the
+transcript is read, so an 880k-token session costs the same as a small one.

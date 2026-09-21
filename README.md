@@ -1,6 +1,6 @@
 # yw-workflow
 
-Eleven skills and five hooks that make an engineering workflow mechanical
+Eleven skills and six hooks that make an engineering workflow mechanical
 instead of remembered.
 
 ## Install
@@ -12,7 +12,7 @@ duplicates that drift apart.
 # skills only
 npx skills add emmanuelwunjc/yw-workflow -g --skill '*' -y
 
-# skills and the five hooks. Use this on your own machine.
+# skills and the six hooks. Use this on your own machine.
 claude plugin marketplace add emmanuelwunjc/yw-workflow
 claude plugin install yw-workflow@yw-workflow
 ```
@@ -83,6 +83,7 @@ plugin path only.
 | **no-ai-attribution.py** | PreToolUse | Keeps AI-generation footers out of anything people read. Commit trailers stay. |
 | **claude-md-guard.py** | UserPromptSubmit, Stop | Blocks em-dashes, negation-then-correction, and prose questions where checkboxes are required. |
 | **handoff-freshness.py** | Stop | On a lane whose net diff from trunk changes real files, reminds it to write the PR body's `## Handoff notes` section, and warns any lane (a detached HEAD included) whose net diff changes `docs/HANDOFF.md`. On trunk (`main`, `master`, or what `origin/HEAD` names) or a `docs/handoff-*` branch, catches work piling up against an untouched `docs/HANDOFF.md`. Also catches a `docs/HANDOFF.md` that lacks the `## Start here` block, still opens with an "end of a session" preamble, or has a handoff-named `.md` tracked outside `docs/` (the shape in skill `handoff`). Override: `SKIP_HANDOFF_CHECK=1`. |
+| **context-warning.py** | PostToolUse, UserPromptSubmit | Tells the model when its context passes about 120k tokens, the end of the "smart zone", and again at every 100k past that: finish waiting on running agents, run the handoff pass, start a fresh session. Reads the size from the last assistant message's usage in the transcript. Once per step per session; main thread only. Never blocks. Settings: `[rules] context_warning` and `[context_warning] first`, `step` in `.handrail.toml`. |
 
 Wire them in one place only. Wiring the same hook here and in
 `~/.claude/settings.json` fires it twice and halves its block budget.
@@ -160,9 +161,11 @@ branch-protection decision, and it belongs with the people who own the branch.
 
 ## Config
 
-**Read this first: only `claude-md-guard.py` and `no-ai-attribution.py` consult
-the config today.** The `[rules]` switches and `policy_doc` work for those two.
-The value keys below are parsed and are not yet read by any guard, so
+**Read this first: only `claude-md-guard.py`, `no-ai-attribution.py` and
+`context-warning.py` consult the config today.** The `[rules]` switches and
+`policy_doc` work for the first two, and `context-warning.py` reads its switch
+and its `[context_warning]` values.
+The other value keys below are parsed and are not yet read by any guard, so
 `trivial_lines` and `protected` change nothing until the unit that wires them
 lands. `git-safety-guard.sh` still hardcodes `main` and `master`, and
 `require-code-review.py` still hardcodes 25 lines. The CI half is not wired
@@ -185,6 +188,10 @@ protected = ["main", "trunk"]
 
 [require_review]
 trivial_lines = 10
+
+[context_warning]
+first = 120000                    # tokens; the first warning
+step = 100000                     # then one more per step past it
 ```
 
 A repo config may switch a rule **on**. Only your user config may switch one
