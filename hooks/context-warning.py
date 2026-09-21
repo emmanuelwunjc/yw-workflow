@@ -6,15 +6,19 @@ session approaches it ... /handoff and continue in a fresh thread". A session
 cannot see its own size, so it pushes on degraded. The owner decided on
 2026-09-21: warn at 120k, then once more at every 100k past it (220k, 320k).
 
-Fires on PostToolUse and UserPromptSubmit, main thread only. Both events hand
-`hookSpecificOutput.additionalContext` to the model's next call, per the
-Claude Code hooks docs. Stop was ruled out: its output reaches the debug log,
-never the model, unless it blocks.
+Fires on PostToolBatch and UserPromptSubmit, main thread only. Both hand
+`hookSpecificOutput.additionalContext` to the model: PostToolBatch runs once
+per batch of tool calls, before the next model call, where PostToolUse would
+run once per call and race itself on parallel calls. Stop also accepts
+additionalContext, but it keeps the conversation going, and a size warning is
+no reason to make a finished turn continue. Inside a subagent the input
+carries `agent_id` and the warning would reach the subagent, so it is skipped.
 
 The size is the last main-thread assistant message's `usage` in the
 transcript: input_tokens + cache_read_input_tokens +
-cache_creation_input_tokens. The docs say the transcript may lag by a message,
-which is fine at a 100k granularity.
+cache_creation_input_tokens. Lines that sum to 0 (synthetic ones) are skipped.
+The docs say the transcript may lag the conversation, which is fine at a 100k
+granularity.
 
 Once per step per session, recorded in ~/.claude/state/context-warning/. A
 drop below the recorded step (a /compact) lowers the record, so growing back
@@ -72,13 +76,16 @@ def context_tokens(path):
             entry = json.loads(raw)
             if entry.get("type") != "assistant" or entry.get("isSidechain"):
                 continue
-            usage = entry["message"]["usage"]
+            values = [entry["message"]["usage"].get(k, 0) for k in USAGE_FIELDS]
         except (ValueError, KeyError, TypeError, AttributeError):
             continue
-        values = [usage.get(k, 0) for k in USAGE_FIELDS]
-        if all(isinstance(v, int) and not isinstance(v, bool) for v in values):
+        if not all(isinstance(v, int) and not isinstance(v, bool) for v in values):
+            continue
+        # Claude Code writes synthetic assistant lines (API errors, usage-limit
+        # notices, "No response requested.") with every field 0. Read as a size,
+        # one looks like a /compact and the same step warns twice.
+        if sum(values):
             return sum(values)
-        return None
     return None
 
 
@@ -132,7 +139,7 @@ def main():
             "pass (docs/HANDOFF.md) and start a fresh session."
             % (tokens // 1000, first // 1000))
     print(json.dumps({"hookSpecificOutput": {
-        "hookEventName": data.get("hook_event_name", "PostToolUse"),
+        "hookEventName": data.get("hook_event_name", "PostToolBatch"),
         "additionalContext": text}}))
 
 

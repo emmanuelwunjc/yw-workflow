@@ -51,7 +51,7 @@ class Env:
     def write(self, *lines):
         self.transcript.write_text("\n".join(lines) + "\n")
 
-    def run(self, session="s1", event="PostToolUse", extra=None, raw=None):
+    def run(self, session="s1", event="PostToolBatch", extra=None, raw=None):
         payload = {"session_id": session, "transcript_path": str(self.transcript),
                    "hook_event_name": event, "cwd": str(self.tmp)}
         payload.update(extra or {})
@@ -129,7 +129,7 @@ check("compact: back over 120k warns again", warned(e.at(125_000)), True)
 # --- which usage counts --------------------------------------------------
 e = Env()
 e.write(usage_line(300_000), user_line(), usage_line(50_000))
-check("the LAST assistant usage counts, not the largest", silent(e.run()), True)
+check("the most recent assistant usage is the size", silent(e.run()), True)
 
 e = Env()
 e.write(usage_line(130_000), usage_line(900_000, sidechain=True))
@@ -143,6 +143,45 @@ check("inside a subagent (agent_id present): silent",
       silent(e.run(extra={"agent_id": "a1"})), True)
 check("the subagent call did not use up the step",
       warned(e.run()), True)
+
+# Claude Code writes synthetic assistant lines (API errors, usage-limit notices,
+# "No response requested.") with every usage field 0. Read as a size, one looks
+# like a /compact and the same step warns twice.
+def synthetic_line(model="<synthetic>"):
+    return json.dumps({"type": "assistant", "isSidechain": False, "message": {
+        "model": model, "role": "assistant", "usage": {
+            "input_tokens": 0, "cache_read_input_tokens": 0,
+            "cache_creation_input_tokens": 0, "output_tokens": 0}}})
+
+
+e = Env()
+check("synthetic: 130k warns", warned(e.at(130_000)), True)
+e.write(usage_line(130_000), synthetic_line())
+check("synthetic: a <synthetic> line after it is silent", silent(e.run()), True)
+e.write(usage_line(130_000), synthetic_line(), usage_line(135_000))
+check("synthetic: 135k after it stays silent, same step", silent(e.run()), True)
+e.write(usage_line(135_000), synthetic_line(model="claude-opus-5"))
+check("a zero-sum line from a real model is skipped too", silent(e.run()), True)
+e.write(usage_line(140_000))
+check("after the zero lines, 140k is still the same step", silent(e.run()), True)
+e = Env()
+e.write(usage_line(130_000), synthetic_line())
+r = e.run()
+check("synthetic last: the real line before it is the size",
+      warned(r) and "130k" in context(r[1]), True)
+
+# --- state cleanup -----------------------------------------------------------
+e = Env()
+state_dir = e.home / ".claude" / "state" / "context-warning"
+state_dir.mkdir(parents=True)
+old, fresh = state_dir / "old-session", state_dir / "fresh-session"
+old.write_text("0")
+fresh.write_text("0")
+eight_days = 8 * 24 * 3600
+os.utime(old, (os.path.getmtime(old) - eight_days,) * 2)
+e.at(130_000)
+check("state older than 7 days is removed when state is written", old.exists(), False)
+check("recent state from another session is kept", fresh.exists(), True)
 
 # --- output shape ---------------------------------------------------------
 e = Env()
