@@ -7,6 +7,29 @@ moving tool version does not rot them.
 A decision is superseded, never deleted. Mark it with the date and what
 replaced it.
 
+## 2026-09-21: owner's calls before the build, sources before sentences, fix-only middle rounds
+
+Supports `ship-loop` and `fresh-eye`. The owner read one day of review-loop
+data from one repo (edsim_funder_impact, 2026-09-21): 25 review rounds over 9
+merged PRs, about 2.8 rounds per PR to a clean verdict. Each round cost 80k to
+150k tokens. The extra rounds had four causes:
+
+1. Guards that could not fail.
+2. A fix that made a new defect, most often in copy checked against sources.
+   One PR's blocking counts ran 6, 1, 0, 1, 0.
+3. A call only the owner could make, arriving after the build. Four PRs lost
+   five rounds this way: a logo, a layout band twice, who owes a report, a
+   chart axis.
+4. Guards for work not built yet. One PR.
+
+The owner chose three changes. Ask the owner's calls before building UI or
+copy. Write each claim's source line before its sentence. Run round 1 and the
+final round in full and the rounds between on the fix only, with every round's
+verdict and blocking count on a `Rounds:` line in the PR body. Keeping the
+reviewer's breaks as a script was considered and not chosen.
+
+Recount once PR bodies carry the line: the command in `ship-loop` step 6.
+
 ## 2026-08-27: rebuild venvs per lane, never copy one
 
 Supports `git-lanes`. A copied venv is slower AND broken.

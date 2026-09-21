@@ -3,7 +3,7 @@ name: fresh-eye
 description: Dispatch an independent adversarial reviewer that did not write the code, in an isolated git worktree, to try to break a change rather than agree with it. Use before merging anything non-trivial, when asked for "a fresh eye", "a second opinion", "review this properly", "try to break this", or when you have just finished work and are about to call it done. Also use on the FIX for a previous review, because that is where the next defect usually is.
 origin: authored
 tags: [review, quality, adversarial, worktree, mutation-testing]
-version: 1.1.1
+version: 1.2.0
 ---
 
 # Fresh eye
@@ -29,6 +29,14 @@ Green CI is not a review. CI proves the tests pass. It does not prove the change
 matches what its issue asked for, and it does not catch a bad design decision.
 
 ## How to run it
+
+**Size the round.** Round 1 and the final confirming round get the full
+prompt below, on the strongest model. A round in between gets the fix-only
+prompt: the fix diff, the earlier findings, and the mutations the earlier rounds
+listed. It may run on a smaller model through the Agent tool's `model`
+parameter, e.g. `"sonnet"`. A full round costs 80k to 150k tokens. When a
+fix-only round comes back clean, run one full round at that commit before the
+loop stops.
 
 **Isolate.** Give the reviewer `isolation: "worktree"`. Never point two agents at
 one working directory: file ownership stops two agents editing the same file and
@@ -68,6 +76,12 @@ easy to do accidentally and invisible in a diff.
 
 **Ask what the inputs never reach.** A check that finds nothing may be correct
 and never exercised. Ask which regions of the input space no test renders.
+
+**Diff every claim against its source.** When the change writes a sentence that
+makes a factual claim to a reader (site copy, a report, a README claim), the
+author wrote its source line first: the exact quote, where it lives, its date.
+The reviewer compares sentence to quote. A sentence stronger than its quote, or
+with no source line, is blocking.
 
 **Forbid fixing.** "Do not fix anything. Do not commit." A reviewer that fixes
 things stops reviewing.
@@ -143,7 +157,13 @@ or the fifth fix-and-re-review cycle:
 The decision line is the first thing on the page and is exactly one or two
 words: `PASS`, `BLOCK`, or `REVIEW` (a call only a person can make, e.g. a
 deliberate tradeoff the reviewer can't approve or reject on its own). Never
-bury the verdict in prose the reader has to extract themselves.
+bury the verdict in prose the reader has to extract themselves. A `REVIEW`
+that could have been asked before the build cost a round. `ship-loop` step 3
+asks those calls first.
+
+Add the round to the PR body's `Rounds:` line, verdict and blocking count, e.g.
+`Rounds: BLOCK 3 · BLOCK 1 · PASS`. `ship-loop` step 6 has the command that
+averages it.
 
 The TL;DR sits at a different altitude from the specifics section. It
 describes the user-facing scenario the finding would have caused, leaving the
@@ -181,10 +201,32 @@ function, or line number, it belongs in Agent-facing specifics instead.
        on the base and passes on the branch). Then check out the branch
        detached and run mattpocock-skills:code-review against the base, using
        the ticket or PR body as the spec. Report its Standards and Spec verdicts.
+    8. For every sentence that makes a factual claim to a reader, find its
+       source line (exact quote, where it lives, date). Diff the sentence
+       against the quote. Stronger than the quote, or no source line: BLOCKING.
 
     Report each finding with file:line, BLOCKING or nit, the concrete failure
     scenario (inputs -> wrong output), and how you verified it. Say plainly
     whether this is mergeable. Do not fix anything. Do not commit.
+
+The fix-only round, for any round between the first and the final one:
+
+    You are an independent adversarial reviewer. You did NOT write this fix.
+    Review only the fix, round <n>:
+      git fetch origin && git diff <last reviewed commit>...origin/<branch>
+
+    The earlier rounds found: <findings, one line each>.
+
+    1. Run each finding's reproduction. Show it now passes.
+    2. Re-run every mutation the earlier rounds listed:
+       <list>
+       Report any that now survive, loudly.
+    3. What did the fix break that was fine before? Read the lines around
+       each edit, and re-run check 8 of the full prompt on every sentence the
+       fix touched.
+
+    Report as in the full round, with the blocking count. Do not fix
+    anything. Do not commit.
 
 ## Hands off to
 

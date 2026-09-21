@@ -3,7 +3,7 @@ name: ship-loop
 description: Run work as a closing loop instead of a trailing-off one. Ticket, branch, implement test-first, dispatch an independent review, fix what blocks, file what does not, and repeat until a review round comes back clean. Use when asked to "run the loop", "keep going until it's right", "loop until the feedback is perfect", "babysit this to done", or when handed a backlog of tickets to work through. Also use to decide what happens to review findings.
 origin: authored
 tags: [workflow, review, tdd, subagents, loop, tickets]
-version: 1.0.2
+version: 1.1.0
 ---
 
 # Ship loop
@@ -19,7 +19,7 @@ in a comment that dies at merge. This is the version that closes.
 
     ticket -> branch -> implement (test first) -> independent review
            -> fix what blocks, ticket what does not -> review again
-           -> stop when a round comes back clean
+           -> stop when a full round comes back clean
 
 The loop ends on evidence, not on effort. One clean round after a round that
 found nothing new, not "I am tired of this".
@@ -54,6 +54,25 @@ the whole tree.
 
 ## 3. Implement, test first
 
+**UI or on-screen copy: get the owner's calls before you build.** Some calls
+only the owner can make: a layout choice, wording that makes a claim, which way
+a tradeoff goes. To spot one, ask what label a reviewer would give it. `REVIEW`
+(see `fresh-eye`) means it is the owner's call. Put each one in front of the
+owner as something cheap: a screenshot of a rough build or a mockup, or the list
+of sentences with their sources. Ask through AskUserQuestion, one call at a
+time, with a recommended option marked. Build after the answer. A call that
+arrives after the build costs a full review round. On 2026-09-21 four PRs lost
+five rounds that way (a logo, a layout band twice, who owes a report, a chart
+axis).
+
+**Source first, then sentence.** Any sentence that makes a factual claim to a
+reader (site copy, a report, a README claim) starts as its source line: the
+exact quote, where it lives, and its date. Write the sentence after it, and
+never stronger than the quote. Keep the source line beside the sentence (a
+comment, a sources file, or the PR body), so the review becomes a diff of
+sentence against quote. Copy is where fixes break things: one PR's blocking
+counts ran 6, 1, 0, 1, 0 as fixes to its copy made new defects.
+
 Write the failing probe before the fix, or you will ship something that never
 runs. Then the smallest change that passes, at the root cause: grep every caller
 of the function you touch and fix the shared function once.
@@ -75,6 +94,13 @@ what its ticket asked for.
 Run the review on the FIX for the previous review too. That is where the next
 defect usually is: each fix to a check tends to open a different hole in it.
 
+Size each round to what changed. Round 1 and the final confirming round are
+full adversarial reviews on the strongest model. A round in between reviews
+only the fix diff and re-runs the mutations the earlier rounds listed, and it
+may run on a smaller model (the Agent tool's `model` parameter, e.g.
+`"sonnet"`). A full round costs 80k to 150k tokens. `fresh-eye` has both
+prompts.
+
 ## 5. Triage the findings, and record all of them
 
 Every finding gets exactly one of three outcomes, and all three are written down:
@@ -89,13 +115,28 @@ The third is the one people skip. "Considered and rejected" and "never noticed"
 look identical later, and only one of them is fine. If a reviewer asks for
 something and you measured it and it cost too much, say so with the number.
 
+A finding that asks for a guard on work not built yet goes into that future
+ticket's acceptance criteria. A guard protects only behavior that exists today.
+Written ahead of the code, it has nothing to fail against, and it still costs a
+round.
+
 Then post the verdict where the change lives, including what you did not fix.
 
 ## 6. Loop
 
-Go back to step 4 with the new state. Stop when a review round produces nothing
-new. If a round produces findings, the next round is mandatory: you have just
-changed the code, and the change is unreviewed.
+Go back to step 4 with the new state. If a round produces findings, the next
+round is mandatory: you have just changed the code, and the change is
+unreviewed. When a fix-only round comes back clean, run one full round at that
+commit. Stop when a full round comes back clean.
+
+Record every round in the PR body on one line, verdict and blocking count in
+order, e.g. `Rounds: BLOCK 3 · BLOCK 1 · PASS`. The line makes the next rule
+checkable at a glance: three rounds without the blocking count falling means
+change direction. It also makes the average one command:
+
+    gh pr list --state merged --limit 100 --json body --jq '.[].body' |
+      awk '/^Rounds:/ { n++; r += gsub(/PASS|BLOCK|REVIEW/, "") }
+           END { if (n) printf "%d PRs, %.1f rounds each\n", n, r / n }'
 
 For a backlog, run steps 1 to 5 per ticket and batch the review across a related
 group rather than one review per one-line fix.
@@ -121,8 +162,8 @@ If asked to keep looping without check-ins:
 
 Goal met. Diff reviewed by someone who did not write it. Behaviour verified by
 running something, with the output. No orphaned code your change created. Every
-finding fixed, ticketed, or rejected in writing. A review round that came back
-clean.
+finding fixed, ticketed, or rejected in writing. A full review round that came
+back clean, and a `Rounds:` line in the PR body.
 
 ## Suggested skills
 

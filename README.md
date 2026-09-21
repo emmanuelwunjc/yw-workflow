@@ -55,6 +55,13 @@ grill -> wayfinder -> git-lanes -> ship-loop -> fresh-eye
               +--------> need-me <------+------------+
 ```
 
+`ship-loop` and `fresh-eye` share one review procedure. For UI or on-screen
+copy, the owner's calls are asked before the build, and every factual sentence
+is written after its source line. Round 1 and the final round are full
+reviews. The rounds between them review only the fix, on a smaller model if
+you like. Each PR body carries a `Rounds:` line, so rounds per PR is one
+command.
+
 `harden` runs once per repo, before any of it merges. `mutation-gate` is the
 one skill that ships a script: a repo copies `skills/mutation-gate/mutation_gate.py`
 verbatim and adds a data file, and `fresh-eye` findings are where its entries come from.
