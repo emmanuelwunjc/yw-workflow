@@ -64,9 +64,8 @@ owner as something cheap: a screenshot of a rough build or a mockup, or the
 sentences with their sources. Batch them through AskUserQuestion, up to four per
 call, each with a recommended option (the `need-me` format). Build after the
 answer. In an unattended run, build what the calls do not touch and queue the
-calls for the owner. A call that arrives after the build costs a review round.
-On 2026-09-21 four PRs lost five rounds that way (a logo, a layout band twice,
-who owes a report, a chart axis).
+calls for the owner. A call that arrives after the build costs a review round
+(e.g. a logo, a layout band, who owes a report, a chart axis).
 
 **Source first, then sentence.** Any sentence that makes a factual claim to a
 reader (site copy, a report, a README claim) starts as its source line: the
@@ -74,8 +73,7 @@ exact quote (or, for a number or a behavior claim, the command that measures
 it), where it lives, and its date. Write the sentence after it, and
 never stronger than the quote. Keep the source line beside the sentence (a
 comment, a sources file, or the PR body), so the review becomes a diff of
-sentence against quote. Copy is where fixes break things: one PR's blocking
-counts ran 6, 1, 0, 1, 0 as fixes to its copy made new defects.
+sentence against quote. Copy is where fixes most often make new defects.
 
 Write the failing probe before the fix, or you will ship something that never
 runs. Then the smallest change that passes, at the root cause: grep every caller
@@ -121,9 +119,8 @@ Then post the verdict where the change lives, including what you did not fix.
 
 ## 6. Loop
 
-Go back to step 4 with the new state. If a round produces findings, the next
-round is mandatory: you have just changed the code, and the change is
-unreviewed.
+Go back to step 4 with the new state. If a round changes code, the next round
+is mandatory: you have just changed the code, and the change is unreviewed.
 
 Stop on a clean round. A round is clean when it returns `PASS`. A `REVIEW`
 counts as clean only when the owner's answer needs no code change. If the
@@ -137,7 +134,7 @@ restarts after a change of direction.
 When it fires, say in one line what changed and why, and carry on. Ask the
 owner only if the new direction departs from what a grilling settled. This
 differs from the rule under "Running it unattended": that one is one finding
-surviving two fixes, so the diagnosis is wrong. This one is the total holding
+surviving a fix, so the diagnosis is wrong. This one is the total holding
 steady, so the approach is wrong.
 
 Record every round in the PR body on one line: its verdict, its blocking count,
@@ -180,7 +177,6 @@ If asked to keep looping without check-ins:
 - **Rediagnose** if two consecutive rounds fail on the same finding. That means
   the diagnosis is wrong, and more loops will not fix a wrong diagnosis. Ask the
   owner only if the new diagnosis departs from what a grilling settled.
-- **Queue the owner's calls** from step 3 and build around them.
 - **Never fabricate a pending result.** If a review is still running, say so.
 
 ## Definition of done

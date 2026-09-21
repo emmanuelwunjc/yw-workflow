@@ -157,10 +157,8 @@ asks those calls first.
 A round is clean when it returns `PASS`. A `REVIEW` counts as clean only when
 the owner's answer needs no code change.
 
-The coordinating session adds each round to the PR body's `Rounds:` line:
-verdict, blocking count, and the reviewer's `subagent_tokens`, e.g.
-`Rounds: BLOCK 3 (95k) · PASS (88k)`. `ship-loop` step 6 has the format rule
-and the command that averages it.
+Each round goes on the PR body's `Rounds:` line, in the format `ship-loop`
+step 6 gives.
 
 The TL;DR sits at a different altitude from the specifics section. It
 describes the user-facing scenario the finding would have caused, leaving the
