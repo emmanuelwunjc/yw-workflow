@@ -46,8 +46,8 @@ writes you a separate prompt. Do these in order, then work.
 4. Start the first task it names. Ask the owner nothing that section
    already answers.
 
-Whoever closes a session rewrites the last section so step 2 stays true,
-and leaves this block alone.
+The handoff pass rewrites the last section (`## Next`, or the closing
+section) so step 2 stays true, and leaves this block alone.
 
 Judgment and reasoning only. No counts, no SHAs, no issue tallies: those rot
 within hours. Derive them with `gh issue list` and the scripts in the repo.
@@ -71,8 +71,8 @@ within hours. Derive them with `gh issue list` and the scripts in the repo.
   section is always the final `##` heading in the file, below any
   topic-grouped sections such as traps or decisions, so step 2 of the block
   ("read the LAST section") stays true.
-- **The closing section is the briefing.** Whoever closes a session
-  rewrites the last section so it names, in this order:
+- **The closing section is the briefing.** The handoff pass rewrites
+  `## Next` (or the closing section) so it names, in this order:
   1. The one task to start first.
   2. The tickets to work, in order, e.g. `#186 (the mutation list is data)`.
   3. What waits on the owner, so the next session asks nothing already

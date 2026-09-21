@@ -37,8 +37,8 @@ writes you a separate prompt. Do these in order, then work.
 4. Start the first task it names. Ask the owner nothing that section
    already answers.
 
-Whoever closes a session rewrites the last section so step 2 stays true,
-and leaves this block alone.
+The handoff pass rewrites the last section (`## Next`, or the closing
+section) so step 2 stays true, and leaves this block alone.
 
 Judgment and reasoning only. No counts, no SHAs, no issue tallies: those rot
 within hours. Derive them with `gh issue list` and the scripts in the repo.
@@ -109,12 +109,18 @@ def make_repo(tmp, files, tracked):
 #   ("branch", name)          checkout -B name
 #   ("detach",)               checkout --detach, as a reviewer worktree is
 #   ("origin_head", name)     make refs/remotes/origin/HEAD point at name
+#   ("remote",)               a real bare origin beside the repo
+#   ("git", *args)            any git command
+#   ("shallow", branch)       depth-1 clone of origin at branch; later steps
+#                             and the hook run in the clone
 BASE = ("commit", {"README.md": "x\n"})
 WORK = [("commit", {"a.py": "1\n"}), ("commit", {"b.py": "2\n"})]
 LANE_WORK = [("commit", {"c.py": "3\n"}), ("commit", {"d.py": "4\n"})]
 PASS = ("commit", {"docs/HANDOFF.md": GOOD})
 TOUCH = ("commit", {"docs/HANDOFF.md": GOOD + "\nlane edit\n"})
+OTHER_WORK = [("commit", {"e.py": "5\n"}), ("commit", {"f.py": "6\n"})]
 LANE = ["HANDOFF NOTES", "## Handoff notes"]
+QUIET = ["HANDOFF NOTES", "Lanes do not edit", "HANDOFF STALE"]
 STALE = ["HANDOFF STALE", "handoff pass"]
 
 # (name, first branch, steps, stderr must carry, stderr must not carry)
@@ -133,9 +139,9 @@ BRANCH_CASES = [
      "master", [BASE, *WORK], STALE, ["HANDOFF NOTES"]),
     ("origin/HEAD names the trunk",
      "develop", [BASE, ("origin_head", "develop"), *WORK], STALE, ["HANDOFF NOTES"]),
-    ("main is a lane when origin/HEAD names another trunk",
+    ("main stays trunk when origin/HEAD names another trunk",
      "develop", [BASE, ("origin_head", "develop"), ("branch", "main"), *WORK],
-     LANE, ["HANDOFF STALE"]),
+     STALE, ["HANDOFF NOTES"]),
     ("docs/handoffish is a lane, the prefix carries its dash",
      "main", [BASE, ("branch", "docs/handoffish"), *WORK], LANE, ["HANDOFF STALE"]),
     ("fresh lane does not inherit trunk's handoff pass",
@@ -150,27 +156,81 @@ BRANCH_CASES = [
     ("detached HEAD that edited the handoff is warned",
      "main", [BASE, ("detach",), LANE_WORK[0], TOUCH],
      ["HANDOFF NOTES", "Lanes do not edit"], ["HANDOFF STALE"]),
+    # Round 2: judged by the net diff against the closest trunk ref, with a
+    # real origin so origin/main and main can differ.
+    ("lane that reverted its handoff edit is not told to revert again",
+     "main", [BASE, ("branch", "feat/x"), *WORK, TOUCH,
+              ("git", "revert", "--no-edit", "HEAD")],
+     LANE, ["Lanes do not edit", "HANDOFF STALE"]),
+    ("reviewer detached at a pushed handoff-pass branch is silent",
+     "main", [BASE, ("remote",), ("git", "push", "-q", "origin", "main"),
+              ("branch", "docs/handoff-0921"), PASS,
+              ("git", "push", "-q", "origin", "docs/handoff-0921"),
+              ("git", "checkout", "-q", "main"),
+              ("git", "branch", "-q", "-D", "docs/handoff-0921"),
+              ("git", "checkout", "-q", "--detach", "origin/docs/handoff-0921")],
+     [], QUIET),
+    ("origin/HEAD naming a deleted branch leaves main as trunk",
+     "main", [BASE, ("git", "symbolic-ref", "refs/remotes/origin/HEAD",
+                     "refs/remotes/origin/master"), *WORK],
+     STALE, ["HANDOFF NOTES"]),
+    ("origin/HEAD naming a deleted feature branch leaves that local lane a lane",
+     "main", [BASE, ("git", "symbolic-ref", "refs/remotes/origin/HEAD",
+                     "refs/remotes/origin/feat/x"), ("branch", "feat/x"), *WORK],
+     LANE, ["HANDOFF STALE"]),
+    ("lane cut from local main ahead of origin by a handoff pass is silent",
+     "main", [BASE, ("remote",), ("git", "push", "-q", "origin", "main"), PASS,
+              ("branch", "feat/new")], [], QUIET),
+    ("lane cut from origin/main ahead of local main is silent",
+     "main", [BASE, ("remote",), ("git", "push", "-q", "origin", "main"),
+              ("branch", "up"), PASS, ("git", "push", "-q", "origin", "up:main"),
+              ("git", "checkout", "-q", "main"), ("git", "branch", "-q", "-D", "up"),
+              ("git", "checkout", "-q", "-b", "feat/new", "origin/main")],
+     [], QUIET),
+    ("shallow lane with no merge-base says nothing",
+     "main", [BASE, ("remote",), ("git", "push", "-q", "origin", "main"),
+              ("branch", "feat/x"), LANE_WORK[0],
+              ("git", "push", "-q", "origin", "feat/x"),
+              ("git", "checkout", "-q", "main"), *WORK, PASS,
+              ("git", "push", "-q", "origin", "main"),
+              ("shallow", "feat/x"), *OTHER_WORK],
+     [], QUIET),
 ]
 
 
 def build(tmp, first, steps):
-    git(tmp, "init", "-q", "-b", first)
+    """Replay steps in tmp/w; return the directory the hook should run in."""
+    cwd = os.path.join(tmp, "w")
+    origin = os.path.join(tmp, "origin.git")
+    os.mkdir(cwd)
+    git(cwd, "init", "-q", "-b", first)
     for step in steps:
         if step[0] == "commit":
             for rel, text in step[1].items():
-                f = pathlib.Path(tmp, rel)
+                f = pathlib.Path(cwd, rel)
                 f.parent.mkdir(parents=True, exist_ok=True)
                 f.write_text(text)
-            git(tmp, "add", "-A")
-            git(tmp, "commit", "-q", "-m", "step")
+            git(cwd, "add", "-A")
+            git(cwd, "commit", "-q", "-m", "step")
         elif step[0] == "branch":
-            git(tmp, "checkout", "-q", "-B", step[1])
+            git(cwd, "checkout", "-q", "-B", step[1])
         elif step[0] == "detach":
-            git(tmp, "checkout", "-q", "--detach")
+            git(cwd, "checkout", "-q", "--detach")
         elif step[0] == "origin_head":
-            git(tmp, "update-ref", f"refs/remotes/origin/{step[1]}", "HEAD")
-            git(tmp, "symbolic-ref", "refs/remotes/origin/HEAD",
+            git(cwd, "update-ref", f"refs/remotes/origin/{step[1]}", "HEAD")
+            git(cwd, "symbolic-ref", "refs/remotes/origin/HEAD",
                 f"refs/remotes/origin/{step[1]}")
+        elif step[0] == "remote":
+            git(tmp, "init", "-q", "--bare", "-b", first, origin)
+            git(cwd, "remote", "add", "origin", origin)
+        elif step[0] == "git":
+            git(cwd, *step[1:])
+        elif step[0] == "shallow":
+            clone = os.path.join(tmp, "shallow")
+            git(tmp, "clone", "-q", "--depth", "1", "--no-single-branch",
+                "-b", step[1], "file://" + origin, clone)
+            cwd = clone
+    return cwd
 
 
 def main():
@@ -214,8 +274,7 @@ def main():
     # docs/handoff-* branch (or trunk) is where the log gets written.
     for name, first, steps, want, forbid in BRANCH_CASES:
         with tempfile.TemporaryDirectory() as tmp:
-            build(tmp, first, steps)
-            got = run_hook(tmp)
+            got = run_hook(build(tmp, first, steps))
         missing = [w for w in want if w not in got.stderr]
         present = [f for f in forbid if f in got.stderr]
         if missing or present or got.returncode != 0:

@@ -22,25 +22,28 @@ real work over a doc, and some sessions legitimately commit nothing worth
 handing off (a one-line typo fix, a revert). The warning is addressed to the
 model, which can act on it in the same turn.
 
-Fires on Stop, only when ALL of these hold:
-  - the cwd is a git repo
-  - the session produced commits touching real files (not docs-only)
+Fires on Stop, in a git repo. What it checks depends on the branch.
 
-Trunk is the branch refs/remotes/origin/HEAD names, or main and master when
-the repo has no such ref. A lane is any other branch, and a detached HEAD
-too: reviewer worktrees are detached by design and must not be told to run
-the handoff pass. A lane counts only its own commits, i.e. those since its
-merge-base with trunk, so a lane cut after a handoff pass on trunk does not
-inherit that pass as its own edit.
+Trunk is main, master, and whatever refs/remotes/origin/HEAD names if that
+ref exists. A lane is any other branch, and a detached HEAD too. A lane is
+judged by its net diff from a base, never by its commits one at a time, so
+a lane that reverts a handoff edit is clean again:
+  - named lane: base is the merge-base with the closest trunk ref (origin/
+    or local, whichever is nearer HEAD)
+  - detached HEAD (a reviewer worktree, by design): only commits on no
+    branch and no remote are its own; base is the parent of the oldest
+  - no base (a shallow clone, no trunk ref): the hook says nothing
+There is no time window for lanes.
 
-On a named lane with real work it prints HANDOFF NOTES: put the notes in the
-PR body's "## Handoff notes" section. If the lane's own commits touched the
-handoff it adds that lanes do not edit the file, and says so on any lane,
-detached included, whatever the commit count. It does not look at the PR
-itself, because that needs the network and a Stop hook must work offline.
+A named lane whose diff changes real files gets HANDOFF NOTES: put the notes
+in the PR body's "## Handoff notes" section. Any lane whose diff changes the
+handoff is told lanes do not edit it. A detached HEAD hears only that second
+part. The hook does not look at the PR itself, because that needs the
+network and a Stop hook must work offline.
 
 On trunk or a docs/handoff-* branch it prints HANDOFF STALE, as before, only
-when ALSO:
+when ALL of these hold:
+  - the last 8 hours hold MIN_COMMITS commits touching real files
   - none of those commits touched the handoff
   - the handoff was not modified in the working tree either
 
@@ -130,28 +133,41 @@ def shape_problems(top: str) -> list[str]:
     return problems
 
 
-def trunks() -> tuple[str, ...]:
+def trunks() -> set[str]:
+    """main, master, and origin/HEAD's target if that ref really exists."""
+    names = set(FALLBACK_TRUNKS)
     ref = git("symbolic-ref", "--short", "refs/remotes/origin/HEAD").strip()
-    return (ref.split("/", 1)[1],) if "/" in ref else FALLBACK_TRUNKS
+    if "/" in ref and git("rev-parse", "--verify", "--quiet", ref).strip():
+        names.add(ref.split("/", 1)[1])
+    return names
 
 
-def lane_base(names: tuple[str, ...]) -> str:
-    """Where this lane forked from trunk, or "" when no trunk ref exists."""
-    for name in names:
-        for ref in (f"origin/{name}", name):
-            base = git("merge-base", "HEAD", ref).strip()
-            if base:
-                return base
-    return ""
+def lane_base(branch: str, names: set[str]) -> str:
+    """The commit a lane's own work is diffed from, or "" when none exists."""
+    if not branch:
+        # ponytail: a detached HEAD that merged another unpushed line is
+        # judged from its oldest unpushed commit; fine for reviewer worktrees
+        own = git("rev-list", "--reverse", "--topo-order", "HEAD",
+                  "--not", "--branches", "--remotes").split()
+        start = own[0] + "^" if own else "HEAD"
+        return git("rev-parse", "--verify", "--quiet", start).strip()
+    best, best_n = "", -1
+    for ref in [f"{r}{n}" for n in sorted(names) for r in ("origin/", "")]:
+        base = git("merge-base", "HEAD", ref).strip()
+        if base:
+            n = int(git("rev-list", "--count", f"{base}..HEAD").strip() or 0)
+            if best_n < 0 or n < best_n:
+                best, best_n = base, n
+    return best
 
 
-def lane_notes(real_work: int, touched_handoff: bool) -> None:
+def lane_notes(touched_handoff: bool) -> None:
     edited = (f"Lanes do not edit {HANDOFF}: this branch touched it, and every "
               f"concurrent lane that does hits a merge conflict there. Move "
               f"those lines into the PR body and revert the file.\n\n"
               if touched_handoff else "")
     print(
-        f"HANDOFF NOTES: {real_work} commits of real work on this lane.\n\n"
+        f"HANDOFF NOTES: this lane changes real files.\n\n"
         f"{edited}"
         f"Write what the next session needs in a `{NOTES_HEADING}` section of "
         f"this branch's PR body, now, while you still remember why: decisions "
@@ -179,15 +195,24 @@ def main() -> None:
         print(f"HANDOFF SHAPE: {problem}\n{SHAPE_HELP}\n"
               f"Deliberate skip: SKIP_HANDOFF_CHECK=1\n", file=sys.stderr)
 
-    # Commits made in roughly this session. Wall-clock is the only signal
-    # available here, so it is deliberately generous: a false negative (no
-    # warning) is much cheaper than nagging a session that did nothing.
     branch = git("branch", "--show-current").strip()
     names = trunks()
-    lane = branch not in names and not branch.startswith(HANDOFF_BRANCH_PREFIX)
-    since = ["--since=8.hours", "--pretty=%H", "--no-merges"]
-    base = lane_base(names) if lane else ""
-    log = git("log", *since, f"{base}..HEAD" if base else "HEAD")
+    if branch not in names and not branch.startswith(HANDOFF_BRANCH_PREFIX):
+        base = lane_base(branch, names)
+        if not base:
+            sys.exit(0)
+        files = git("diff", "--name-only", f"{base}..HEAD").split()
+        touched = HANDOFF in files
+        real = any(not f.endswith(DOC_SUFFIXES) for f in files)
+        if touched or (branch and real):
+            lane_notes(touched)
+        sys.exit(0)
+
+    # Trunk or a handoff branch: commits made in roughly this session.
+    # Wall-clock is the only signal available here, so it is deliberately
+    # generous: a false negative (no warning) is much cheaper than nagging a
+    # session that did nothing.
+    log = git("log", "--since=8.hours", "--pretty=%H", "--no-merges")
     shas = [s for s in log.split() if s]
 
     touched_handoff = False
@@ -198,12 +223,6 @@ def main() -> None:
             touched_handoff = True
         if any(not f.endswith(DOC_SUFFIXES) for f in files):
             real_work += 1
-
-    if lane:
-        # a detached HEAD is usually a reviewer: warn only about the handoff
-        if touched_handoff or (branch and real_work >= MIN_COMMITS):
-            lane_notes(real_work, touched_handoff)
-        sys.exit(0)
 
     if touched_handoff or real_work < MIN_COMMITS:
         sys.exit(0)
