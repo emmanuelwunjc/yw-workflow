@@ -35,10 +35,12 @@ model. A round after a fix gets the fix-only prompt: the fix diff, the earlier
 findings, and the mutations the earlier rounds listed. It may run on a smaller
 model through the Agent tool's `model` parameter, e.g. `"sonnet"`. One fix
 whose fix-only round comes back clean ends the loop. After two or more fix
-rounds, a clean fix-only round is followed by one final full round at that
-commit. Two fix-only rounds in a row that are not clean are also followed by a
-full round, and that round counts toward the three-full-round rule. `ship-loop`
-step 6 has the stop rule and walked examples.
+rounds, counted across the PR's whole life and not per finding, a clean
+fix-only round is followed by one final full round at that commit. Two fix-only
+rounds in a row that are not clean are also followed by a full round, and that
+round counts toward the three-full-round rule: change direction when the third
+of three consecutive full rounds has a blocking count no lower than the first.
+`ship-loop` step 6 has the stop rule and walked examples.
 
 **Isolate.** Give the reviewer `isolation: "worktree"`. Never point two agents at
 one working directory: file ownership stops two agents editing the same file and

@@ -138,32 +138,41 @@ owner has answered. When to stop:
 
 - Round 1 is clean: stop.
 - One fix, and its fix-only round is clean: stop.
-- Two or more fix rounds, and the last fix-only round is clean: run one full
-  round at that commit. Stop when it is clean. If it finds something, keep
-  looping.
+- Two or more fix rounds, counted across the PR's whole life and not per
+  finding, and the last fix-only round is clean: run one full round at that
+  commit. Stop when it is clean. If it finds something, keep looping.
 - Two fix-only rounds in a row that are not clean: the next round is full,
   whatever it finds.
 
 Three full rounds whose blocking count does not fall means change direction.
+"Does not fall" means the third of three consecutive full rounds has a blocking
+count no lower than the first of them. So 3, 1, 3 fires and 3, 2, 1 does not.
 Fix-only rounds do not count toward it. Every full round does, including one
 forced by two unclean fix-only rounds. So a run of fix-only rounds that each
 find something new still reaches the rule.
 
-Five walked examples:
+When it fires, say in one line what changed and why, and carry on. Ask the
+owner only if the new direction departs from what a grilling settled. This
+differs from the rule under "Running it unattended": that one is one finding
+surviving two fixes, so the diagnosis is wrong. This one is the total holding
+steady, so the approach is wrong.
+
+Six walked examples:
 
     PASS                                          round 1 clean: stop
     BLOCK 2 · fix PASS                            one fix, clean: stop
     BLOCK 3 · fix BLOCK 1 · fix PASS · PASS       two fixes, then a clean full round: stop
     BLOCK 3 · fix BLOCK 1 · fix PASS · BLOCK 1 · fix PASS · PASS
-                                                  the final full round found one: loop on
+                                                  the final full round found one: loop on.
+                                                  Three fix rounds so far, so the clean
+                                                  fix-only round is followed by a full one
     BLOCK 2 · fix BLOCK 1 · fix BLOCK 1 · BLOCK 1 · ...
                                                   two unclean fix-only rounds: the fourth
                                                   round is full, and it is the second full
-                                                  round toward the three-round rule Say in one line what changed and why, and carry on. Ask the owner
-only if the new direction departs from what a grilling settled. This differs
-from the rule under "Running it unattended": that one is one finding surviving
-two fixes, so the diagnosis is wrong. This one is the total holding steady, so
-the approach is wrong.
+                                                  round toward the three-round rule
+    BLOCK 3 · BLOCK 1 · BLOCK 3                   full rounds only (fix-only rounds between
+                                                  them left out): the third is no lower than
+                                                  the first, so change direction here
 
 Record every round in the PR body on one line. Write the line when the PR opens
 (`Rounds:` with nothing after it), and add each round as it lands. Format: the
