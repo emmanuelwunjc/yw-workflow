@@ -122,6 +122,15 @@ OTHER_WORK = [("commit", {"e.py": "5\n"}), ("commit", {"f.py": "6\n"})]
 LANE = ["HANDOFF NOTES", "## Handoff notes"]
 QUIET = ["HANDOFF NOTES", "Lanes do not edit", "HANDOFF STALE"]
 NOTES_ASK = "section of this branch's PR body"
+# Round 4: two passes land on origin/main while the local trunk stays stale.
+H1 = GOOD + "\n## pass 1\n"
+H2 = H1 + "\n## pass 2\n"
+TRUNK_BASE = ("commit", {"docs/HANDOFF.md": GOOD, "r.py": "0\n"})
+TWO_PASSES = [("git", "checkout", "-q", "-b", "up", "origin/main"),
+              ("commit", {"docs/HANDOFF.md": H1, "p1.py": "1\n"}),
+              ("commit", {"docs/HANDOFF.md": H2, "p2.py": "2\n"}),
+              ("git", "push", "-q", "origin", "up:main")]
+REVERT_ADVICE = "git checkout $(git merge-base HEAD origin/main) -- docs/HANDOFF.md"
 # a handoff pass lands on origin/main from elsewhere; cwd ends on branch up
 UPSTREAM_PASS = [("git", "checkout", "-q", "-b", "up", "origin/main"), PASS,
                  ("git", "push", "-q", "origin", "up:main")]
@@ -159,7 +168,7 @@ BRANCH_CASES = [
      ["HANDOFF STALE", "handoff pass", "HANDOFF NOTES"]),
     ("detached HEAD that edited the handoff hears only the edit warning",
      "main", [BASE, ("detach",), LANE_WORK[0], TOUCH],
-     ["HANDOFF NOTES", "Lanes do not edit"],
+     ["HANDOFF NOTES", "Lanes do not edit", "these commits touched it"],
      ["HANDOFF STALE", "changes real files", NOTES_ASK]),
     ("lane whose only change is the handoff hears only the edit warning",
      "main", [BASE, ("branch", "feat/doc"), TOUCH],
@@ -219,6 +228,30 @@ BRANCH_CASES = [
                 *UPSTREAM_PASS, ("git", "checkout", "-q", "feat/x"),
                 ("git", "merge", "-q", "--no-edit", "origin/main")],
      LANE, ["Lanes do not edit", "HANDOFF STALE"]),
+    # Round 4: a stale trunk ref must not count as a match. Its merge-base is
+    # an ancestor of origin/main's, so matching it deletes origin's passes.
+    ("lane reverted to a stale local main's handoff is still warned",
+     "main", [TRUNK_BASE, ("remote",), ("git", "push", "-q", "origin", "main"),
+              *TWO_PASSES, ("git", "checkout", "-q", "main"),
+              ("git", "checkout", "-q", "-b", "feat/x", "origin/main"),
+              ("commit", {"x.py": "x\n", "docs/HANDOFF.md": H2 + "my notes\n"}),
+              ("git", "checkout", "main", "--", "docs/HANDOFF.md"),
+              ("git", "commit", "-q", "-m", "revert as told")],
+     ["Lanes do not edit", REVERT_ADVICE], ["HANDOFF STALE"]),
+    ("lane off an in-sync origin/main with real work gets the notes",
+     "main", [BASE, ("remote",), ("git", "push", "-q", "origin", "main"),
+              ("branch", "feat/x"), *WORK], LANE, ["Lanes do not edit"]),
+    ("lane with no work of its own, off a diverged local main, is silent",
+     "main", [BASE, ("remote",), ("git", "push", "-q", "origin", "main"),
+              ("commit", {"local1.py": "1\n"}), ("commit", {"local2.py": "2\n"}),
+              ("branch", "feat/x"), *UPSTREAM_PASS, ("git", "checkout", "-q", "feat/x"),
+              ("git", "merge", "-q", "--no-edit", "origin/main")], [], QUIET),
+    ("lane trimmed to a stale local master's handoff is still warned",
+     "master", [TRUNK_BASE, ("remote",), ("git", "push", "-q", "origin", "master:main"),
+                *TWO_PASSES, ("git", "checkout", "-q", "master"),
+                ("git", "checkout", "-q", "-b", "feat/x", "origin/main"),
+                ("commit", {"x.py": "x\n", "docs/HANDOFF.md": GOOD})],
+     ["Lanes do not edit"], ["HANDOFF STALE"]),
 ]
 
 

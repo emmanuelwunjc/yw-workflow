@@ -39,7 +39,10 @@ A named lane whose diff changes real files gets HANDOFF NOTES: put the notes
 in the PR body's "## Handoff notes" section. A lane has edited the handoff
 only when its copy differs from the copy in every trunk ref (a detached HEAD:
 from its base), because the closest base can be a local trunk that diverged
-from origin. Such a lane is told lanes do not edit it. A detached HEAD, or a
+from origin. A stale trunk ref, one whose merge-base with HEAD is an ancestor
+of another's, is left out, since matching it would delete the newer passes.
+Such a lane is told lanes do not edit it, with the exact command that
+restores the file from where the work left trunk. A detached HEAD, or a
 lane that changes nothing but docs, hears only that warning. The hook does not look at the PR itself, because that needs the
 network and a Stop hook must work offline.
 
@@ -101,6 +104,14 @@ def git(*args: str) -> str:
         return ""
 
 
+def is_ancestor(a: str, b: str) -> bool:
+    try:
+        return subprocess.run(["git", "merge-base", "--is-ancestor", a, b],
+                              capture_output=True, timeout=15).returncode == 0
+    except Exception:
+        return False
+
+
 def shape_problems(top: str) -> list[str]:
     """Each string is one warning; empty means the handoff has the right shape."""
     problems = []
@@ -146,7 +157,7 @@ def trunks() -> set[str]:
 
 def lane_base(branch: str, names: set[str]) -> tuple[str, list[str]]:
     """The commit a lane's work is diffed from ("" when none exists), and the
-    refs its handoff is compared with."""
+    refs its handoff is compared with, closest first."""
     if not branch:
         # ponytail: a detached HEAD that merged another unpushed line is
         # judged from its oldest unpushed commit; fine for reviewer worktrees
@@ -155,21 +166,28 @@ def lane_base(branch: str, names: set[str]) -> tuple[str, list[str]]:
         start = own[0] + "^" if own else "HEAD"
         base = git("rev-parse", "--verify", "--quiet", start).strip()
         return base, [base] if base else []
-    best, best_n, refs = "", -1, []
+    found = []
     for ref in [f"{r}{n}" for n in sorted(names) for r in ("origin/", "")]:
         base = git("merge-base", "HEAD", ref).strip()
         if base:
-            refs.append(ref)
             n = int(git("rev-list", "--count", f"{base}..HEAD").strip() or 0)
-            if best_n < 0 or n < best_n:
-                best, best_n = base, n
-    return best, refs
+            found.append((n, ref, base))
+    # A trunk ref whose merge-base is a strict ancestor of another's is stale
+    # (e.g. a local main never pulled). Matching its handoff would delete the
+    # passes the newer ref carries, so it drops out. The closest survives.
+    keep = sorted((f for f in found if not any(
+        o[2] != f[2] and is_ancestor(f[2], o[2]) for o in found)),
+        key=lambda f: f[0])
+    return (keep[0][2] if keep else ""), [ref for _, ref, _ in keep]
 
 
-def lane_notes(touched_handoff: bool, real: bool) -> None:
-    edited = (f"Lanes do not edit {HANDOFF}: this branch touched it, and every "
+def lane_notes(touched_handoff: bool, real: bool, ref: str, detached: bool) -> None:
+    who = "these commits" if detached else "this branch"
+    edited = (f"Lanes do not edit {HANDOFF}: {who} touched it, and every "
               f"concurrent lane that does hits a merge conflict there. Move "
-              f"those lines into the PR body and revert the file.\n\n"
+              f"those lines into the PR body and restore the file from where "
+              f"this work left trunk:\n"
+              f"  git checkout $(git merge-base HEAD {ref}) -- {HANDOFF}\n\n"
               if touched_handoff else "")
     if not real:
         print(f"HANDOFF NOTES: {edited}Deliberate skip: SKIP_HANDOFF_CHECK=1\n",
@@ -219,7 +237,7 @@ def main() -> None:
             git("diff", "--name-only", ref, "HEAD", "--", HANDOFF).strip()
             for ref in refs)
         if touched or real:
-            lane_notes(touched, real)
+            lane_notes(touched, real, refs[0], not branch)
         sys.exit(0)
 
     # Trunk or a handoff branch: commits made in roughly this session.
