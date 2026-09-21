@@ -3,7 +3,7 @@ name: harden
 description: Set up CI, pre-commit hooks, a PR template, and GitHub branch protection for a repo, so its review gate holds where the work runs rather than only on one laptop. Use when the user asks to "set up CI", "add branch protection", "bootstrap this repo", "add git hygiene", "harden this repo's git workflow", or when starting real work in a repo that has none of this yet.
 origin: authored
 tags: [git, ci, github-actions, pre-commit, branch-protection, bootstrap]
-version: 1.0.1
+version: 1.0.2
 ---
 
 # Harden
@@ -149,6 +149,9 @@ Put it at `.pre-commit-config.yaml`.
    (`.github/pull_request_template.md`, a short checklist of what CI already
    checks. Don't reference tooling that isn't tracked/public if the repo
    deliberately keeps some directories private, e.g. via `.gitignore`).
+   Give it a `## Handoff notes` section too, the one `/yw-workflow:handoff`
+   carries, so each lane's notes reach the handoff pass without the lane
+   editing `docs/HANDOFF.md`.
 
 ## Step 5: Branch protection
 

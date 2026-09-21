@@ -3,7 +3,7 @@ name: git-lanes
 description: Run concurrent agents in isolated git worktrees without them colliding. Use before starting multi-file work in a repo where another agent may be active, when asked to "run these in parallel", "spin up lanes", "use worktrees", when dispatching a reviewer, or when about to git checkout/pull/stash in a repo you did not just create. Also covers where built deliverables live and how lanes merge back to trunk.
 origin: authored
 tags: [git, worktree, concurrency, multi-agent, merge]
-version: 1.1.0
+version: 1.2.0
 ---
 
 # Git lanes
@@ -84,6 +84,15 @@ are still shared and need their own coordination.
 A squash-merge leaves the source branch unmarked as merged, so `git branch
 --merged` will not list it. Do not read that as "never merged".
 
+## A lane never edits `docs/HANDOFF.md`
+
+Every lane that appended to the handoff log hit a merge conflict in it, so the
+owner moved the notes on 2026-09-21. A lane writes what the next session needs
+in a `## Handoff notes` section of its PR body. After the merges, one handoff
+pass on a `docs/handoff-*` branch copies those notes into the log. The session
+that merges the PRs runs that pass before it stops. The steps and the command
+that collects the notes are in `/yw-workflow:handoff`.
+
 ## A lane must not hold its own copy of gitignored input data
 
 Untracked data (an export, a proposal file, a source spreadsheet) exists once
@@ -129,8 +138,9 @@ Either way they are generated: fix the input, never the output, and say so in
 the folder's own README.
 
 When the path changes, every documented build command changes with it, in
-`CLAUDE.md`, `README` and `docs/HANDOFF.md`, or the docs send the next person to
-a file that is no longer there.
+`CLAUDE.md` and `README`, and in the PR's `## Handoff notes` for the handoff
+pass to carry into `docs/HANDOFF.md`, or the docs send the next person to a file
+that is no longer there.
 
 A loose preview copy at the repo root gets swept into an unrelated lane's
 `git add -A`. That has happened. Write previews to the scratchpad.

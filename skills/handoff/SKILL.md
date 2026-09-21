@@ -1,9 +1,9 @@
 ---
 name: handoff
-description: Keep a repo's docs/HANDOFF.md in the one shape that lets a fresh session start from the file alone, with a Start here block on top and dated sections appended as work happens. Use when asked for "a handoff", "/handoff", "write the handoff", "update the handoff", at the close of a session, or when the handoff-freshness hook warns HANDOFF STALE or HANDOFF SHAPE.
+description: Keep a repo's docs/HANDOFF.md in the one shape that lets a fresh session start from the file alone, with a Start here block on top and dated sections added by a handoff pass after merges, from the Handoff notes each lane PR carries. Use when asked for "a handoff", "/handoff", "write the handoff", "update the handoff", at the close of a session, or when the handoff-freshness hook warns HANDOFF STALE or HANDOFF SHAPE.
 origin: authored
 tags: [handoff, docs, session, continuity]
-version: 1.0.0
+version: 1.1.0
 ---
 
 # Handoff
@@ -58,16 +58,21 @@ within hours. Derive them with `gh issue list` and the scripts in the repo.
 - **One file, `docs/HANDOFF.md`, committed.** Never `/tmp`, never a
   scratchpad, never a second file named `HANDOFF.md` or `AGENT_HANDOFF.md`
   somewhere else. Two handoffs means the next session reads the wrong one.
-- **Append as you go.** Every merged PR, decision, defect and trap that cost
-  time gets a few lines when it happens. A handoff written at close comes
-  from a compacted memory, and the reasoning drops out first.
+- **Write it down as you go, in the PR body.** Every decision, defect and
+  trap that cost time gets a few lines when it happens. A handoff written at
+  close comes from a compacted memory, and the reasoning drops out first.
+- **Lanes do not edit `docs/HANDOFF.md`.** A lane (any branch that is not a
+  handoff branch) writes its notes in a `## Handoff notes` section of its PR
+  body. The owner decided this on 2026-09-21: when every concurrent lane
+  appended to the log, every lane hit a merge conflict in it. A repo can
+  enforce it in CI by failing any other branch that touches the file.
 - **Dated sections, `## YYYY-MM-DD: what happened`, newest last.** The
   reader scrolls to the end and finds the present. The dated closing
   section is always the final `##` heading in the file, below any
   topic-grouped sections such as traps or decisions, so step 2 of the block
   ("read the LAST section") stays true.
-- **The closing section is the briefing.** Whoever closes a session
-  rewrites the last section so it names, in this order:
+- **The closing section is the briefing.** The handoff pass rewrites
+  `## Next` (or the closing section) so it names, in this order:
   1. The one task to start first.
   2. The tickets to work, in order, e.g. `#186 (the mutation list is data)`.
   3. What waits on the owner, so the next session asks nothing already
@@ -85,19 +90,53 @@ within hours. Derive them with `gh issue list` and the scripts in the repo.
   what replaced it. When the decisions outgrow the handoff, split them to
   `docs/DECISIONS.md` and leave a pointer.
 
+## The handoff pass
+
+After PRs merge, one pass on a `docs/handoff-*` branch folds their notes into
+the log. The session that merges the PRs runs it before it stops, so the pass
+is the "whoever closes a session" that the Start here block names. A lane
+session never closes one this way.
+
+1. Branch `docs/handoff-<date>` from trunk.
+2. Print the notes of every PR merged since the last pass. Change the date
+   to the day of that pass. The heading must start its own line, so a body
+   that mentions the section in prose still yields the section itself:
+
+   ```sh
+   gh pr list --state merged --limit 200 --search "merged:>=2026-09-21" --json number,title,body --jq '.[] | "### #\(.number) \(.title)\n" + ((.body | capture("(^|\\n)## Handoff notes[ \\t]*\\r?\\n(?<n>[\\s\\S]*?)(\\n## |$)") | .n) // "(no handoff notes)") + "\n"'
+   ```
+
+3. Fold each into the log under its own dated heading, keeping
+   the `## Next` section (or the closing section, in repos whose handoff uses one) last.
+4. Rewrite the `## Next` section (or the closing section, in repos whose handoff uses one) if the first task changed.
+5. Open the PR. It goes through review like any other.
+
+A PR with no notes prints `(no handoff notes)`. That is a finding about the
+PR, so ask its author before guessing.
+
+To make lanes carry the section, add it to `.github/pull_request_template.md`:
+
+```
+## Handoff notes
+What the next session needs: decisions and why, traps that cost time, what was deliberately not done. The handoff pass copies this into `docs/HANDOFF.md` after merge. Lanes do not edit that file.
+```
+
 ## When the hook warns
 
-`hooks/handoff-freshness.py` runs on every Stop and prints one of two
-warnings. Both are addressed to the model and fix in the same turn.
+`hooks/handoff-freshness.py` runs on every Stop and prints one of three
+warnings. All are addressed to the model and fix in the same turn.
 
-- `HANDOFF STALE`: the session committed real work and nothing touched the
-  handoff. Append a dated section now.
+- `HANDOFF NOTES`: a lane committed real work. Write its `## Handoff notes`
+  in the PR body. If the lane touched `docs/HANDOFF.md`, move those lines to
+  the PR body and revert the file.
+- `HANDOFF STALE`: on trunk or a `docs/handoff-*` branch, the session
+  committed real work and nothing touched the handoff. Run the handoff pass.
 - `HANDOFF SHAPE`: the file has no `## Start here` line, its first 40 lines
   still say "end of a session" (the old preamble, which told the reader the
   file was written at close), or a handoff-named `.md` is tracked outside
   `docs/`. Paste the block, delete the preamble, fold the stray file in.
 
-`SKIP_HANDOFF_CHECK=1` silences both, visibly, for a session that has a
+`SKIP_HANDOFF_CHECK=1` silences all three, visibly, for a session that has a
 reason.
 
 ## Migrating an existing handoff

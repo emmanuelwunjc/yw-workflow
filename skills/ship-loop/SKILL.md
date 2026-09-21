@@ -3,7 +3,7 @@ name: ship-loop
 description: Run work as a closing loop instead of a trailing-off one. Ticket, branch, implement test-first, dispatch an independent review, fix what blocks, file what does not, and repeat until a review round comes back clean. Use when asked to "run the loop", "keep going until it's right", "loop until the feedback is perfect", "babysit this to done", or when handed a backlog of tickets to work through. Also use to decide what happens to review findings.
 origin: authored
 tags: [workflow, review, tdd, subagents, loop, tickets]
-version: 1.0.1
+version: 1.0.2
 ---
 
 # Ship loop
@@ -99,6 +99,11 @@ changed the code, and the change is unreviewed.
 
 For a backlog, run steps 1 to 5 per ticket and batch the review across a related
 group rather than one review per one-line fix.
+
+Each lane writes what the next session needs in a `## Handoff notes` section
+of its PR body, and never edits `docs/HANDOFF.md`. The session that merges the
+PRs runs the handoff pass before it stops: one `docs/handoff-*` branch that
+copies those notes into the log. `/yw-workflow:handoff` has the steps.
 
 ## Running it unattended
 

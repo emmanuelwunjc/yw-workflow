@@ -3,7 +3,7 @@ name: need-me
 description: Show only what is actually waiting on the human, delivered as clickable questions they answer in seconds. Use when the user asks "what needs me", "am I blocking anything", "/need-me", "what's waiting on me", at any natural pause where they may walk away, and before a handoff so the next session does not inherit a hidden queue of unanswered questions.
 origin: authored
 tags: [attention, escalation, handoff, decisions]
-version: 1.0.1
+version: 1.0.2
 ---
 
 # Need me
@@ -137,8 +137,9 @@ options:
 
 - Every answer is in: `/yw-workflow:ship-loop` resumes, or `/yw-workflow:wayfinder` records the decision
   on the map and closes the ticket.
-- A decision here supersedes one already recorded: update `docs/HANDOFF.md` with
-  the date and what replaced it, in the shape `/yw-workflow:handoff` carries.
+- A decision here supersedes one already recorded: record the date and what
+  replaced it, in the PR's `## Handoff notes` on a lane, or in `docs/HANDOFF.md`
+  on a handoff pass. `/yw-workflow:handoff` carries both.
 - The session is closing: `/yw-workflow:handoff` writes what the next one
   starts from, and this skill runs first so it inherits no hidden queue.
 - The answer opens more questions than it settles: `/yw-workflow:grill`.
