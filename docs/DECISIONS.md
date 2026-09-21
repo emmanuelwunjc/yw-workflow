@@ -14,10 +14,10 @@ data from edsim_funder_impact. Extra review rounds had four causes:
 
 1. Guards that could not fail.
 2. A fix that made a new defect, for example in copy checked against sources
-   (#92).
-3. A call only the owner could make, arriving after the build (#89, #71, #92,
-   #100).
-4. Guards for work not built yet (#98).
+   (edsim_funder_impact #92).
+3. A call only the owner could make, arriving after the build
+   (edsim_funder_impact #89, #71, #92, #100).
+4. Guards for work not built yet (edsim_funder_impact #98).
 
 The day's counts came from the coordinating session's notes and cannot be
 recounted from GitHub, so they are left out here.
@@ -28,11 +28,9 @@ on a `Rounds:` line in the PR body. Keeping the reviewer's breaks as a script
 was considered and not chosen.
 
 A cheaper design came first and was dropped the same day: fix-only review
-rounds, an optional smaller model, and a forced final full round. Per the
-coordinating session's notes, a trial fix-only round used about as many tokens
-as a full one. A forced final round
-would add a round to most PRs. And the rule's own wording took several review
-rounds to get right. The loop now stops on a clean round.
+rounds, an optional smaller model, and a forced final full round. A forced
+final round would add a round to every PR that needed a fix. And the rule's own
+wording took several review rounds to get right. The loop now stops on a clean round.
 
 Measurement starts now. Each round's verdict, blocking count and tokens go on
 the `Rounds:` line, and `ship-loop` step 6 has the command that averages them.

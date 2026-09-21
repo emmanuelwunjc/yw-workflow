@@ -127,7 +127,7 @@ Stop on a clean round. A round is clean when it returns `PASS`. A `REVIEW`
 counts as clean only when the owner's answer needs no code change. If the
 answer changes code, that change gets another round. A clean round ends the
 loop only when nothing changes after it. Nits fixed in code after a `PASS` get
-one more round; otherwise they go to a ticket.
+one more round; otherwise they are ticketed or rejected in writing (step 5).
 
 Three rounds whose blocking count does not fall means change direction. "Does
 not fall" means the third of three consecutive rounds has a blocking count no

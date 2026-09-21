@@ -198,7 +198,8 @@ function, or line number, it belongs in Agent-facing specifics instead.
        the ticket or PR body as the spec. Report its Standards and Spec verdicts.
     8. For every sentence that makes a factual claim to a reader, find its
        source line (exact quote or the command that measures it, where it
-       lives, date). Diff the sentence against the quote. Stronger than the quote, or no source line: BLOCKING.
+       lives, date). Diff the sentence against the quote. Stronger than the
+       quote, or no source line: BLOCKING.
     9. Does this match house style (the repo's CLAUDE.md, README, or style
        guide)? Is the premise sound? Should this exist at all?
 
