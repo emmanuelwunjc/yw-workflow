@@ -10,9 +10,12 @@ replaced it.
 ## 2026-09-21: owner's calls before the build, sources before sentences, fix-only middle rounds
 
 Supports `ship-loop` and `fresh-eye`. The owner read one day of review-loop
-data from one repo (edsim_funder_impact, 2026-09-21): 25 review rounds over 9
-merged PRs, about 2.8 rounds per PR to a clean verdict. Each round cost 80k to
-150k tokens. The extra rounds had four causes:
+data from one repo (edsim_funder_impact): 25 review rounds over 9 PRs on
+09/21/2026 (7 merged: #74, #76, #89, #92, #94, #95, #98; #71 and #100 still
+open, and #71 began on 09/18/2026). That is about 2.8 rounds per PR. The
+coordinating session put each round at 80k to 150k tokens, read from the
+subagent usage reports of that session's review agents. The extra rounds had
+four causes:
 
 1. Guards that could not fail.
 2. A fix that made a new defect, most often in copy checked against sources.
@@ -23,10 +26,19 @@ merged PRs, about 2.8 rounds per PR to a clean verdict. Each round cost 80k to
 4. Guards for work not built yet. One PR.
 
 The owner chose three changes. Ask the owner's calls before building UI or
-copy. Write each claim's source line before its sentence. Run round 1 and the
-final round in full and the rounds between on the fix only, with every round's
-verdict and blocking count on a `Rounds:` line in the PR body. Keeping the
-reviewer's breaks as a script was considered and not chosen.
+copy. Write each claim's source line before its sentence. Review the fix only
+in the rounds after round 1, with every round's verdict and blocking count on a
+`Rounds:` line in the PR body. Keeping the reviewer's breaks as a script was
+considered and not chosen.
+
+The owner then decided (09/21/2026) that the final full round runs only after
+two or more fix rounds. One fix whose fix-only round comes back clean ends the
+loop.
+
+Correction, same day: the first version of this entry said 25 rounds over 9
+merged PRs, and gave the token figure with no source. Both came from the
+coordinating session's summary, and that summary was wrong about the merges.
+The counts above replace it.
 
 Recount once PR bodies carry the line: the command in `ship-loop` step 6.
 

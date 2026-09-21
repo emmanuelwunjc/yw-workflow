@@ -30,13 +30,13 @@ matches what its issue asked for, and it does not catch a bad design decision.
 
 ## How to run it
 
-**Size the round.** Round 1 and the final confirming round get the full
-prompt below, on the strongest model. A round in between gets the fix-only
-prompt: the fix diff, the earlier findings, and the mutations the earlier rounds
-listed. It may run on a smaller model through the Agent tool's `model`
-parameter, e.g. `"sonnet"`. A full round costs 80k to 150k tokens. When a
-fix-only round comes back clean, run one full round at that commit before the
-loop stops.
+**Size the round.** Round 1 gets the full prompt below, on the strongest
+model. A round after a fix gets the fix-only prompt: the fix diff, the earlier
+findings, and the mutations the earlier rounds listed. It may run on a smaller
+model through the Agent tool's `model` parameter, e.g. `"sonnet"`. One fix
+whose fix-only round comes back clean ends the loop. After two or more fix
+rounds, a clean fix-only round is followed by one final full round at that
+commit. `ship-loop` step 6 has the stop rule.
 
 **Isolate.** Give the reviewer `isolation: "worktree"`. Never point two agents at
 one working directory: file ownership stops two agents editing the same file and
@@ -53,7 +53,7 @@ write this, do not take the author's word for anything, find what is wrong.
 
 **Give it the project's known disease.** Every codebase has a recurring failure
 mode. Name it and say "assume it is present until you prove otherwise". Examples
-that have paid off: checks that grep for a string instead of measuring behaviour;
+that have paid off: checks that grep for a string instead of measuring behavior;
 scripted edits whose anchor silently matched nothing; features that shipped
 without ever rendering.
 
@@ -79,7 +79,8 @@ and never exercised. Ask which regions of the input space no test renders.
 
 **Diff every claim against its source.** When the change writes a sentence that
 makes a factual claim to a reader (site copy, a report, a README claim), the
-author wrote its source line first: the exact quote, where it lives, its date.
+author wrote its source line first: the exact quote (or the command that
+measures a number or a behavior), where it lives, its date.
 The reviewer compares sentence to quote. A sentence stronger than its quote, or
 with no source line, is blocking.
 
@@ -161,9 +162,13 @@ bury the verdict in prose the reader has to extract themselves. A `REVIEW`
 that could have been asked before the build cost a round. `ship-loop` step 3
 asks those calls first.
 
-Add the round to the PR body's `Rounds:` line, verdict and blocking count, e.g.
-`Rounds: BLOCK 3 · BLOCK 1 · PASS`. `ship-loop` step 6 has the command that
-averages it.
+A round is clean when it returns `PASS`, or `REVIEW` with 0 blocking once the
+owner has answered.
+
+Add the round to the PR body's `Rounds:` line: verdict and blocking count,
+separated by ` · `, with `fix` in front of a fix-only round, e.g.
+`Rounds: BLOCK 3 · fix BLOCK 1 · fix PASS · PASS`. `ship-loop` step 6 has the
+format rule and the command that averages it.
 
 The TL;DR sits at a different altitude from the specifics section. It
 describes the user-facing scenario the finding would have caused, leaving the
@@ -204,6 +209,8 @@ function, or line number, it belongs in Agent-facing specifics instead.
     8. For every sentence that makes a factual claim to a reader, find its
        source line (exact quote, where it lives, date). Diff the sentence
        against the quote. Stronger than the quote, or no source line: BLOCKING.
+    9. Does this match house style (the repo's CLAUDE.md, README, or style
+       guide)? Is the premise sound? Should this exist at all?
 
     Report each finding with file:line, BLOCKING or nit, the concrete failure
     scenario (inputs -> wrong output), and how you verified it. Say plainly
@@ -213,7 +220,7 @@ The fix-only round, for any round between the first and the final one:
 
     You are an independent adversarial reviewer. You did NOT write this fix.
     Review only the fix, round <n>:
-      git fetch origin && git diff <last reviewed commit>...origin/<branch>
+      git fetch origin && git diff <last reviewed commit> origin/<branch>
 
     The earlier rounds found: <findings, one line each>.
 
@@ -224,9 +231,17 @@ The fix-only round, for any round between the first and the final one:
     3. What did the fix break that was fine before? Read the lines around
        each edit, and re-run check 8 of the full prompt on every sentence the
        fix touched.
+    4. Does the fix match house style? Is its premise sound? Should it exist
+       at all?
 
     Report as in the full round, with the blocking count. Do not fix
     anything. Do not commit.
+
+After a force-push the last reviewed commit is no longer on the branch, so a
+plain diff mixes the rebase into the fix. Keep that commit's hash before you
+push, and give the reviewer
+`git range-diff <last reviewed commit>...origin/<branch>` in place of the diff.
+If the rebase pulled in real changes from trunk, run a full round.
 
 ## Hands off to
 

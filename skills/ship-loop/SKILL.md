@@ -54,20 +54,25 @@ the whole tree.
 
 ## 3. Implement, test first
 
-**UI or on-screen copy: get the owner's calls before you build.** Some calls
-only the owner can make: a layout choice, wording that makes a claim, which way
-a tradeoff goes. To spot one, ask what label a reviewer would give it. `REVIEW`
-(see `fresh-eye`) means it is the owner's call. Put each one in front of the
-owner as something cheap: a screenshot of a rough build or a mockup, or the list
-of sentences with their sources. Ask through AskUserQuestion, one call at a
-time, with a recommended option marked. Build after the answer. A call that
-arrives after the build costs a full review round. On 2026-09-21 four PRs lost
-five rounds that way (a logo, a layout band twice, who owes a report, a chart
-axis).
+**UI or on-screen copy: get the owner's calls before you build.** An owner's
+call is one of three things: a claim the sources do not settle, a design or
+layout choice, or a tradeoff. A reviewer would label it `REVIEW` (see
+`fresh-eye`). A sentence with a source, no stronger than its quote, needs no
+call, because the next rule covers it. Skip a call that has a conventional
+default, one the brand or house style already settles, and one already made
+(in the repo's plan, a grilling, or `docs/HANDOFF.md`). Show the rest to the
+owner as something cheap: a screenshot of a rough build or a mockup, or the
+sentences with their sources. Batch them through AskUserQuestion, up to four per
+call, each with a recommended option (the `need-me` format). Build after the
+answer. In an unattended run, build what the calls do not touch and queue the
+calls for the owner. A call that arrives after the build costs a review round.
+On 2026-09-21 four PRs lost five rounds that way (a logo, a layout band twice,
+who owes a report, a chart axis).
 
 **Source first, then sentence.** Any sentence that makes a factual claim to a
 reader (site copy, a report, a README claim) starts as its source line: the
-exact quote, where it lives, and its date. Write the sentence after it, and
+exact quote (or, for a number or a behavior claim, the command that measures
+it), where it lives, and its date. Write the sentence after it, and
 never stronger than the quote. Keep the source line beside the sentence (a
 comment, a sources file, or the PR body), so the review becomes a diff of
 sentence against quote. Copy is where fixes break things: one PR's blocking
@@ -83,7 +88,7 @@ fix that did not happen:
 - **A scripted edit whose anchor matched nothing is a silent no-op.** Assert the
   anchor before every scripted replace.
 - **A check that greps for a string proves the code exists, not that it works.**
-  Measure behaviour.
+  Measure behavior.
 
 ## 4. Review (not by you)
 
@@ -94,12 +99,12 @@ what its ticket asked for.
 Run the review on the FIX for the previous review too. That is where the next
 defect usually is: each fix to a check tends to open a different hole in it.
 
-Size each round to what changed. Round 1 and the final confirming round are
-full adversarial reviews on the strongest model. A round in between reviews
-only the fix diff and re-runs the mutations the earlier rounds listed, and it
-may run on a smaller model (the Agent tool's `model` parameter, e.g.
-`"sonnet"`). A full round costs 80k to 150k tokens. `fresh-eye` has both
-prompts.
+Size each round to what changed. Round 1 is a full adversarial review on the
+strongest model. A round after a fix reviews only the fix diff and re-runs the
+mutations the earlier rounds listed. It may run on a smaller model (the Agent
+tool's `model` parameter, e.g. `"sonnet"`). After two or more fix rounds, the
+final round is full again. `fresh-eye` has both prompts, and step 6 says when
+the loop stops.
 
 ## 5. Triage the findings, and record all of them
 
@@ -115,10 +120,10 @@ The third is the one people skip. "Considered and rejected" and "never noticed"
 look identical later, and only one of them is fine. If a reviewer asks for
 something and you measured it and it cost too much, say so with the number.
 
-A finding that asks for a guard on work not built yet goes into that future
-ticket's acceptance criteria. A guard protects only behavior that exists today.
-Written ahead of the code, it has nothing to fail against, and it still costs a
-round.
+A finding that asks for a guard on work that belongs to a later ticket goes
+into that ticket's acceptance criteria. A guard protects only behavior that
+exists today. Written ahead of the code, it has nothing to fail against, and it
+still costs a round. This ticket's own failing probe still comes first.
 
 Then post the verdict where the change lives, including what you did not fix.
 
@@ -126,16 +131,38 @@ Then post the verdict where the change lives, including what you did not fix.
 
 Go back to step 4 with the new state. If a round produces findings, the next
 round is mandatory: you have just changed the code, and the change is
-unreviewed. When a fix-only round comes back clean, run one full round at that
-commit. Stop when a full round comes back clean.
+unreviewed.
 
-Record every round in the PR body on one line, verdict and blocking count in
-order, e.g. `Rounds: BLOCK 3 · BLOCK 1 · PASS`. The line makes the next rule
-checkable at a glance: three rounds without the blocking count falling means
-change direction. It also makes the average one command:
+A round is clean when it returns `PASS`, or `REVIEW` with 0 blocking once the
+owner has answered. When to stop:
 
-    gh pr list --state merged --limit 100 --json body --jq '.[].body' |
-      awk '/^Rounds:/ { n++; r += gsub(/PASS|BLOCK|REVIEW/, "") }
+- Round 1 is clean: stop.
+- One fix, and its fix-only round is clean: stop.
+- Two or more fix rounds, and the last fix-only round is clean: run one full
+  round at that commit. Stop when it is clean. If it finds something, keep
+  looping.
+
+Three full rounds whose blocking count does not fall means change direction.
+Fix-only rounds do not count toward it. Say in one line what changed and why, and carry on. Ask the owner
+only if the new direction departs from what a grilling settled. This differs
+from the rule under "Running it unattended": that one is one finding surviving
+two fixes, so the diagnosis is wrong. This one is the total holding steady, so
+the approach is wrong.
+
+Record every round in the PR body on one line. Write the line when the PR opens
+(`Rounds:` with nothing after it), and add each round as it lands. Format: the
+line starts exactly `Rounds:`, with no bullet, bold or backticks. Rounds are
+separated by ` · `. Each is the verdict and its blocking count, and a fix-only
+round starts with `fix`:
+
+    Rounds: BLOCK 3 · fix BLOCK 1 · fix PASS · PASS
+
+That makes the three-full-round rule checkable at a glance, and the average one
+command. It reads the first `Rounds:` line of each PR:
+
+    gh pr list --state merged --limit 100 --json body \
+      --jq '.[] | [.body | splits("\r?\n") | select(startswith("Rounds:"))][0] // empty' |
+      awk '{ sub(/^Rounds:[ \t]*/, "") } $0 != "" { n++; r += gsub(/·/, "") + 1 }
            END { if (n) printf "%d PRs, %.1f rounds each\n", n, r / n }'
 
 For a backlog, run steps 1 to 5 per ticket and batch the review across a related
@@ -154,22 +181,25 @@ If asked to keep looping without check-ins:
   matched to how fast that state actually changes. One check every eight minutes
   for an eight-minute CI run, not eight checks a minute apart.
 - **Report once per turn**, a digest, not one message per agent finishing.
-- **Stop and ask** if two consecutive rounds fail on the same finding. That means
-  the diagnosis is wrong, and more loops will not fix a wrong diagnosis.
+- **Rediagnose** if two consecutive rounds fail on the same finding. That means
+  the diagnosis is wrong, and more loops will not fix a wrong diagnosis. Ask the
+  owner only if the new diagnosis departs from what a grilling settled.
+- **Queue the owner's calls** from step 3 and build around them.
 - **Never fabricate a pending result.** If a review is still running, say so.
 
 ## Definition of done
 
-Goal met. Diff reviewed by someone who did not write it. Behaviour verified by
+Goal met. Diff reviewed by someone who did not write it. Behavior verified by
 running something, with the output. No orphaned code your change created. Every
-finding fixed, ticketed, or rejected in writing. A full review round that came
-back clean, and a `Rounds:` line in the PR body.
+finding fixed, ticketed, or rejected in writing. The loop stopped by the step 6
+rule: round 1 clean, one fix whose fix-only round came back clean, or a clean
+full round after two or more fix rounds. A `Rounds:` line in the PR body.
 
 ## Suggested skills
 
 - `fresh-eye` for step 4. It carries the reviewer prompt skeleton and the
   mutation-testing instructions.
-- `mattpocock-skills:tdd` for step 3 when the change is behavioural.
+- `mattpocock-skills:tdd` for step 3 when the change is behavioral.
 - `mattpocock-skills:diagnosing-bugs` for step 3 when the change fixes a bug: it
   gets one command failing on the bug before any fix.
 - `security-review` in addition to `fresh-eye` for anything touching auth, input
@@ -186,8 +216,9 @@ back clean, and a `Rounds:` line in the PR body.
   deep version of the rule stated there.
 - Step 4 is `/yw-workflow:fresh-eye`, always, and again on the fix. A round that
   found something is the middle of the loop.
-- Two rounds fail on the same finding, or a decision is genuinely the human's:
-  `/yw-workflow:need-me`, which is the format for that escalation.
+- A decision is genuinely the owner's (a step 3 call, or a new direction or
+  diagnosis that departs from a grilling): `/yw-workflow:need-me`, which is the
+  format for that escalation.
 - The repo has no CI or branch protection for step 6 to merge into: `/yw-workflow:harden`.
 - The change needs explaining to someone who will not read the diff:
   `/yw-workflow:eli5` for a page they keep, `/yw-workflow:eli5-text` in passing.
