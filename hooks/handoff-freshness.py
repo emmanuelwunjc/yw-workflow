@@ -26,14 +26,21 @@ Fires on Stop, only when ALL of these hold:
   - the cwd is a git repo
   - the session produced commits touching real files (not docs-only)
 
-On a lane (any branch other than trunk or docs/handoff-*) it then prints
-HANDOFF NOTES: put the notes in the PR body's "## Handoff notes" section. It
-says that whether or not the lane touched the handoff, and adds that lanes do
-not edit the file when one did. It does not look at the PR itself, because
-that needs the network and a Stop hook must work offline.
+Trunk is the branch refs/remotes/origin/HEAD names, or main and master when
+the repo has no such ref. A lane is any other branch, and a detached HEAD
+too: reviewer worktrees are detached by design and must not be told to run
+the handoff pass. A lane counts only its own commits, i.e. those since its
+merge-base with trunk, so a lane cut after a handoff pass on trunk does not
+inherit that pass as its own edit.
 
-On trunk, a docs/handoff-* branch, or a detached HEAD it prints HANDOFF STALE,
-as before, only when ALSO:
+On a named lane with real work it prints HANDOFF NOTES: put the notes in the
+PR body's "## Handoff notes" section. If the lane's own commits touched the
+handoff it adds that lanes do not edit the file, and says so on any lane,
+detached included, whatever the commit count. It does not look at the PR
+itself, because that needs the network and a Stop hook must work offline.
+
+On trunk or a docs/handoff-* branch it prints HANDOFF STALE, as before, only
+when ALSO:
   - none of those commits touched the handoff
   - the handoff was not modified in the working tree either
 
@@ -67,8 +74,9 @@ DOC_SUFFIXES = (".md", ".txt", ".rst")
 MIN_COMMITS = 2
 
 # Branches where the handoff itself is written. Anything else is a lane.
-TRUNKS = ("main", "master")
-HANDOFF_BRANCH_PREFIX = "docs/handoff"
+# Fallback trunk names, used only when refs/remotes/origin/HEAD is not set.
+FALLBACK_TRUNKS = ("main", "master")
+HANDOFF_BRANCH_PREFIX = "docs/handoff-"
 NOTES_HEADING = "## Handoff notes"
 
 START_HERE = "## Start here"
@@ -122,6 +130,21 @@ def shape_problems(top: str) -> list[str]:
     return problems
 
 
+def trunks() -> tuple[str, ...]:
+    ref = git("symbolic-ref", "--short", "refs/remotes/origin/HEAD").strip()
+    return (ref.split("/", 1)[1],) if "/" in ref else FALLBACK_TRUNKS
+
+
+def lane_base(names: tuple[str, ...]) -> str:
+    """Where this lane forked from trunk, or "" when no trunk ref exists."""
+    for name in names:
+        for ref in (f"origin/{name}", name):
+            base = git("merge-base", "HEAD", ref).strip()
+            if base:
+                return base
+    return ""
+
+
 def lane_notes(real_work: int, touched_handoff: bool) -> None:
     edited = (f"Lanes do not edit {HANDOFF}: this branch touched it, and every "
               f"concurrent lane that does hits a merge conflict there. Move "
@@ -134,7 +157,7 @@ def lane_notes(real_work: int, touched_handoff: bool) -> None:
         f"this branch's PR body, now, while you still remember why: decisions "
         f"and why, what was deliberately not done, which alternative lost, what "
         f"trap cost time. No test counts, no SHAs. After merge, a handoff pass "
-        f"on a {HANDOFF_BRANCH_PREFIX}-* branch copies it into {HANDOFF}.\n"
+        f"on a {HANDOFF_BRANCH_PREFIX}* branch copies it into {HANDOFF}.\n"
         f"Deliberate skip: SKIP_HANDOFF_CHECK=1\n",
         file=sys.stderr,
     )
@@ -159,10 +182,13 @@ def main() -> None:
     # Commits made in roughly this session. Wall-clock is the only signal
     # available here, so it is deliberately generous: a false negative (no
     # warning) is much cheaper than nagging a session that did nothing.
-    log = git("log", "--since=8.hours", "--pretty=%H", "--no-merges")
+    branch = git("branch", "--show-current").strip()
+    names = trunks()
+    lane = branch not in names and not branch.startswith(HANDOFF_BRANCH_PREFIX)
+    since = ["--since=8.hours", "--pretty=%H", "--no-merges"]
+    base = lane_base(names) if lane else ""
+    log = git("log", *since, f"{base}..HEAD" if base else "HEAD")
     shas = [s for s in log.split() if s]
-    if len(shas) < MIN_COMMITS:
-        sys.exit(0)
 
     touched_handoff = False
     real_work = 0
@@ -173,15 +199,13 @@ def main() -> None:
         if any(not f.endswith(DOC_SUFFIXES) for f in files):
             real_work += 1
 
-    if real_work < MIN_COMMITS:
+    if lane:
+        # a detached HEAD is usually a reviewer: warn only about the handoff
+        if touched_handoff or (branch and real_work >= MIN_COMMITS):
+            lane_notes(real_work, touched_handoff)
         sys.exit(0)
 
-    branch = git("branch", "--show-current").strip()
-    if branch and branch not in TRUNKS and not branch.startswith(HANDOFF_BRANCH_PREFIX):
-        lane_notes(real_work, touched_handoff)
-        sys.exit(0)
-
-    if touched_handoff:
+    if touched_handoff or real_work < MIN_COMMITS:
         sys.exit(0)
 
     # Uncommitted edit to the handoff counts: the session is mid-update.
@@ -190,13 +214,13 @@ def main() -> None:
 
     exists = bool(git("ls-files", HANDOFF).strip())
     if exists:
-        what = (f"run the handoff pass now, on a {HANDOFF_BRANCH_PREFIX}-* "
+        what = (f"run the handoff pass now, on a {HANDOFF_BRANCH_PREFIX}* "
                 f"branch: copy the `{NOTES_HEADING}` of each PR merged since "
-                f"the last pass into {HANDOFF}, and rewrite the closing section "
+                f"the last pass into {HANDOFF}, and rewrite `## Next` (or the closing section) "
                 f"if the first task changed")
     else:
         what = (f"{HANDOFF} does not exist yet. Create it in a handoff pass "
-                f"on a {HANDOFF_BRANCH_PREFIX}-* branch")
+                f"on a {HANDOFF_BRANCH_PREFIX}* branch")
 
     print(
         f"HANDOFF STALE: {real_work} commits of real work this session and "

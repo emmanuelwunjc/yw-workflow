@@ -104,6 +104,75 @@ def make_repo(tmp, files, tracked):
         git(tmp, "add", *tracked)
 
 
+# Steps a branch case replays in a fresh repo:
+#   ("commit", {path: text})  write, add -A, commit
+#   ("branch", name)          checkout -B name
+#   ("detach",)               checkout --detach, as a reviewer worktree is
+#   ("origin_head", name)     make refs/remotes/origin/HEAD point at name
+BASE = ("commit", {"README.md": "x\n"})
+WORK = [("commit", {"a.py": "1\n"}), ("commit", {"b.py": "2\n"})]
+LANE_WORK = [("commit", {"c.py": "3\n"}), ("commit", {"d.py": "4\n"})]
+PASS = ("commit", {"docs/HANDOFF.md": GOOD})
+TOUCH = ("commit", {"docs/HANDOFF.md": GOOD + "\nlane edit\n"})
+LANE = ["HANDOFF NOTES", "## Handoff notes"]
+STALE = ["HANDOFF STALE", "handoff pass"]
+
+# (name, first branch, steps, stderr must carry, stderr must not carry)
+BRANCH_CASES = [
+    ("lane with real work is told to use the PR body",
+     "main", [BASE, ("branch", "feat/x"), *WORK], LANE, ["HANDOFF STALE"]),
+    ("lane that edited the handoff is told lanes do not",
+     "main", [BASE, ("branch", "feat/x"), WORK[0], TOUCH],
+     ["HANDOFF NOTES", "Lanes do not edit"], ["HANDOFF STALE"]),
+    ("handoff branch keeps the stale warning",
+     "main", [BASE, ("branch", "docs/handoff-0921"), *WORK], ["HANDOFF STALE"],
+     ["HANDOFF NOTES"]),
+    ("trunk keeps the stale warning",
+     "main", [BASE, *WORK], STALE, ["HANDOFF NOTES"]),
+    ("master is trunk when origin/HEAD is unknown",
+     "master", [BASE, *WORK], STALE, ["HANDOFF NOTES"]),
+    ("origin/HEAD names the trunk",
+     "develop", [BASE, ("origin_head", "develop"), *WORK], STALE, ["HANDOFF NOTES"]),
+    ("main is a lane when origin/HEAD names another trunk",
+     "develop", [BASE, ("origin_head", "develop"), ("branch", "main"), *WORK],
+     LANE, ["HANDOFF STALE"]),
+    ("docs/handoffish is a lane, the prefix carries its dash",
+     "main", [BASE, ("branch", "docs/handoffish"), *WORK], LANE, ["HANDOFF STALE"]),
+    ("fresh lane does not inherit trunk's handoff pass",
+     "main", [BASE, *WORK, PASS, ("branch", "feat/new")], [],
+     ["HANDOFF NOTES", "Lanes do not edit", "HANDOFF STALE"]),
+    ("lane after trunk's handoff pass counts only its own commits",
+     "main", [BASE, *WORK, PASS, ("branch", "feat/new"), *LANE_WORK],
+     LANE, ["Lanes do not edit", "HANDOFF STALE"]),
+    ("detached HEAD is a lane and gets no trunk message",
+     "main", [BASE, ("detach",), *LANE_WORK], [],
+     ["HANDOFF STALE", "handoff pass", "HANDOFF NOTES"]),
+    ("detached HEAD that edited the handoff is warned",
+     "main", [BASE, ("detach",), LANE_WORK[0], TOUCH],
+     ["HANDOFF NOTES", "Lanes do not edit"], ["HANDOFF STALE"]),
+]
+
+
+def build(tmp, first, steps):
+    git(tmp, "init", "-q", "-b", first)
+    for step in steps:
+        if step[0] == "commit":
+            for rel, text in step[1].items():
+                f = pathlib.Path(tmp, rel)
+                f.parent.mkdir(parents=True, exist_ok=True)
+                f.write_text(text)
+            git(tmp, "add", "-A")
+            git(tmp, "commit", "-q", "-m", "step")
+        elif step[0] == "branch":
+            git(tmp, "checkout", "-q", "-B", step[1])
+        elif step[0] == "detach":
+            git(tmp, "checkout", "-q", "--detach")
+        elif step[0] == "origin_head":
+            git(tmp, "update-ref", f"refs/remotes/origin/{step[1]}", "HEAD")
+            git(tmp, "symbolic-ref", "refs/remotes/origin/HEAD",
+                f"refs/remotes/origin/{step[1]}")
+
+
 def main():
     failures = 0
     for name, files, tracked, want, forbid in CASES:
@@ -143,31 +212,9 @@ def main():
     # Branch-aware freshness. Owner rule, 2026-09-21: lanes write notes in the
     # PR body's "## Handoff notes" section and never edit the handoff; a
     # docs/handoff-* branch (or trunk) is where the log gets written.
-    # (name, branch, does a commit touch the handoff, must carry, must not carry)
-    branch_cases = [
-        ("lane with real work is told to use the PR body",
-         "feat/x", False, ["HANDOFF NOTES", "## Handoff notes"], ["HANDOFF STALE"]),
-        ("lane that edited the handoff is told lanes do not",
-         "feat/x", True, ["HANDOFF NOTES", "Lanes do not edit"], ["HANDOFF STALE"]),
-        ("handoff branch keeps the stale warning",
-         "docs/handoff-0921", False, ["HANDOFF STALE"], ["HANDOFF NOTES"]),
-        ("trunk keeps the stale warning",
-         "main", False, ["HANDOFF STALE", "handoff pass"], ["HANDOFF NOTES"]),
-    ]
-    for name, branch, touch, want, forbid in branch_cases:
+    for name, first, steps, want, forbid in BRANCH_CASES:
         with tempfile.TemporaryDirectory() as tmp:
-            make_repo(tmp, {"README.md": "x\n"}, ["README.md"])
-            git(tmp, "commit", "-q", "-m", "base")
-            git(tmp, "checkout", "-q", "-B", branch)
-            pathlib.Path(tmp, "a.py").write_text("1\n")
-            git(tmp, "add", "a.py")
-            git(tmp, "commit", "-q", "-m", "one")
-            pathlib.Path(tmp, "b.py").write_text("2\n")
-            if touch:
-                pathlib.Path(tmp, "docs").mkdir()
-                pathlib.Path(tmp, "docs/HANDOFF.md").write_text(GOOD)
-            git(tmp, "add", "-A")
-            git(tmp, "commit", "-q", "-m", "two")
+            build(tmp, first, steps)
             got = run_hook(tmp)
         missing = [w for w in want if w not in got.stderr]
         present = [f for f in forbid if f in got.stderr]

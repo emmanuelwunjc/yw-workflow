@@ -97,15 +97,16 @@ the log. The session that merges the PRs runs it before it stops.
 
 1. Branch `docs/handoff-<date>` from trunk.
 2. Print the notes of every PR merged since the last pass. Change the date
-   to the day of that pass:
+   to the day of that pass. The heading must start its own line, so a body
+   that mentions the section in prose still yields the section itself:
 
    ```sh
-   gh pr list --state merged --search "merged:>=2026-09-21" --json number,title,body --jq '.[] | "### #\(.number) \(.title)\n" + ((.body | capture("## Handoff notes\\s*(?<n>[\\s\\S]*?)(\\n## |$)") | .n) // "(no handoff notes)") + "\n"'
+   gh pr list --state merged --limit 200 --search "merged:>=2026-09-21" --json number,title,body --jq '.[] | "### #\(.number) \(.title)\n" + ((.body | capture("(^|\\n)## Handoff notes[ \\t]*\\r?\\n(?<n>[\\s\\S]*?)(\\n## |$)") | .n) // "(no handoff notes)") + "\n"'
    ```
 
-3. Fold each into the log under its own dated heading, keeping the closing
-   section last.
-4. Rewrite the closing section if the first task changed.
+3. Fold each into the log under its own dated heading, keeping
+   the `## Next` section (or the closing section, in repos whose handoff uses one) last.
+4. Rewrite the `## Next` section (or the closing section, in repos whose handoff uses one) if the first task changed.
 5. Open the PR. It goes through review like any other.
 
 A PR with no notes prints `(no handoff notes)`. That is a finding about the
