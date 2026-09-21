@@ -7,6 +7,35 @@ moving tool version does not rot them.
 A decision is superseded, never deleted. Mark it with the date and what
 replaced it.
 
+## 2026-09-21: owner's calls before the build, sources before sentences, a Rounds line
+
+Supports `ship-loop` and `fresh-eye`. The owner read one day of review-loop
+data from edsim_funder_impact. Extra review rounds had four causes:
+
+1. Guards that could not fail.
+2. A fix that made a new defect, for example in copy checked against sources
+   (edsim_funder_impact #92).
+3. A call only the owner could make, arriving after the build
+   (edsim_funder_impact #89, #71, #92, #100).
+4. Guards for work not built yet (edsim_funder_impact #98).
+
+The day's counts came from the coordinating session's notes and cannot be
+recounted from GitHub, so they are left out here.
+
+The owner chose three changes. Ask the owner's calls before building UI or
+copy. Write each claim's source line before its sentence. Record every round
+on a `Rounds:` line in the PR body. Keeping the reviewer's breaks as a script
+was considered and not chosen.
+
+A cheaper design came first and was dropped the same day: fix-only review
+rounds, an optional smaller model, and a forced final full round. The final
+round would add a full round to every PR with two or more fix rounds. And the
+rule's own wording took several review rounds to get right. The loop now stops
+on a clean round.
+
+Measurement starts now. Each round's verdict, blocking count and tokens go on
+the `Rounds:` line, and `ship-loop` step 6 has the command that averages them.
+
 ## 2026-08-27: rebuild venvs per lane, never copy one
 
 Supports `git-lanes`. A copied venv is slower AND broken.
