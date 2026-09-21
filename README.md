@@ -61,7 +61,9 @@ verbatim and adds a data file, and `fresh-eye` findings are where its entries co
 
 `handoff` closes a session: the last section of `docs/HANDOFF.md` is the next
 session's whole prompt, and `handoff-freshness.py` warns when the file lacks
-the shape that makes that true.
+the shape that makes that true. Lanes never edit that file. Each writes a
+`## Handoff notes` section in its PR body, and one handoff pass on a
+`docs/handoff-*` branch folds the notes in after the merges.
 
 `eli5` and `eli5-text` are off the diagram because they explain a thing rather
 than ship one. They are still in the graph: `grill` and `need-me` reach
@@ -80,7 +82,7 @@ plugin path only.
 | **require-code-review.py** | PreToolUse | Blocks `gh pr merge <number>` on a 25+ line PR with no review, looked up in the repo the command targets (`cd`, `-R`, a PR URL, `GH_REPO`) rather than the folder the session started in. A merge it finds and cannot tie to a literal PR and repo is blocked with a request for `-R owner/repo`. It reads the merge from the command text, so a command that only mentions one with a number is judged as a merge, and a merge with no number is invisible to it (#17). Override: `export SKIP_REVIEW_GATE=1;` in front of the command, announced on stderr when honored. |
 | **no-ai-attribution.py** | PreToolUse | Keeps AI-generation footers out of anything people read. Commit trailers stay. |
 | **claude-md-guard.py** | UserPromptSubmit, Stop | Blocks em-dashes, negation-then-correction, and prose questions where checkboxes are required. |
-| **handoff-freshness.py** | Stop | Catches work piling up against an untouched `docs/HANDOFF.md`, and a `docs/HANDOFF.md` that lacks the `## Start here` block, still opens with an "end of a session" preamble, or has a handoff-named `.md` tracked outside `docs/` (the shape in skill `handoff`). Override: `SKIP_HANDOFF_CHECK=1`. |
+| **handoff-freshness.py** | Stop | On a lane with real work, reminds it to write the PR body's `## Handoff notes` section (and to leave `docs/HANDOFF.md` alone). On trunk or a `docs/handoff-*` branch, catches work piling up against an untouched `docs/HANDOFF.md`. Also catches a `docs/HANDOFF.md` that lacks the `## Start here` block, still opens with an "end of a session" preamble, or has a handoff-named `.md` tracked outside `docs/` (the shape in skill `handoff`). Override: `SKIP_HANDOFF_CHECK=1`. |
 
 Wire them in one place only. Wiring the same hook here and in
 `~/.claude/settings.json` fires it twice and halves its block budget.

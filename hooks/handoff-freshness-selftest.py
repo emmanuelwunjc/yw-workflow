@@ -140,6 +140,42 @@ def main():
         failures += 1
         print(f"FAIL freshness warning did not fire cleanly (exit {got.returncode}):\n{got.stderr}")
 
+    # Branch-aware freshness. Owner rule, 2026-09-21: lanes write notes in the
+    # PR body's "## Handoff notes" section and never edit the handoff; a
+    # docs/handoff-* branch (or trunk) is where the log gets written.
+    # (name, branch, does a commit touch the handoff, must carry, must not carry)
+    branch_cases = [
+        ("lane with real work is told to use the PR body",
+         "feat/x", False, ["HANDOFF NOTES", "## Handoff notes"], ["HANDOFF STALE"]),
+        ("lane that edited the handoff is told lanes do not",
+         "feat/x", True, ["HANDOFF NOTES", "Lanes do not edit"], ["HANDOFF STALE"]),
+        ("handoff branch keeps the stale warning",
+         "docs/handoff-0921", False, ["HANDOFF STALE"], ["HANDOFF NOTES"]),
+        ("trunk keeps the stale warning",
+         "main", False, ["HANDOFF STALE", "handoff pass"], ["HANDOFF NOTES"]),
+    ]
+    for name, branch, touch, want, forbid in branch_cases:
+        with tempfile.TemporaryDirectory() as tmp:
+            make_repo(tmp, {"README.md": "x\n"}, ["README.md"])
+            git(tmp, "commit", "-q", "-m", "base")
+            git(tmp, "checkout", "-q", "-B", branch)
+            pathlib.Path(tmp, "a.py").write_text("1\n")
+            git(tmp, "add", "a.py")
+            git(tmp, "commit", "-q", "-m", "one")
+            pathlib.Path(tmp, "b.py").write_text("2\n")
+            if touch:
+                pathlib.Path(tmp, "docs").mkdir()
+                pathlib.Path(tmp, "docs/HANDOFF.md").write_text(GOOD)
+            git(tmp, "add", "-A")
+            git(tmp, "commit", "-q", "-m", "two")
+            got = run_hook(tmp)
+        missing = [w for w in want if w not in got.stderr]
+        present = [f for f in forbid if f in got.stderr]
+        if missing or present or got.returncode != 0:
+            failures += 1
+            print(f"FAIL {name}: exit={got.returncode} missing={missing} "
+                  f"unwanted={present}\n--- stderr ---\n{got.stderr}")
+
     # the block pinned above is the block the skill tells repos to paste, and
     # the block this repo's own handoff opens with
     fenced = re.search(r"```\n(# Handoff\n.*?)```", SKILL.read_text(), re.S)

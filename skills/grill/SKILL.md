@@ -4,7 +4,7 @@ description: Interrogate a plan, decision, or idea one decision at a time until 
 origin: adapted
 adapted-from: "Matt Pocock's grilling skill (https://github.com/mattpocock/skills, MIT)"
 tags: [planning, questions, decisions, askuserquestion]
-version: 1.0.1
+version: 1.0.2
 ---
 
 # Grill
@@ -81,8 +81,9 @@ building the wrong thing confidently is worse than no grilling.
 - The answers describe work too big for one session: `/yw-workflow:wayfinder` charts it.
 - Sized for one session: `/yw-workflow:git-lanes` if anyone else may be in the repo, then
   `/yw-workflow:ship-loop`.
-- A decision changed one already recorded: update `docs/HANDOFF.md` and mark the
-  old one superseded with the date. A decision is superseded, never deleted.
+- A decision changed one already recorded: write it in the PR's `## Handoff notes`
+  (on a lane) or in `docs/HANDOFF.md` (on a handoff pass), and mark the old one
+  superseded with the date. A decision is superseded, never deleted.
 - You could not get an answer: `/yw-workflow:need-me` puts the open question in front of the
   human in the format they can act on.
 - They cannot answer because they do not yet understand what is being decided:

@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
 """Warn when a session commits real work and never touches docs/HANDOFF.md.
 
-CLAUDE.md Section 6 says the handoff is appended to AS WORK HAPPENS, not
-written at the end. The reason is that an end-of-session handoff is composed
-from a compacted, lossy memory of the session, and the reasoning that mattered
-(why an alternative was rejected, what trap cost an hour) is exactly what drops
-out first.
+CLAUDE.md Section 6 says the handoff is written down AS WORK HAPPENS. An
+end-of-session handoff is composed from a compacted, lossy memory of the
+session, and the reasoning that mattered (why an alternative was rejected, what
+trap cost an hour) is exactly what drops out first.
+
+Where it is written depends on the branch. The owner decided on 2026-09-21
+that lanes do not edit docs/HANDOFF.md, because every concurrent lane that
+appended to it hit a merge conflict there. A lane writes its notes in a
+"## Handoff notes" section of its PR body. After merges, one handoff pass on a
+docs/handoff-* branch copies those notes into the log.
 
 That rule was prose. On 2026-08-05 a session merged five PRs, filed sixteen
 issues and made a dozen judgment calls before anyone asked whether a handoff
@@ -20,6 +25,15 @@ model, which can act on it in the same turn.
 Fires on Stop, only when ALL of these hold:
   - the cwd is a git repo
   - the session produced commits touching real files (not docs-only)
+
+On a lane (any branch other than trunk or docs/handoff-*) it then prints
+HANDOFF NOTES: put the notes in the PR body's "## Handoff notes" section. It
+says that whether or not the lane touched the handoff, and adds that lanes do
+not edit the file when one did. It does not look at the PR itself, because
+that needs the network and a Stop hook must work offline.
+
+On trunk, a docs/handoff-* branch, or a detached HEAD it prints HANDOFF STALE,
+as before, only when ALSO:
   - none of those commits touched the handoff
   - the handoff was not modified in the working tree either
 
@@ -51,6 +65,11 @@ DOC_SUFFIXES = (".md", ".txt", ".rst")
 
 # Below this, a session is too small to be worth a handoff entry.
 MIN_COMMITS = 2
+
+# Branches where the handoff itself is written. Anything else is a lane.
+TRUNKS = ("main", "master")
+HANDOFF_BRANCH_PREFIX = "docs/handoff"
+NOTES_HEADING = "## Handoff notes"
 
 START_HERE = "## Start here"
 OLD_PREAMBLE = ("end of a session", "end of the session")
@@ -90,7 +109,7 @@ def shape_problems(top: str) -> list[str]:
             problems.append(
                 f"{HANDOFF} still says \"{hit}\" in its first {PREAMBLE_LINES} "
                 f"lines. That preamble told the reader the file was written at "
-                f"close; the file is appended to as work happens. Delete it.")
+                f"close; the file is written as work happens. Delete it.")
     tracked = git("-C", top, "ls-files", "-z").split("\0")
     stray = [f for f in tracked
              if "handoff" in os.path.basename(f).lower()
@@ -101,6 +120,24 @@ def shape_problems(top: str) -> list[str]:
             f"handoff-named files tracked outside docs/: {', '.join(sorted(stray))}. "
             f"The one handoff lives at {HANDOFF}. Fold these into it and delete them.")
     return problems
+
+
+def lane_notes(real_work: int, touched_handoff: bool) -> None:
+    edited = (f"Lanes do not edit {HANDOFF}: this branch touched it, and every "
+              f"concurrent lane that does hits a merge conflict there. Move "
+              f"those lines into the PR body and revert the file.\n\n"
+              if touched_handoff else "")
+    print(
+        f"HANDOFF NOTES: {real_work} commits of real work on this lane.\n\n"
+        f"{edited}"
+        f"Write what the next session needs in a `{NOTES_HEADING}` section of "
+        f"this branch's PR body, now, while you still remember why: decisions "
+        f"and why, what was deliberately not done, which alternative lost, what "
+        f"trap cost time. No test counts, no SHAs. After merge, a handoff pass "
+        f"on a {HANDOFF_BRANCH_PREFIX}-* branch copies it into {HANDOFF}.\n"
+        f"Deliberate skip: SKIP_HANDOFF_CHECK=1\n",
+        file=sys.stderr,
+    )
 
 
 def main() -> None:
@@ -133,11 +170,18 @@ def main() -> None:
         files = [f for f in git("show", "--name-only", "--pretty=", sha).split() if f]
         if any(f.endswith(HANDOFF) for f in files):
             touched_handoff = True
-            break
         if any(not f.endswith(DOC_SUFFIXES) for f in files):
             real_work += 1
 
-    if touched_handoff or real_work < MIN_COMMITS:
+    if real_work < MIN_COMMITS:
+        sys.exit(0)
+
+    branch = git("branch", "--show-current").strip()
+    if branch and branch not in TRUNKS and not branch.startswith(HANDOFF_BRANCH_PREFIX):
+        lane_notes(real_work, touched_handoff)
+        sys.exit(0)
+
+    if touched_handoff:
         sys.exit(0)
 
     # Uncommitted edit to the handoff counts: the session is mid-update.
@@ -146,14 +190,18 @@ def main() -> None:
 
     exists = bool(git("ls-files", HANDOFF).strip())
     if exists:
-        what = f"append to {HANDOFF} now, while you still remember why"
+        what = (f"run the handoff pass now, on a {HANDOFF_BRANCH_PREFIX}-* "
+                f"branch: copy the `{NOTES_HEADING}` of each PR merged since "
+                f"the last pass into {HANDOFF}, and rewrite the closing section "
+                f"if the first task changed")
     else:
-        what = f"{HANDOFF} does not exist yet. Create it"
+        what = (f"{HANDOFF} does not exist yet. Create it in a handoff pass "
+                f"on a {HANDOFF_BRANCH_PREFIX}-* branch")
 
     print(
         f"HANDOFF STALE: {real_work} commits of real work this session and "
         f"nothing touched {HANDOFF}.\n\n"
-        f"CLAUDE.md Section 6: the handoff is appended to AS WORK HAPPENS. "
+        f"CLAUDE.md Section 6: the handoff is written down AS WORK HAPPENS. "
         f"Written at the end, it is composed from a compacted memory of the "
         f"session, and the reasoning that mattered is what drops out first.\n\n"
         f"So: {what}. A few lines per meaningful step. Judgment, not derivable "
