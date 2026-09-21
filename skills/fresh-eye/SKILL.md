@@ -36,7 +36,9 @@ findings, and the mutations the earlier rounds listed. It may run on a smaller
 model through the Agent tool's `model` parameter, e.g. `"sonnet"`. One fix
 whose fix-only round comes back clean ends the loop. After two or more fix
 rounds, a clean fix-only round is followed by one final full round at that
-commit. `ship-loop` step 6 has the stop rule.
+commit. Two fix-only rounds in a row that are not clean are also followed by a
+full round, and that round counts toward the three-full-round rule. `ship-loop`
+step 6 has the stop rule and walked examples.
 
 **Isolate.** Give the reviewer `isolation: "worktree"`. Never point two agents at
 one working directory: file ownership stops two agents editing the same file and

@@ -12,10 +12,12 @@ replaced it.
 Supports `ship-loop` and `fresh-eye`. The owner read one day of review-loop
 data from one repo (edsim_funder_impact): 25 review rounds over 9 PRs on
 09/21/2026 (7 merged: #74, #76, #89, #92, #94, #95, #98; #71 and #100 still
-open, and #71 began on 09/18/2026). That is about 2.8 rounds per PR. The
-coordinating session put each round at 80k to 150k tokens, read from the
-subagent usage reports of that session's review agents. The extra rounds had
-four causes:
+open, and #71 began on 09/18/2026). That is about 2.8 rounds per PR. In
+that session's Agent tool reports, the review agents' `subagent_tokens` ranged
+from 78,776 to 155,942 per review round. The one fix-only round run on the
+smaller model (PR #100, round 3) used 110,568, inside the same range, so the
+fix-only saving did not show on its first use. The extra rounds had four
+causes:
 
 1. Guards that could not fail.
 2. A fix that made a new defect, most often in copy checked against sources.
@@ -36,7 +38,7 @@ two or more fix rounds. One fix whose fix-only round comes back clean ends the
 loop.
 
 Correction, same day: the first version of this entry said 25 rounds over 9
-merged PRs, and gave the token figure with no source. Both came from the
+merged PRs, and gave a rounded token figure with no source. Both came from the
 coordinating session's summary, and that summary was wrong about the merges.
 The counts above replace it.
 

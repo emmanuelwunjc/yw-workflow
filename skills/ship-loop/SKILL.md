@@ -141,9 +141,25 @@ owner has answered. When to stop:
 - Two or more fix rounds, and the last fix-only round is clean: run one full
   round at that commit. Stop when it is clean. If it finds something, keep
   looping.
+- Two fix-only rounds in a row that are not clean: the next round is full,
+  whatever it finds.
 
 Three full rounds whose blocking count does not fall means change direction.
-Fix-only rounds do not count toward it. Say in one line what changed and why, and carry on. Ask the owner
+Fix-only rounds do not count toward it. Every full round does, including one
+forced by two unclean fix-only rounds. So a run of fix-only rounds that each
+find something new still reaches the rule.
+
+Five walked examples:
+
+    PASS                                          round 1 clean: stop
+    BLOCK 2 · fix PASS                            one fix, clean: stop
+    BLOCK 3 · fix BLOCK 1 · fix PASS · PASS       two fixes, then a clean full round: stop
+    BLOCK 3 · fix BLOCK 1 · fix PASS · BLOCK 1 · fix PASS · PASS
+                                                  the final full round found one: loop on
+    BLOCK 2 · fix BLOCK 1 · fix BLOCK 1 · BLOCK 1 · ...
+                                                  two unclean fix-only rounds: the fourth
+                                                  round is full, and it is the second full
+                                                  round toward the three-round rule Say in one line what changed and why, and carry on. Ask the owner
 only if the new direction departs from what a grilling settled. This differs
 from the rule under "Running it unattended": that one is one finding surviving
 two fixes, so the diagnosis is wrong. This one is the total holding steady, so
