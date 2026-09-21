@@ -28,9 +28,10 @@ on a `Rounds:` line in the PR body. Keeping the reviewer's breaks as a script
 was considered and not chosen.
 
 A cheaper design came first and was dropped the same day: fix-only review
-rounds, an optional smaller model, and a forced final full round. A forced
-final round would add a round to every PR that needed a fix. And the rule's own
-wording took several review rounds to get right. The loop now stops on a clean round.
+rounds, an optional smaller model, and a forced final full round. The final
+round would add a full round to every PR with two or more fix rounds. And the
+rule's own wording took several review rounds to get right. The loop now stops
+on a clean round.
 
 Measurement starts now. Each round's verdict, blocking count and tokens go on
 the `Rounds:` line, and `ship-loop` step 6 has the command that averages them.
