@@ -82,6 +82,10 @@ WRITE = ("write the handoff now: load the handoff skill, then %s on a "
          "docs/handoff-* branch, or a `## Handoff notes` section in the PR "
          "body on a lane, per the repo's rules. Then tell the user to start a "
          "fresh session." % HANDOFF)
+# A plain folder has no branch and no PR, so its text names neither.
+WRITE_FOLDER = ("write the handoff now: load the handoff skill, and ask the "
+                "user where it should live if that is not already clear. Then "
+                "tell the user to start a fresh session.")
 WIND_DOWN = (
     "Context is at %(size)dk tokens, past the ~%(first)dk where reasoning "
     "stays sharp. Wind down now. Start no new work and spawn no new "
@@ -90,19 +94,19 @@ WIND_DOWN = (
     "so you are re-invoked at the deadline: Bash `sleep %(seconds)d` with "
     "run_in_background set to true. An idle main thread triggers no hook, so "
     "the timer is what brings you back. When they have all reported, or at "
-    "the deadline, whichever comes first, " + WRITE)
+    "the deadline, whichever comes first, %(write)s")
 DEADLINE = (
     "The %(grace)d-minute grace for running subagents is over and no handoff "
     "has been written. For each subagent still running: save what it has "
     "produced so far into the handoff (its last report, its branch and "
     "worktree path, any files), then stop it with the TaskStop tool. Then "
-    + WRITE)
+    "%(write)s")
 STOP = (
     "Context is past the ~%(first)dk tokens where reasoning stays sharp, and "
     "no handoff has been written since the wind-down notice. Start no new "
     "work and spawn no new subagents. If subagents are still running inside "
     "their %(grace)d-minute grace and your timer is set, stop again and wait "
-    "for them. Otherwise " + WRITE)
+    "for them. Otherwise %(write)s")
 UNSEEN = (" This check sees only %s. If the handoff notes are already in the "
           "PR body, say so and stop again." % HANDOFF)
 UNSEEN_FOLDER = (" This check sees only %s in a git repo, and this folder is "
@@ -181,8 +185,12 @@ def write_state(path, state, now):
         pass
 
 
-def unseen():
-    return UNSEEN if handoff_touch.in_repo() else UNSEEN_FOLDER
+def wording():
+    """(where to write, what the check cannot see) for this folder. Without
+    the helper there is no way to tell, and the repo wording is used."""
+    if handoff_touch is None or handoff_touch.in_repo():
+        return WRITE, UNSEEN
+    return WRITE_FOLDER, UNSEEN_FOLDER
 
 
 def respond(data, now):
@@ -219,19 +227,22 @@ def respond(data, now):
         if not over and data.get("background_tasks"):
             return None
         # Without the detector the hook cannot tell, so it never blocks.
-        if handoff_touch is None or handoff_touch.touched_since("@%d" % noticed):
+        if handoff_touch is None or handoff_touch.touched_since(
+                "@%d" % noticed, all_refs=True):
             return None
         state["stop_blocked"] = True
         state["deadline_sent"] = state["deadline_sent"] or over
         write_state(path, state, now)
+        fill["write"], tail = wording()
         return {"decision": "block",
-                "reason": (DEADLINE if over else STOP) % fill + unseen()}
+                "reason": (DEADLINE if over else STOP) % fill + tail}
 
     step = (tokens - first) // cfg["step"] if tokens >= first else -1
     text = None
     if step > state["step"]:
         state = {"step": step, "noticed": now, "deadline_sent": False,
                  "stop_blocked": False}
+        fill["write"] = wording()[0]
         text = WIND_DOWN % fill
     elif step < state["step"]:
         state["step"] = step
@@ -241,8 +252,10 @@ def respond(data, now):
         state["deadline_sent"] = True
         # Without the detector the hook cannot tell, so it says nothing.
         if (handoff_touch is not None
-                and not handoff_touch.touched_since("@%d" % noticed)):
-            text = DEADLINE % fill + unseen()
+                and not handoff_touch.touched_since("@%d" % noticed,
+                                                    all_refs=True)):
+            fill["write"], tail = wording()
+            text = DEADLINE % fill + tail
     else:
         return None
     write_state(path, state, now)

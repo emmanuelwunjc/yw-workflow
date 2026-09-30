@@ -166,6 +166,7 @@ def silent(result):
 
 # --- thresholds and steps ------------------------------------------------
 e = Env()
+e.repo()  # the repo wording names the branch and the PR body
 check("119,999 tokens: below the threshold, silent", silent(e.at(119_999)), True)
 r = e.at(120_000, now=T0)
 check("120,000 tokens: at the threshold, winds down", warned(r), True)
@@ -302,17 +303,21 @@ reason = blocked(e.stop(T0 + 1))
 check("in a git repo the block says the notes may be in the PR body",
       "already in the PR body" in reason, True)
 
-# a plain folder: no repo, so no PR body either
+# a plain folder: no repo, so no branch and no PR body either
 e = Env()
-e.at(130_000, now=T0)
+text = context(e.at(130_000, now=T0)[1])
+check("in a plain folder the wind-down notice never mentions a PR body",
+      "PR body" not in text and "docs/handoff-" not in text, True)
 reason = blocked(e.stop(T0 + 1))
 check("in a plain folder the block says it is no git repo",
       "not a git repo" in reason, True)
 check("in a plain folder the block never mentions a PR body",
-      "already in the PR body" in reason, False)
+      "PR body" not in reason and "docs/handoff-" not in reason, True)
 text = context(e.at(131_000, now=T0 + 15 * MIN)[1])
 check("in a plain folder the deadline notice says it is no git repo",
-      "not a git repo" in text and "already in the PR body" not in text, True)
+      "not a git repo" in text, True)
+check("in a plain folder the deadline notice never mentions a PR body",
+      "PR body" not in text and "docs/handoff-" not in text, True)
 
 # --- a missing or broken helper module -------------------------------------------
 # An install can lose handoff_touch.py or carry a broken one. The hook must still
@@ -348,6 +353,7 @@ check("and Stop itself gives no notice and records nothing",
       (e.home / ".claude" / "state" / "context-handoff" / "s1").exists(), False)
 
 e = Env()
+e.repo()  # the repo wording names the branch and the PR body
 e.at(130_000, now=T0)
 r = e.stop(T0 + 1, stop_hook_active=False)
 reason = blocked(r)

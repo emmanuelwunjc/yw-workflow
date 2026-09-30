@@ -428,16 +428,16 @@ handoff, and a session that ends past the line without one is the failure the
 owner asked to prevent.
 
 "Handoff written" is one test, `hooks/handoff_touch.py`, used by this hook and
-by `handoff-freshness.py`: a non-merge commit on any branch or worktree of the
-repo (`git log --all`) that changes `docs/HANDOFF.md` since the given time, or
-an uncommitted change to it, a new untracked file included
-(`--untracked-files=all`). `handoff-freshness.py` asks about the last 8 hours
-and this hook asks about the time since its notice. An uncommitted edit
-carries no time, so one made before the notice counts too. `--all` came from
-review round 2: a handoff pass committed from another worktree was invisible,
-and a new `docs/` showed as `?? docs/`. `--all` also widens
-`handoff-freshness.py`: a handoff commit on another branch in the last 8 hours
-now keeps it quiet.
+by `handoff-freshness.py`: a non-merge commit that changes `docs/HANDOFF.md`
+since the given time, or an uncommitted change to it, a new untracked file
+included (`--untracked-files=all`). `handoff-freshness.py` asks about the last
+8 hours in HEAD's history only, as before. This hook asks about the time since
+its notice with `all_refs=True` (`git log --all`), so a handoff committed from
+another branch or worktree counts. An uncommitted edit carries no time, so one
+made before the notice counts too. Both widenings came from review round 2: a
+handoff pass committed from another worktree was invisible, and a new `docs/`
+showed as `?? docs/`. Round 3 kept `--all` out of `handoff-freshness.py`,
+where a handoff pass on an unmerged branch would silence the warning on trunk.
 
 Known limits. The detector cannot see two cases, and in both the deadline
 notice and the one Stop block always arrive, even after the handoff exists:
@@ -446,7 +446,8 @@ notice and the one Stop block always arrive, even after the handoff exists:
   to say the notes are there and stop again.
 - A plain folder that is no git repo. There is no history to ask. The text
   says the folder is not a git repo and asks the model to say where the
-  handoff is and stop again.
+  handoff is and stop again. It names no branch and no PR body, and tells the
+  model to ask the user where the handoff lives if that is not clear.
 
 One block per notice bounds the cost. The risk is a model that learns to
 answer "done, stop again" by habit.

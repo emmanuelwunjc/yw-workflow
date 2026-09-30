@@ -355,6 +355,26 @@ def main():
             failures += 1
             print(f"FAIL {label}: want stale={want} (exit {got.returncode}):\n{got.stderr}")
 
+    # A handoff commit on an unmerged branch is no handoff on trunk. Trunk is
+    # judged by its own history only, so this still warns.
+    with tempfile.TemporaryDirectory() as tmp:
+        make_repo(tmp, {"a.py": "1\n"}, ["a.py"])
+        git(tmp, "commit", "-q", "-m", "one")
+        pathlib.Path(tmp, "b.py").write_text("2\n")
+        git(tmp, "add", "b.py")
+        git(tmp, "commit", "-q", "-m", "two")
+        git(tmp, "checkout", "-q", "-b", "docs/handoff-open")
+        pathlib.Path(tmp, "docs").mkdir()
+        pathlib.Path(tmp, "docs/HANDOFF.md").write_text(GOOD)
+        git(tmp, "add", "docs/HANDOFF.md")
+        git(tmp, "commit", "-q", "-m", "unmerged pass")
+        git(tmp, "checkout", "-q", "-")
+        got = run_hook(tmp)
+    if "HANDOFF STALE" not in got.stderr or got.returncode != 0:
+        failures += 1
+        print(f"FAIL handoff only on an unmerged branch still warns on trunk "
+              f"(exit {got.returncode}):\n{got.stderr}")
+
     # A missing or broken handoff_touch.py must never crash the Stop hook.
     for label, helper in (("missing", None), ("raises", "raise RuntimeError('x')\n")):
         with tempfile.TemporaryDirectory() as tmp:
