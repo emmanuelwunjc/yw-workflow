@@ -19,6 +19,7 @@ Run: ./hooks/context-handoff-selftest.py
 import json
 import os
 import pathlib
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -67,13 +68,13 @@ class Env:
         self.transcript.write_text("\n".join(lines) + "\n")
 
     def run(self, session="s1", event="PostToolBatch", extra=None, raw=None,
-            now=None):
+            now=None, hook=HOOK):
         payload = {"session_id": session, "transcript_path": str(self.transcript),
                    "hook_event_name": event, "cwd": str(self.cwd)}
         payload.update(extra or {})
         env = dict(os.environ, HOME=str(self.home))
-        cmd = ([sys.executable, HOOK] if now is None
-               else [sys.executable, "-c", DRIVER, HOOK, str(now)])
+        cmd = ([sys.executable, hook] if now is None
+               else [sys.executable, "-c", DRIVER, hook, str(now)])
         done = subprocess.run(cmd, cwd=self.cwd, env=env,
                               input=raw if raw is not None else json.dumps(payload),
                               capture_output=True, text=True, timeout=30)
@@ -83,8 +84,8 @@ class Env:
         self.write(user_line(), usage_line(tokens))
         return self.run(**kw)
 
-    def stop(self, now, **extra):
-        return self.run(event="Stop", now=now, extra=extra)
+    def stop(self, now, hook=HOOK, **extra):
+        return self.run(event="Stop", now=now, extra=extra, hook=hook)
 
     def state(self, session="s1"):
         path = self.home / ".claude" / "state" / "context-handoff" / session
@@ -221,6 +222,8 @@ check("the deadline notice saves each subagent's work",
 check("the deadline notice stops them with TaskStop", "TaskStop" in text, True)
 check("the deadline notice says write the handoff now",
       "write the handoff now" in text, True)
+check("the deadline notice says what the check cannot see",
+      "This check sees only docs/HANDOFF.md" in text, True)
 check("deadline: said once", silent(e.at(132_000, now=T0 + 16 * MIN)), True)
 check("deadline: still once an hour later",
       silent(e.at(133_000, now=T0 + 60 * MIN)), True)
@@ -275,6 +278,64 @@ check("an uncommitted handoff edit counts: Stop is allowed",
 check("an uncommitted handoff edit counts: no deadline notice",
       silent(e.at(131_000, now=T0 + 15 * MIN)), True)
 
+e = Env()
+e.repo()
+e.at(130_000, now=T0)
+e.git("checkout", "-q", "-b", "docs/handoff-x")
+e.commit_handoff(when=T0 + 5 * MIN)
+e.git("checkout", "-q", "main")
+check("handoff committed on another branch after the notice: Stop is allowed",
+      silent(e.stop(T0 + 6 * MIN)), True)
+
+e = Env()
+e.repo()
+e.at(130_000, now=T0)
+(e.cwd / "docs" / "HANDOFF.md").write_text("new, untracked\n")
+check("a new untracked docs/HANDOFF.md counts: Stop is allowed",
+      silent(e.stop(T0 + 1)), True)
+
+# the lane case: the notes may be in a PR body the check cannot read
+e = Env()
+e.repo()
+e.at(130_000, now=T0)
+reason = blocked(e.stop(T0 + 1))
+check("in a git repo the block says the notes may be in the PR body",
+      "already in the PR body" in reason, True)
+
+# a plain folder: no repo, so no PR body either
+e = Env()
+e.at(130_000, now=T0)
+reason = blocked(e.stop(T0 + 1))
+check("in a plain folder the block says it is no git repo",
+      "not a git repo" in reason, True)
+check("in a plain folder the block never mentions a PR body",
+      "already in the PR body" in reason, False)
+text = context(e.at(131_000, now=T0 + 15 * MIN)[1])
+check("in a plain folder the deadline notice says it is no git repo",
+      "not a git repo" in text and "already in the PR body" not in text, True)
+
+# --- a missing or broken helper module -------------------------------------------
+# An install can lose handoff_touch.py or carry a broken one. The hook must still
+# exit 0 silently, give the wind-down notice (it needs no detector), and never
+# block a Stop or claim no handoff was written, since it cannot tell.
+for label, helper in (("missing", None), ("raises", "raise RuntimeError('broken')\n")):
+    e = Env()
+    copy = e.tmp / "plugin"
+    copy.mkdir()
+    shutil.copy(HOOK, copy / "context-handoff.py")
+    shutil.copy(pathlib.Path(HOOK).with_name("handrail_config.py"), copy)
+    if helper:
+        (copy / "handoff_touch.py").write_text(helper)
+    hook = str(copy / "context-handoff.py")
+    check("helper %s: the wind-down notice still arrives" % label,
+          warned(e.at(130_000, now=T0, hook=hook)), True)
+    check("helper %s: no deadline notice" % label,
+          silent(e.at(131_000, now=T0 + 15 * MIN, hook=hook)), True)
+    check("helper %s: Stop is allowed, silently" % label,
+          silent(e.stop(T0 + 16 * MIN, hook=hook)), True)
+    check("helper %s: the script itself exits 0 silently on Stop" % label,
+          silent(e.run(event="Stop", hook=hook)), True)
+
 # --- the Stop check ------------------------------------------------------------
 e = Env()
 check("Stop with no state at all: allowed", silent(e.stop(T0)), True)
@@ -298,7 +359,7 @@ check("the reason repeats the instruction",
       "spawn no new subagents" in reason and "docs/HANDOFF.md" in reason
       and "## Handoff notes" in reason and "fresh session" in reason, True)
 check("the reason lets a thread waiting on subagents stop again",
-      "stop again" in reason, True)
+      "stop again and wait for them" in reason, True)
 check("Stop blocks once: the next Stop is allowed", silent(e.stop(T0 + 2)), True)
 check("Stop blocks once: also after the deadline",
       silent(e.stop(T0 + 99 * MIN)), True)

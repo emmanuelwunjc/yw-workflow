@@ -5,11 +5,13 @@ handoff-freshness.py asks it about the last 8 hours. context-handoff.py asks
 it about the time since its wind-down notice. Both must agree on what counts,
 so the test lives here once.
 
-Counts as written: a non-merge commit newer than `since` that changes
-docs/HANDOFF.md, or an uncommitted change to it in the working tree.
+Counts as written: a non-merge commit newer than `since`, on any branch or
+worktree of the repo, that changes docs/HANDOFF.md, or an uncommitted change
+to it in the working tree, a new untracked file included.
 
-Does not count: a lane's `## Handoff notes` in its PR body. Seeing that needs
-the network, and a hook must work offline.
+Cannot count: a lane's `## Handoff notes` in its PR body, since seeing that
+needs the network and a hook must work offline; and anything outside a git
+repo, since there is no history to ask.
 
 git runs in the process's working directory, which is the session's.
 """
@@ -30,10 +32,15 @@ def git(*args: str) -> str:
 
 def touched_since(since: str) -> bool:
     """`since` is anything `git log --since` takes: "8.hours", "@1790000000"."""
-    for sha in git("log", "--since=" + since, "--pretty=%H", "--no-merges").split():
+    for sha in git("log", "--all", "--since=" + since, "--pretty=%H",
+                   "--no-merges").split():
         if any(f.endswith(HANDOFF)
                for f in git("show", "--name-only", "--pretty=", sha).split()):
             return True
     # ponytail: an uncommitted edit carries no time, so one made before `since`
     # counts too. Compare the file's mtime if that ever matters.
-    return HANDOFF in git("status", "--porcelain")
+    return HANDOFF in git("status", "--porcelain", "--untracked-files=all")
+
+
+def in_repo() -> bool:
+    return bool(git("rev-parse", "--show-toplevel").strip())

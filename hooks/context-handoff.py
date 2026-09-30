@@ -32,8 +32,10 @@ the input carries `agent_id`, and the hook does nothing there.
 "Handoff written" is handoff_touch.touched_since, the same test
 handoff-freshness.py uses: a commit to docs/HANDOFF.md since the notice, or an
 uncommitted edit to it. A lane's `## Handoff notes` in a PR body is invisible
-to it, so on a lane the deadline notice and the one Stop block always arrive.
-Both say so, and the model answers by stopping again.
+to it, and so is everything in a folder that is not a git repo. There the
+deadline notice and the one Stop block always arrive. Both say which case it
+is, and the model answers by stopping again. With the detector missing or
+broken, the hook gives neither, since it cannot tell.
 
 The size is the last main-thread assistant message's `usage` in the
 transcript: input_tokens + cache_read_input_tokens +
@@ -60,7 +62,11 @@ try:
     import handrail_config
 except Exception:  # a broken config module still leaves the defaults below
     handrail_config = None
-from handoff_touch import HANDOFF, touched_since  # noqa: E402
+try:
+    import handoff_touch
+except Exception:  # a missing or broken helper leaves no detector: see respond()
+    handoff_touch = None
+HANDOFF = getattr(handoff_touch, "HANDOFF", "docs/HANDOFF.md")
 
 RULE = "context_handoff"
 DEFAULTS = {"first": 120000, "step": 100000, "grace_minutes": 15}
@@ -99,6 +105,9 @@ STOP = (
     "for them. Otherwise " + WRITE)
 UNSEEN = (" This check sees only %s. If the handoff notes are already in the "
           "PR body, say so and stop again." % HANDOFF)
+UNSEEN_FOLDER = (" This check sees only %s in a git repo, and this folder is "
+                 "not a git repo. If you have written the handoff somewhere, "
+                 "say where and stop again." % HANDOFF)
 
 
 def settings():
@@ -172,8 +181,8 @@ def write_state(path, state, now):
         pass
 
 
-def written_since(noticed):
-    return touched_since("@%d" % noticed)
+def unseen():
+    return UNSEEN if handoff_touch.in_repo() else UNSEEN_FOLDER
 
 
 def respond(data, now):
@@ -209,13 +218,14 @@ def respond(data, now):
         # Waiting on subagents inside the grace is what the notice asked for.
         if not over and data.get("background_tasks"):
             return None
-        if written_since(noticed):
+        # Without the detector the hook cannot tell, so it never blocks.
+        if handoff_touch is None or handoff_touch.touched_since("@%d" % noticed):
             return None
         state["stop_blocked"] = True
         state["deadline_sent"] = state["deadline_sent"] or over
         write_state(path, state, now)
         return {"decision": "block",
-                "reason": (DEADLINE if over else STOP) % fill + UNSEEN}
+                "reason": (DEADLINE if over else STOP) % fill + unseen()}
 
     step = (tokens - first) // cfg["step"] if tokens >= first else -1
     text = None
@@ -229,8 +239,10 @@ def respond(data, now):
             state["noticed"] = None  # back under the line: nothing to wind down
     elif over and not state["deadline_sent"]:
         state["deadline_sent"] = True
-        if not written_since(noticed):
-            text = DEADLINE % fill + UNSEEN
+        # Without the detector the hook cannot tell, so it says nothing.
+        if (handoff_touch is not None
+                and not handoff_touch.touched_since("@%d" % noticed)):
+            text = DEADLINE % fill + unseen()
     else:
         return None
     write_state(path, state, now)

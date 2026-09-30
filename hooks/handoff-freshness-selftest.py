@@ -12,7 +12,9 @@ import pathlib
 import re
 import subprocess
 import sys
+import shutil
 import tempfile
+import time
 
 HOOK = str(pathlib.Path(__file__).with_name("handoff-freshness.py"))
 
@@ -325,6 +327,53 @@ def main():
     if "HANDOFF STALE" not in got.stderr or got.returncode != 0:
         failures += 1
         print(f"FAIL freshness warning did not fire cleanly (exit {got.returncode}):\n{got.stderr}")
+
+    # The "handoff was kept" branch: two commits of real work, and the handoff
+    # touched by a commit in the window, or edited and not yet committed, or
+    # only touched long before the window.
+    day = 24 * 3600
+    for label, handoff_age, edit, want in (
+            ("handoff committed in the window", 0, False, False),
+            ("handoff edited, not committed", 2 * day, True, False),
+            ("handoff last committed two days ago", 2 * day, False, True)):
+        with tempfile.TemporaryDirectory() as tmp:
+            make_repo(tmp, {"docs/HANDOFF.md": GOOD}, ["docs/HANDOFF.md"])
+            stamp = "@%d +0000" % (int(time.time()) - handoff_age)
+            subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t",
+                            "commit", "-q", "-m", "handoff"], cwd=tmp, check=True,
+                           capture_output=True,
+                           env=dict(os.environ, GIT_AUTHOR_DATE=stamp,
+                                    GIT_COMMITTER_DATE=stamp))
+            for name in ("a.py", "b.py"):
+                pathlib.Path(tmp, name).write_text("1\n")
+                git(tmp, "add", name)
+                git(tmp, "commit", "-q", "-m", name)
+            if edit:
+                pathlib.Path(tmp, "docs/HANDOFF.md").write_text(GOOD + "\nmore\n")
+            got = run_hook(tmp)
+        if ("HANDOFF STALE" in got.stderr) != want or got.returncode != 0:
+            failures += 1
+            print(f"FAIL {label}: want stale={want} (exit {got.returncode}):\n{got.stderr}")
+
+    # A missing or broken handoff_touch.py must never crash the Stop hook.
+    for label, helper in (("missing", None), ("raises", "raise RuntimeError('x')\n")):
+        with tempfile.TemporaryDirectory() as tmp:
+            copy = pathlib.Path(tmp, "plugin")
+            copy.mkdir()
+            shutil.copy(HOOK, copy / "handoff-freshness.py")
+            if helper:
+                (copy / "handoff_touch.py").write_text(helper)
+            repo = pathlib.Path(tmp, "repo")
+            repo.mkdir()
+            make_repo(repo, {"a.py": "1\n"}, ["a.py"])
+            git(repo, "commit", "-q", "-m", "one")
+            env = {k: v for k, v in os.environ.items() if k != "SKIP_HANDOFF_CHECK"}
+            got = subprocess.run([sys.executable, str(copy / "handoff-freshness.py")],
+                                 input="{}", cwd=repo, env=env,
+                                 capture_output=True, text=True)
+        if got.returncode != 0 or got.stderr or got.stdout:
+            failures += 1
+            print(f"FAIL helper {label}: exit={got.returncode}\n{got.stderr}")
 
     # Branch-aware freshness. Owner rule, 2026-09-21: lanes write notes in the
     # PR body's "## Handoff notes" section and never edit the handoff; a

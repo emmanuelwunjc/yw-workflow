@@ -74,7 +74,10 @@ import subprocess
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from handoff_touch import HANDOFF, git, touched_since  # noqa: E402
+try:
+    from handoff_touch import HANDOFF, git, touched_since
+except Exception:  # a missing or broken helper: no check, and never a crash
+    sys.exit(0)
 
 # A commit touching only these is not "real work" needing a handoff entry.
 DOC_SUFFIXES = (".md", ".txt", ".rst")

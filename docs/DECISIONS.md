@@ -294,18 +294,20 @@ decision refuses.
 
 ## 2026-09-21: warn the model when its context passes the smart zone
 
-Superseded 2026-09-30 by the wind-down entry below. What still holds: the numbers, how the size is measured, the two events, main thread only. What was replaced: the warning-only behavior and the rejection of Stop.
-The hook was named `context-warning.py` then, with rule and section `context_warning`; this entry now uses the current names.
+Superseded 2026-09-30 by "wind down and hand off when context passes the
+smart zone" below. What still holds: the numbers, how the size is
+measured, the two events, main thread only. What was replaced: the
+warning-only behavior and the rejection of Stop.
 
-Supports `handoff`. Adds `hooks/context-handoff.py`.
+Supports `handoff`. Adds `hooks/context-warning.py`.
 
 The owner decided the numbers: the first warning at 120k tokens, then one more
 at every 100k past it (220k, 320k). 120k comes from mattpocock's `ask-matt`
 skill, which calls it the smart zone, "the window (~120k tokens on
 state-of-the-art models) within which the model still reasons sharply", and
 says to `/handoff` and continue in a fresh thread when a session nears it. Both
-numbers are settings in `.handrail.toml` (`[context_handoff] first`, `step`).
-The switch is `[rules] context_handoff`, so a repo config cannot switch it off.
+numbers are settings in `.handrail.toml` (`[context_warning] first`, `step`).
+The switch is `[rules] context_warning`, so a repo config cannot switch it off.
 The thresholds sit outside that ratchet, as they do for every guard: a repo can
 set `first` high enough that the warning never fires.
 
@@ -354,7 +356,7 @@ ms, the first run). Only the last 2 MB of the transcript is read, so an
 ## 2026-09-30: wind down and hand off when context passes the smart zone
 
 Supports `handoff`. Supersedes the warning-only design of 2026-09-21. Renames
-the hook to `hooks/context-handoff.py`, with rule `[rules] context_handoff`,
+the hook from `hooks/context-warning.py` to `hooks/context-handoff.py`, with rule `[rules] context_handoff`,
 section `[context_handoff]` and state in `~/.claude/state/context-handoff/`.
 
 The owner's words: "build a global hook where at that percentage, u allow the
@@ -426,11 +428,52 @@ handoff, and a session that ends past the line without one is the failure the
 owner asked to prevent.
 
 "Handoff written" is one test, `hooks/handoff_touch.py`, used by this hook and
-by `handoff-freshness.py`: a non-merge commit that changes `docs/HANDOFF.md`
-since the given time, or an uncommitted change to it. `handoff-freshness.py`
-asks about the last 8 hours and this hook asks about the time since its
-notice. An uncommitted edit carries no time, so one made before the notice
-counts too.
+by `handoff-freshness.py`: a non-merge commit on any branch or worktree of the
+repo (`git log --all`) that changes `docs/HANDOFF.md` since the given time, or
+an uncommitted change to it, a new untracked file included
+(`--untracked-files=all`). `handoff-freshness.py` asks about the last 8 hours
+and this hook asks about the time since its notice. An uncommitted edit
+carries no time, so one made before the notice counts too. `--all` came from
+review round 2: a handoff pass committed from another worktree was invisible,
+and a new `docs/` showed as `?? docs/`. `--all` also widens
+`handoff-freshness.py`: a handoff commit on another branch in the last 8 hours
+now keeps it quiet.
+
+Known limits. The detector cannot see two cases, and in both the deadline
+notice and the one Stop block always arrive, even after the handoff exists:
+
+- A lane whose notes are in its PR body. The text says so and asks the model
+  to say the notes are there and stop again.
+- A plain folder that is no git repo. There is no history to ask. The text
+  says the folder is not a git repo and asks the model to say where the
+  handoff is and stop again.
+
+One block per notice bounds the cost. The risk is a model that learns to
+answer "done, stop again" by habit.
+
+A missing or broken `hooks/handoff_touch.py` leaves no detector. Then this
+hook still gives the wind-down notice, which needs none, and gives no deadline
+notice and no Stop block, because both would claim no handoff was written and
+the hook cannot tell. The safe side is silence: a false block trains the model
+to ignore the true ones. `handoff-freshness.py` exits 0 and checks nothing.
+Both import it inside a guard, as they do `handrail_config`, so neither prints
+a traceback.
+
+Relied on, observed, and not in the hooks docs:
+
+- The transcript line format. The page gives `transcript_path` only as "Path
+  to conversation JSON". The hook reads JSON lines with `type`, `isSidechain`
+  and `message.usage` (`input_tokens`, `cache_read_input_tokens`,
+  `cache_creation_input_tokens`). Observed in this machine's transcripts under
+  `~/.claude/projects/`, read on 2026-09-21 and again on 2026-09-30 with
+  Claude Code 2.1.220. A format change makes the hook silent, never wrong
+  loudly, because a line it cannot read is skipped.
+- PostToolBatch inside a subagent carrying `agent_id`. The page says that for
+  "tool events such as `PreToolUse` and `PostToolUse`". Observed on 2026-09-30
+  with Claude Code 2.1.220: a headless `claude -p` run with a PostToolBatch
+  hook that logged its input, where a subagent ran one Bash command. The log
+  held one main-thread event with no `agent_id` and one with `agent_id` and
+  `agent_type` "general-purpose".
 
 Rejected:
 
