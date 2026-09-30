@@ -64,12 +64,14 @@ DEFAULTS = {
     "ai_attribution": True,
     "require_review": True,
     "git_safety": True,
+    "context_handoff": True,
 }
 
-# What the CI action enforces no matter what a repo's config says. Two rules are
+# What the CI action enforces no matter what a repo's config says. Three rules are
 # absent because they cannot run server-side rather than by choice:
-# ask_user_question needs a live turn to inspect, and git_safety blocks a git
-# command as it is typed, which branch protection covers in CI.
+# ask_user_question needs a live turn to inspect, git_safety blocks a git
+# command as it is typed, which branch protection covers in CI, and
+# context_handoff reads a live session's transcript, which CI has none of.
 CI_FLOOR = ("em_dash", "ai_attribution", "require_review", "handoff_freshness")
 
 # Rules a repo may add to the CI floor. Enabling is one-way: CI ignores a later
@@ -85,6 +87,12 @@ VALUE_DEFAULTS = {
         "wrappers": [],
     },
     "handoff": {"path": "docs/HANDOFF.md"},
+    # `first` and `step` are tokens of context. The wind-down notice is given
+    # at `first`, then again at each `step` past it. 120k is where mattpocock's
+    # ask-matt skill puts the end of the "smart zone"; the step is the owner's
+    # call, 2026-09-21. `grace_minutes` is how long running subagents may take
+    # to finish after a notice, the owner's call on 2026-09-30.
+    "context_handoff": {"first": 120000, "step": 100000, "grace_minutes": 15},
     "require_review": {
         "trivial_lines": 25,
         "code_suffixes": [".py", ".yml", ".yaml", ".toml", ".cfg", ".sh", ".ts", ".js"],

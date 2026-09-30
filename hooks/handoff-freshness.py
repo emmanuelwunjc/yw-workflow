@@ -73,7 +73,11 @@ import os
 import subprocess
 import sys
 
-HANDOFF = "docs/HANDOFF.md"
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+try:
+    from handoff_touch import HANDOFF, git, touched_since
+except Exception:  # a missing or broken helper: no check, and never a crash
+    sys.exit(0)
 
 # A commit touching only these is not "real work" needing a handoff entry.
 DOC_SUFFIXES = (".md", ".txt", ".rst")
@@ -92,16 +96,6 @@ OLD_PREAMBLE = ("end of a session", "end of the session")
 PREAMBLE_LINES = 40
 SHAPE_HELP = ("The shape, with the block to paste, is in the yw-workflow skill "
               "skills/handoff (invoke /yw-workflow:handoff).")
-
-
-def git(*args: str) -> str:
-    try:
-        out = subprocess.run(
-            ["git", *args], capture_output=True, text=True, timeout=15
-        )
-        return out.stdout if out.returncode == 0 else ""
-    except Exception:
-        return ""
 
 
 def is_ancestor(a: str, b: str) -> bool:
@@ -247,20 +241,15 @@ def main() -> None:
     log = git("log", "--since=8.hours", "--pretty=%H", "--no-merges")
     shas = [s for s in log.split() if s]
 
-    touched_handoff = False
     real_work = 0
     for sha in shas:
         files = [f for f in git("show", "--name-only", "--pretty=", sha).split() if f]
-        if any(f.endswith(HANDOFF) for f in files):
-            touched_handoff = True
         if any(not f.endswith(DOC_SUFFIXES) for f in files):
             real_work += 1
 
-    if touched_handoff or real_work < MIN_COMMITS:
-        sys.exit(0)
-
-    # Uncommitted edit to the handoff counts: the session is mid-update.
-    if HANDOFF in git("status", "--porcelain"):
+    # A commit in the window that touched the handoff, or an uncommitted edit
+    # to it (the session is mid-update), means it is being kept.
+    if real_work < MIN_COMMITS or touched_since("8.hours"):
         sys.exit(0)
 
     exists = bool(git("ls-files", HANDOFF).strip())
