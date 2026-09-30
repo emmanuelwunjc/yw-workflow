@@ -3,7 +3,7 @@ name: fresh-eye
 description: Dispatch an independent adversarial reviewer that did not write the code, in an isolated git worktree, to try to break a change rather than agree with it. Use before merging anything non-trivial, when asked for "a fresh eye", "a second opinion", "review this properly", "try to break this", or when you have just finished work and are about to call it done. Also use on the FIX for a previous review, because that is where the next defect usually is.
 origin: authored
 tags: [review, quality, adversarial, worktree, mutation-testing]
-version: 1.1.1
+version: 1.2.0
 ---
 
 # Fresh eye
@@ -40,12 +40,12 @@ change. Give the exact command:
 
     git fetch origin && git diff origin/<base>...origin/<branch>
 
-**Tell it to break things, not to summarise.** The prompt should say: you did not
+**Tell it to break things, not to summarize.** The prompt should say: you did not
 write this, do not take the author's word for anything, find what is wrong.
 
 **Give it the project's known disease.** Every codebase has a recurring failure
 mode. Name it and say "assume it is present until you prove otherwise". Examples
-that have paid off: checks that grep for a string instead of measuring behaviour;
+that have paid off: checks that grep for a string instead of measuring behavior;
 scripted edits whose anchor silently matched nothing; features that shipped
 without ever rendering.
 
@@ -68,6 +68,13 @@ easy to do accidentally and invisible in a diff.
 
 **Ask what the inputs never reach.** A check that finds nothing may be correct
 and never exercised. Ask which regions of the input space no test renders.
+
+**Diff every claim against its source.** When the change writes a sentence that
+makes a factual claim to a reader (site copy, a report, a README claim), the
+author wrote its source line first: the exact quote (or the command that
+measures a number or a behavior), where it lives, its date.
+The reviewer compares sentence to quote. A sentence stronger than its quote, or
+with no source line, is blocking.
 
 **Forbid fixing.** "Do not fix anything. Do not commit." A reviewer that fixes
 things stops reviewing.
@@ -143,7 +150,15 @@ or the fifth fix-and-re-review cycle:
 The decision line is the first thing on the page and is exactly one or two
 words: `PASS`, `BLOCK`, or `REVIEW` (a call only a person can make, e.g. a
 deliberate tradeoff the reviewer can't approve or reject on its own). Never
-bury the verdict in prose the reader has to extract themselves.
+bury the verdict in prose the reader has to extract themselves. A `REVIEW`
+that could have been asked before the build cost a round. `ship-loop` step 3
+asks those calls first.
+
+A round is clean when it returns `PASS`. A `REVIEW` counts as clean only when
+the owner's answer needs no code change.
+
+Each round goes on the PR body's `Rounds:` line, in the format `ship-loop`
+step 6 gives.
 
 The TL;DR sits at a different altitude from the specifics section. It
 describes the user-facing scenario the finding would have caused, leaving the
@@ -181,6 +196,12 @@ function, or line number, it belongs in Agent-facing specifics instead.
        on the base and passes on the branch). Then check out the branch
        detached and run mattpocock-skills:code-review against the base, using
        the ticket or PR body as the spec. Report its Standards and Spec verdicts.
+    8. For every sentence that makes a factual claim to a reader, find its
+       source line (exact quote or the command that measures it, where it
+       lives, date). Diff the sentence against the quote. Stronger than the
+       quote, or no source line: BLOCKING.
+    9. Does this match house style (the repo's CLAUDE.md, README, or style
+       guide)? Is the premise sound? Should this exist at all?
 
     Report each finding with file:line, BLOCKING or nit, the concrete failure
     scenario (inputs -> wrong output), and how you verified it. Say plainly
