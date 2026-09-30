@@ -294,15 +294,18 @@ decision refuses.
 
 ## 2026-09-21: warn the model when its context passes the smart zone
 
-Supports `handoff`. Adds `hooks/context-warning.py`.
+Superseded 2026-09-30 by the wind-down entry below. What still holds: the numbers, how the size is measured, the two events, main thread only. What was replaced: the warning-only behavior and the rejection of Stop.
+The hook was named `context-warning.py` then, with rule and section `context_warning`; this entry now uses the current names.
+
+Supports `handoff`. Adds `hooks/context-handoff.py`.
 
 The owner decided the numbers: the first warning at 120k tokens, then one more
 at every 100k past it (220k, 320k). 120k comes from mattpocock's `ask-matt`
 skill, which calls it the smart zone, "the window (~120k tokens on
 state-of-the-art models) within which the model still reasons sharply", and
 says to `/handoff` and continue in a fresh thread when a session nears it. Both
-numbers are settings in `.handrail.toml` (`[context_warning] first`, `step`).
-The switch is `[rules] context_warning`, so a repo config cannot switch it off.
+numbers are settings in `.handrail.toml` (`[context_handoff] first`, `step`).
+The switch is `[rules] context_handoff`, so a repo config cannot switch it off.
 The thresholds sit outside that ratchet, as they do for every guard: a repo can
 set `first` high enough that the warning never fires.
 
@@ -347,3 +350,108 @@ The hook skips any call with `agent_id`.
 Cost: 31 ms median per call over 20 runs on a 10.1 MB transcript (maximum 280
 ms, the first run). Only the last 2 MB of the transcript is read, so an
 880k-token session costs the same as a small one.
+
+## 2026-09-30: wind down and hand off when context passes the smart zone
+
+Supports `handoff`. Supersedes the warning-only design of 2026-09-21. Renames
+the hook to `hooks/context-handoff.py`, with rule `[rules] context_handoff`,
+section `[context_handoff]` and state in `~/.claude/state/context-handoff/`.
+
+The owner's words: "build a global hook where at that percentage, u allow the
+agents to finish, if the subagents go for too long, save its outcome and kill
+it, either way writes handoff for the next session". The 2026-09-21 hook
+printed one sentence and left the rest to the model. A coordinator past 120k
+could read it, keep dispatching, and end the session with no handoff.
+
+What it does now, in three parts:
+
+1. Wind-down notice, on PostToolBatch or UserPromptSubmit, at `first` tokens
+   and again at each `step` past it. Start no new work. Spawn no new subagents.
+   Running subagents may finish, for at most `grace_minutes` (default 15). Set
+   one background timer for the deadline. Then write the handoff and tell the
+   user to start a fresh session. The time of the notice is recorded.
+2. Deadline notice, on the first of those events at or after that time plus
+   `grace_minutes`, when no handoff has been written since. For each subagent
+   still running: save what it has (its last report, its branch and worktree
+   path, any files) into the handoff, stop it with TaskStop, write the handoff
+   now. Said once per notice.
+3. Stop check. After a notice, with no handoff written since, one Stop is
+   blocked with the same instruction.
+
+The unit is tokens. The owner said "percentage" loosely. The source gives a
+count, "(~120k tokens on state-of-the-art models)", and says nothing about a
+share of the window. 120k is 60% of a 200k window and 12% of a 1M one, so a
+percentage would move the line with the model while the source's claim stays
+at the same count.
+
+The hook instructs and the model acts. It stops no subagent and blocks no
+tool. A hook sees one event's input and cannot know which subagent holds work
+worth saving. The model can, and TaskStop is its tool.
+
+The timer is the model's: a Bash `sleep` with `run_in_background`. A finished
+background command re-invokes the model. That sentence is in the Bash tool's
+own description and was seen to happen while this was built. The tools
+reference page does not state it, so it is an observed behavior with no
+documented guarantee. Without the timer an idle main thread triggers no hook
+and the deadline would pass unseen.
+
+Stop blocks once per notice. Quoted from https://code.claude.com/docs/en/hooks
+as read on 2026-09-30:
+
+- The shape is `{"decision": "block", "reason": "..."}`. `decision`: "`"block"`
+  prevents Claude from stopping. Omit to allow Claude to stop". `reason`:
+  "Required when `decision` is `"block"`. Tells Claude why it should continue".
+- "The `stop_hook_active` field is `true` when Claude Code is already
+  continuing as a result of a stop hook. Check this value or process the
+  transcript to avoid blocking on a condition that will never resolve." The
+  hook never blocks when it is true.
+- The hook also keeps its own record of the block, so a later turn in the same
+  session is not blocked again. A lane's handoff goes in its PR body, which
+  this check cannot see, so on a lane the condition never resolves by itself.
+  One block asks the question. A second would only repeat it.
+- The input's `background_tasks` and `session_crons` arrays "let hooks
+  distinguish "session is done" from "session is paused waiting for background
+  work to wake it back up"". Inside the grace, a Stop with a non-empty
+  `background_tasks` is let through and the block is kept for later. A main
+  thread waiting on its subagents has to go idle, and that is what the notice
+  asked for. "Both arrays are present when the task registry is reachable", so
+  when the array is missing the hook blocks and the reason says to stop again
+  if subagents are still inside their grace.
+- After the deadline the block carries the deadline instruction, and that
+  counts as the deadline notice.
+
+This reverses the 2026-09-21 rejection of Stop. Then the hook had nothing to
+require, so keeping a finished turn going bought nothing. Now it requires a
+handoff, and a session that ends past the line without one is the failure the
+owner asked to prevent.
+
+"Handoff written" is one test, `hooks/handoff_touch.py`, used by this hook and
+by `handoff-freshness.py`: a non-merge commit that changes `docs/HANDOFF.md`
+since the given time, or an uncommitted change to it. `handoff-freshness.py`
+asks about the last 8 hours and this hook asks about the time since its
+notice. An uncommitted edit carries no time, so one made before the notice
+counts too.
+
+Rejected:
+
+- A percentage of the window. See the unit above.
+- The hook stopping subagents itself, or blocking the Agent tool after the
+  notice. Out of scope by the owner's brief: the hook instructs.
+- Blocking every Stop until a handoff exists. On a lane that never resolves,
+  and the docs' cap would end it anyway: "after stop hooks have continued the
+  turn eight times in a row, Claude Code overrides the next block and ends the
+  turn".
+- Reading the PR body with `gh` to see a lane's notes. It needs the network,
+  and `handoff-freshness.py` already refused that for the same reason.
+- Stop's `hookSpecificOutput.additionalContext` in place of the block. It
+  continues the conversation the same way, and the docs say "no hook error
+  notification is shown". The owner should see that a session tried to end
+  past the line with no handoff.
+- A hook-owned timer through `asyncRewake`, which per the docs "wakes Claude
+  immediately even when the session is idle" on exit code 2. Not tried. It
+  would put a 15-minute sleeping process behind every notice, and "Claude Code
+  still enforces `timeout` on a hook you run with `asyncRewake`", so it needs
+  a timeout longer than the grace. Worth a ticket if the model's own timer
+  proves unreliable.
+
+Check: `./hooks/context-handoff-selftest.py`.

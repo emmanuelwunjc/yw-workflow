@@ -86,7 +86,7 @@ plugin path only.
 | **no-ai-attribution.py** | PreToolUse | Keeps AI-generation footers out of anything people read. Commit trailers stay. |
 | **claude-md-guard.py** | UserPromptSubmit, Stop | Blocks em-dashes, negation-then-correction, and prose questions where checkboxes are required. |
 | **handoff-freshness.py** | Stop | On a lane whose net diff from trunk changes real files, reminds it to write the PR body's `## Handoff notes` section, and warns any lane (a detached HEAD included) whose net diff changes `docs/HANDOFF.md`. On trunk (`main`, `master`, or what `origin/HEAD` names) or a `docs/handoff-*` branch, catches work piling up against an untouched `docs/HANDOFF.md`. Also catches a `docs/HANDOFF.md` that lacks the `## Start here` block, still opens with an "end of a session" preamble, or has a handoff-named `.md` tracked outside `docs/` (the shape in skill `handoff`). Override: `SKIP_HANDOFF_CHECK=1`. |
-| **context-warning.py** | PostToolBatch, UserPromptSubmit | Tells the model when its context passes about 120k tokens, the end of the "smart zone", and again at every 100k past that: finish waiting on running agents, run the handoff pass, start a fresh session. Reads the size from the last assistant message's usage in the transcript. Once per step per session; main thread only. Never blocks. Settings: `[rules] context_warning` and `[context_warning] first`, `step` in `.handrail.toml`. |
+| **context-handoff.py** | PostToolBatch, UserPromptSubmit, Stop | Winds a session down when its context passes about 120k tokens, the end of the "smart zone", and again at every 100k past that. The notice tells the model to start no new work, spawn no subagents, let running ones finish for at most 15 minutes, then write the handoff and tell the user to start a fresh session. After the 15 minutes, with no handoff written, a second notice says to save what each running subagent has, stop it, and write the handoff now. Blocks one Stop per notice while `docs/HANDOFF.md` is untouched since the notice; it cannot see a PR body, so on a lane that one block always arrives. The hook instructs and the model acts: it stops no subagent itself. Reads the size from the last assistant message's usage in the transcript. Main thread only. Settings: `[rules] context_handoff` and `[context_handoff] first`, `step`, `grace_minutes` in `.handrail.toml`. |
 
 Wire them in one place only. Wiring the same hook here and in
 `~/.claude/settings.json` fires it twice and halves its block budget.
@@ -165,9 +165,9 @@ branch-protection decision, and it belongs with the people who own the branch.
 ## Config
 
 **Read this first: only `claude-md-guard.py`, `no-ai-attribution.py` and
-`context-warning.py` consult the config today.** The `[rules]` switches and
-`policy_doc` work for the first two, and `context-warning.py` reads its switch
-and its `[context_warning]` values.
+`context-handoff.py` consult the config today.** The `[rules]` switches and
+`policy_doc` work for the first two, and `context-handoff.py` reads its switch
+and its `[context_handoff]` values.
 The other value keys below are parsed and are not yet read by any guard, so
 `trivial_lines` and `protected` change nothing until the unit that wires them
 lands. `git-safety-guard.sh` still hardcodes `main` and `master`, and
@@ -192,9 +192,10 @@ protected = ["main", "trunk"]
 [require_review]
 trivial_lines = 10
 
-[context_warning]
-first = 120000                    # tokens; the first warning
-step = 100000                     # then one more per step past it
+[context_handoff]
+first = 120000                    # tokens; the first wind-down notice
+step = 100000                     # tokens; the notice repeats per step past it
+grace_minutes = 15                # how long running subagents may finish
 ```
 
 A repo config may switch a rule **on**. Only your user config may switch one
