@@ -118,15 +118,28 @@ for skill in skills:
 # file nobody dispatches is dead weight, and a skill that names a type with no
 # file starts nothing, so both directions are checked.
 print("role agents")
-ROLE_NO_EDIT = {"reviewer": {"Write", "Edit", "NotebookEdit"}}
+# An allow-list per role, not a deny-list of editing tools: a deny-list let
+# MultiEdit, Edit(*) and a YAML list through. A new role has no entry here, so
+# adding one forces its author to say what it may use.
+READ = {"Read", "Grep", "Glob"}
+ROLE_TOOLS = {
+    "builder": READ | {"Write", "Edit", "Bash"},
+    "reviewer": READ | {"Bash"},
+    "fixer": READ | {"Write", "Edit", "Bash"},
+    "documenter": READ | {"Write", "Edit"},
+}
 agent_files = sorted((ROOT / "agents").glob("*.md"))
 check("agents/ is non-empty", bool(agent_files))
 skill_text = {s.parent.name: s.read_text() for s in skills}
 for agent in agent_files:
     role = agent.stem
-    front = agent.read_text().replace("\r\n", "\n").split("---\n")[1:2]
+    # whole-line fences, both of them. Splitting on "---" took everything after
+    # the first fence, so an unterminated block still parsed and passed.
+    fenced = re.match(r"---\n(.*?)\n---\n", agent.read_text().replace("\r\n", "\n"),
+                      re.DOTALL)
+    check("agent %s frontmatter is terminated" % role, bool(fenced))
     meta = {}
-    for line in (front[0] if front else "").splitlines():
+    for line in (fenced.group(1) if fenced else "").splitlines():
         key, _, value = line.partition(":")
         meta[key.strip()] = value.strip()
     check("agent %s frontmatter name is %s" % (role, role), meta.get("name") == role,
@@ -134,11 +147,12 @@ for agent in agent_files:
     check("agent %s has a description" % role, bool(meta.get("description")))
     tools = {t.strip() for t in meta.get("tools", "").split(",") if t.strip()}
     check("agent %s lists its tools" % role, bool(tools))
-    check("agent %s holds no editing tool it should not" % role,
-          not (tools & ROLE_NO_EDIT.get(role, set())),
-          "has: " + ", ".join(sorted(tools & ROLE_NO_EDIT.get(role, set()))))
+    check("agent %s has a tool allow-list here" % role, role in ROLE_TOOLS)
+    extra = tools - ROLE_TOOLS.get(role, set())
+    check("agent %s lists only tools its role allows" % role, not extra,
+          "not allowed: " + ", ".join(sorted(extra)))
     handle = "yw-workflow:" + role
-    check("a skill dispatches %s" % handle,
+    check("a skill names %s" % handle,
           any(handle in text for text in skill_text.values()))
 named = {m for t in skill_text.values() for m in re.findall(r"yw-workflow:([a-z0-9]+(?:-[a-z0-9]+)*)", t)}
 named -= {s.parent.name for s in skills}

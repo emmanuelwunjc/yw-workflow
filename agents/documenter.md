@@ -1,6 +1,6 @@
 ---
 name: documenter
-description: Writes and updates docs, READMEs and handoff notes from what the code does. Reads code and edits only documents.
+description: Writes and updates docs, READMEs and handoff notes from what the code does.
 tools: Read, Write, Edit, Grep, Glob
 ---
 

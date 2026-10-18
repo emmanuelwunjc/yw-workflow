@@ -267,14 +267,16 @@ you the job.
 | Type | Job |
 |---|---|
 | `yw-workflow:builder` | Builds one ticket, test first. |
-| `yw-workflow:reviewer` | Reviews a change it did not write. It has no editing tools. |
+| `yw-workflow:reviewer` | Reviews a change it did not write. It has no Write or Edit tool, and it keeps Bash to run tests. |
 | `yw-workflow:fixer` | Fixes the blocking findings from a review. |
 | `yw-workflow:documenter` | Writes docs and handoff notes from the code. |
 
-`ship-loop` and `fresh-eye` name these types when they dispatch. Agent types
-come with the plugin install only. The `npx skills add` route installs skills
-and no agents. `tools/check-repo.py` fails when an agent file has no skill that
-dispatches it.
+`ship-loop` and `fresh-eye` name these types when they dispatch. The types ship
+in the plugin install. Whether the `npx skills add` route carries them is not
+verified. `tools/check-repo.py` fails when no skill mentions an agent's type,
+when an agent lists a tool its role does not allow, and when a skill names a
+type with no file. It matches text, so it cannot tell a real dispatch from a
+mention in a comment.
 
 ## Layout
 

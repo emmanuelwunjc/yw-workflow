@@ -57,7 +57,9 @@ the whole tree.
 `subagent_type: "yw-workflow:builder"`. A helper started without a type shows
 as `general-purpose`, and the owner cannot tell a builder from a reviewer.
 Fixes after a review go to `yw-workflow:fixer`. Docs, READMEs and handoff notes
-go to `yw-workflow:documenter`.
+go to `yw-workflow:documenter`. If the install predates these types, the Agent
+tool errors on them: start a `general-purpose` helper and put the role first in
+its description (e.g. "Build: ticket 41").
 
 **UI or on-screen copy: get the owner's calls before you build.** An owner's
 call is one of three things: a claim the sources do not settle, a design or
