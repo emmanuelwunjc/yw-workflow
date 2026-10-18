@@ -53,6 +53,12 @@ the whole tree.
 
 ## 3. Implement, test first
 
+**Name the role.** When you hand this step to a subagent, start it with
+`subagent_type: "yw-workflow:builder"`. A helper started without a type shows
+as `general-purpose`, and the owner cannot tell a builder from a reviewer.
+Fixes after a review go to `yw-workflow:fixer`. Docs, READMEs and handoff notes
+go to `yw-workflow:documenter`.
+
 **UI or on-screen copy: get the owner's calls before you build.** An owner's
 call is one of three things: a claim the sources do not settle, a design or
 layout choice, or a tradeoff. A reviewer would label it `REVIEW` (see

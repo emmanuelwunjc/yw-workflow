@@ -112,6 +112,40 @@ for skill in skills:
           "got " + repr(keys.get("name")))
     check("%s has a description" % want, bool(keys.get("description")))
 
+# 1b-2. Role agents. The Agent tool labels a helper with its agent type, and a
+# helper started without one shows as "general-purpose" whatever it does. These
+# files give the builder, reviewer, fixer and documenter their own names. A
+# file nobody dispatches is dead weight, and a skill that names a type with no
+# file starts nothing, so both directions are checked.
+print("role agents")
+ROLE_NO_EDIT = {"reviewer": {"Write", "Edit", "NotebookEdit"}}
+agent_files = sorted((ROOT / "agents").glob("*.md"))
+check("agents/ is non-empty", bool(agent_files))
+skill_text = {s.parent.name: s.read_text() for s in skills}
+for agent in agent_files:
+    role = agent.stem
+    front = agent.read_text().replace("\r\n", "\n").split("---\n")[1:2]
+    meta = {}
+    for line in (front[0] if front else "").splitlines():
+        key, _, value = line.partition(":")
+        meta[key.strip()] = value.strip()
+    check("agent %s frontmatter name is %s" % (role, role), meta.get("name") == role,
+          "got " + repr(meta.get("name")))
+    check("agent %s has a description" % role, bool(meta.get("description")))
+    tools = {t.strip() for t in meta.get("tools", "").split(",") if t.strip()}
+    check("agent %s lists its tools" % role, bool(tools))
+    check("agent %s holds no editing tool it should not" % role,
+          not (tools & ROLE_NO_EDIT.get(role, set())),
+          "has: " + ", ".join(sorted(tools & ROLE_NO_EDIT.get(role, set()))))
+    handle = "yw-workflow:" + role
+    check("a skill dispatches %s" % handle,
+          any(handle in text for text in skill_text.values()))
+named = {m for t in skill_text.values() for m in re.findall(r"yw-workflow:([a-z0-9]+(?:-[a-z0-9]+)*)", t)}
+named -= {s.parent.name for s in skills}
+check("every agent type a skill names has a file",
+      named <= {a.stem for a in agent_files},
+      "no file for: " + ", ".join(sorted(named - {a.stem for a in agent_files})))
+
 # 1c. The README describes the skills, and nothing checked that it still did.
 # Adding two skills left it claiming seven in one place and nine in another, and
 # gave one row a summary that differed from its own skill.
