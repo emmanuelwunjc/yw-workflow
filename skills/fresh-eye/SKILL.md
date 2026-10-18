@@ -30,6 +30,13 @@ matches what its issue asked for, and it does not catch a bad design decision.
 
 ## How to run it
 
+**Name the role.** Start the reviewer with `subagent_type: "yw-workflow:reviewer"`,
+so it shows as a reviewer and not as `general-purpose`. That type has no
+Write or Edit tool. It keeps Bash to run tests, so the isolated worktree below is
+what protects the code. If the install predates the type, the Agent tool errors
+on it: start a `general-purpose` helper and put the role first in its
+description (e.g. "Review: PR 12").
+
 **Isolate.** Give the reviewer `isolation: "worktree"`. Never point two agents at
 one working directory: file ownership stops two agents editing the same file and
 does nothing about `checkout`/`pull`, which move the whole tree.

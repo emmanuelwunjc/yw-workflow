@@ -258,8 +258,29 @@ session, the fog of war, one ticket per session. Each skill's own Credit
 section says what changed and why, and `NOTICE` reproduces his copyright and
 permission notice in full, which is what MIT actually requires.
 
+## Role agents
+
+A helper started without an agent type shows as `general-purpose` in Claude
+Code, whatever it does. The plugin ships four named types, so the label tells
+you the job.
+
+| Type | Job |
+|---|---|
+| `yw-workflow:builder` | Builds one ticket, test first. |
+| `yw-workflow:reviewer` | Reviews a change it did not write. It has no Write or Edit tool, and it keeps Bash to run tests. |
+| `yw-workflow:fixer` | Fixes the blocking findings from a review. |
+| `yw-workflow:documenter` | Writes docs and handoff notes from the code. |
+
+`ship-loop` and `fresh-eye` name these types when they dispatch. The types ship
+in the plugin install. Whether the `npx skills add` route carries them is not
+verified. `tools/check-repo.py` fails when no skill mentions an agent's type,
+when an agent lists a tool its role does not allow, and when a skill names a
+type with no file. It matches text, so it cannot tell a real dispatch from a
+mention in a comment.
+
 ## Layout
 
+- `agents/` one file per role agent.
 - `skills/` one directory per skill, one `SKILL.md` each.
 - `hooks/` the guards, their self-tests, and `hooks.json`.
 - `.github/actions/guards/` the composite action that runs the guards in CI.
