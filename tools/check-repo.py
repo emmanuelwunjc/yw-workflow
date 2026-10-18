@@ -135,7 +135,7 @@ for agent in agent_files:
     role = agent.stem
     # whole-line fences, both of them. Splitting on "---" took everything after
     # the first fence, so an unterminated block still parsed and passed.
-    fenced = re.match(r"---\n(.*?)\n---\n", agent.read_text().replace("\r\n", "\n"),
+    fenced = re.match(r"---\n(.*?)\n---(?:\n|$)", agent.read_text().replace("\r\n", "\n"),
                       re.DOTALL)
     check("agent %s frontmatter is terminated" % role, bool(fenced))
     meta = {}

@@ -1,6 +1,6 @@
 ---
 name: reviewer
-description: Independent reviewer. Reads a change, tries to break it, and reports findings marked blocking or nit. Edits no files.
+description: Independent reviewer. Reads a change, tries to break it, and reports findings marked blocking or nit. Has no Write or Edit tool.
 tools: Read, Grep, Glob, Bash
 ---
 
