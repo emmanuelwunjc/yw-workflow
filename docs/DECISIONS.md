@@ -499,3 +499,24 @@ Rejected:
   proves unreliable.
 
 Check: `./hooks/context-handoff-selftest.py`.
+
+## 2026-11-04: record broken inputs as test cases
+
+Supports `fresh-eye`, `ship-loop` and `mutation-gate`. On EdSim #518 (tag each
+constant that a Virginia answer would change), the second review round spent
+393 seconds and 100,855 tokens. Source: the Agent tool usage block of that
+reviewer run (`duration_ms` 393216, `subagent_tokens` 100855), in the session
+of 2026-11-04. Its report listed 21 hand mutations in a table. Most were
+broken inputs, e.g. a tag with a comma or a misspelled key.
+
+The fix for that round, EdSim commit 9f29452, recorded 13 broken inputs as
+in-memory cases in `tests/dcetep/requirements/test_va_waits_on.py`, plus
+one valid input. Recount: `git show 9f29452:tests/dcetep/requirements/test_va_waits_on.py`
+and count the `_CASES` entries. The third round ran them in the suite and spent
+its hand work on check mutations and new inputs. It took 274 seconds and 69,211
+tokens (same source, that reviewer's usage block). It found three new broken
+inputs, which became cases.
+
+Considered and rejected: put every mutation into the `mutation-gate` data file.
+The gate breaks a script's code and needs its runner. A bad input to a check
+that takes an argument is cheaper as an ordinary test beside the check.

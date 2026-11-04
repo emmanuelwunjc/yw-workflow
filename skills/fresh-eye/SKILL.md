@@ -68,21 +68,27 @@ loudly:
 Then ask it to invent three more mutations you did not think of, aimed at the
 weakest checks. Those are the ones that find things.
 
-**Record each mutation as a test case, so no round repeats one.** When a check
-can take its input as an argument (a string, a row, a dict), each mutation
-lives in the repo's tests beside the check: a small broken input and the exact
-problem it must produce, plus one valid input that must produce none. The cases
-run in memory with the suite, in every run and in CI. The author writes them
-with the check. Then the reviewer runs the suite once, mutates the check
-function itself to confirm a case fails for each branch, and spends its hand
-mutations on new ones only. Every survivor it finds becomes a new case in the
-fix. Hand edits of real files are only for checks that cannot take their input
-as an argument: record those with `mutation-gate`.
+**Record the broken inputs, so no round retypes them.** Two kinds of mutation
+go into a review. A *broken input* is bad data fed to a check, e.g. a tag with
+a typo. A *check mutation* is an edit to the check's own code, e.g. a deleted
+branch or a looser regex.
 
-Measured on EdSim #518 (tag each constant a Virginia answer changes),
-2026-11-04: round 2 spent about 6.5 minutes and 101k tokens, mostly on 21 hand
-mutations. The fix for that round turned thirteen of them into recorded cases
-in that repo's `tests/dcetep/requirements/test_va_waits_on.py`.
+When a check takes its input as an argument (a string, a row, a dict), the
+author records each broken input as a test case beside it: the input and the
+problem text it must contain, plus one valid input that must give none. Give
+each branch its own problem text, so a case shows which branch fired. These are
+ordinary tests, written with the check. The suite runs them every round and in
+CI.
+
+Check mutations stay hand work each round, because the check's code is what
+changes between rounds. The reviewer has no Edit tool, so it copies the check
+aside, edits it with a Bash-run script, runs the cases, and copies the original
+back. A case must fail for each branch it mutates.
+
+A survivor goes through `ship-loop` step 5 like any finding. A blocking broken
+input becomes a new case in the fix. A code breakage that a script's own
+self-check missed becomes a `mutation-gate` entry. Cases go when their check
+goes. The measurement behind this rule is in `docs/DECISIONS.md` (2026-11-04).
 
 **Ask what a bound excludes.** If the change narrows a promise ("works above
 1024 wide"), ask directly: is that bound justified by the physics of the problem,
@@ -205,12 +211,12 @@ function, or line number, it belongs in Agent-facing specifics instead.
 
     1. Run <the gate command>. It must exit 0. NOTE: it reports failures on
        stderr and signals with its exit code; do not grep stdout.
-    2. Run the recorded mutation cases with the suite. Mutate the check
-       function itself and confirm a case fails for each branch. Then
-       mutate the source for anything the cases cannot hold:
+    2. Run the recorded broken-input cases with the suite. Then mutate
+       the check's code (on a copy, restored after) and confirm a case
+       fails for each branch:
        <list>
-       Revert each after. Report any that survived, loudly, each stated as
-       a new recorded case to add.
+       Report any that survived, loudly. State each surviving broken input
+       as a new case to add.
     3. Invent three more mutations aimed at the weakest checks.
     4. Is the promised bound justified by the problem, or chosen to exclude
        failures?
