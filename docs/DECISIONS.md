@@ -503,21 +503,20 @@ Check: `./hooks/context-handoff-selftest.py`.
 ## 2026-11-04: record broken inputs as test cases
 
 Supports `fresh-eye`, `ship-loop` and `mutation-gate`. The case is EdSim PR
-#520, which tags each constant that a Virginia answer would change. Its second
-review round spent 101k tokens. Recount: the `Rounds:` line of that PR's body
-(`gh pr view 520 --repo georgetown-mdi/EdSim --json body`).
+#520, which tags each constant that a Virginia answer would change.
 
-The fix for that round, EdSim commit 9f29452, recorded 13 of its hand
-mutations as broken-input cases, e.g. a tag with a comma or a misspelled key.
-They are in-memory cases in `tests/dcetep/requirements/test_va_waits_on.py`, plus one
-valid input. Recount: `git show 9f29452:tests/dcetep/requirements/test_va_waits_on.py`
-and count the `_CASES` entries. The third round ran them in the suite, spent
-its hand work on check mutations and new inputs, and used 69k tokens (same
-`Rounds:` line). Its three new broken inputs became cases in commit 41cd8de.
+- Its second review round used 101k tokens, and its third used 69k. Recount:
+  the `Rounds:` line of the PR body
+  (`gh pr view 520 --repo georgetown-mdi/EdSim --json body`).
+- Between those rounds, commit 9f29452 added a table of 13 broken inputs and
+  one valid input to `tests/dcetep/requirements/test_va_waits_on.py`. Recount:
+  `git show 9f29452:tests/dcetep/requirements/test_va_waits_on.py`, then count
+  the `_CASES` entries.
+- After the third round, commit 41cd8de added three more broken inputs that the
+  round found. Recount: `git show 41cd8de`.
 
-The round times in that PR's Handoff notes are the coordinating session's
-estimates. The size of the round 2 mutation table is in no public record. So
-neither is used here.
+Two rounds do not prove the cases caused the drop in tokens. The owner chose
+the rule on that evidence.
 
 Considered and rejected: put every mutation into the `mutation-gate` data file.
 The gate breaks a script's code and needs its runner. A bad input to a check
