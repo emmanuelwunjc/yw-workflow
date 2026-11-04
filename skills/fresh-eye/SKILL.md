@@ -68,6 +68,31 @@ loudly:
 Then ask it to invent three more mutations you did not think of, aimed at the
 weakest checks. Those are the ones that find things.
 
+**Record the broken inputs, so no round retypes them.** Two kinds of mutation
+go into a review. A *broken input* is bad data fed to a check, e.g. a tag with
+a typo. A *check mutation* is an edit to the check's own code, e.g. a deleted
+branch or a looser regex.
+
+When a check takes its input as an argument (a string, a row, a dict), the
+author records each broken input as a test case beside it. A case holds the
+input and the problem text it must contain. Add one valid input that must give
+no problem. Give each branch its own problem text, so a case shows which branch
+fired. These are ordinary tests, written with the check. The suite runs them
+every round and in CI.
+
+Check mutations stay hand work each round, because the check's code changes
+between rounds. The reviewer backs up the check's file, edits the file in
+place with a Bash-run script, and runs the cases. Then it restores the backup.
+The tests load the real file, so an edit to a copy tests nothing. For each
+branch the reviewer breaks, at least one case must fail.
+
+Each survivor has one route. A surviving broken input becomes a new case,
+blocking or not. A case is cheap to run, but adding one after a `PASS` changes
+code, so it costs one more review round (`ship-loop` step 6). A surviving check
+mutation gets the case that kills it. A code breakage that a script's own
+self-check missed becomes a `mutation-gate` entry. Cases go when their check
+goes. The measurement behind this rule is in `docs/DECISIONS.md` (2026-11-04).
+
 **Ask what a bound excludes.** If the change narrows a promise ("works above
 1024 wide"), ask directly: is that bound justified by the physics of the problem,
 or was it chosen to put the failing cases outside the promise? Goalpost-moving is
@@ -189,9 +214,14 @@ function, or line number, it belongs in Agent-facing specifics instead.
 
     1. Run <the gate command>. It must exit 0. NOTE: it reports failures on
        stderr and signals with its exit code; do not grep stdout.
-    2. Mutate the source and prove each new check fails:
+    2. Run the recorded broken-input cases with the suite. Then back up
+       the check's file, mutate it in place, run the cases, and restore
+       the backup. A case must fail for each branch you break:
        <list>
-       Revert each after. Report any that survived, loudly.
+       Report any that survived, loudly. Name each survivor's route. A
+       surviving broken input or check mutation becomes a new case. A
+       script breakage its own self-check missed becomes a `mutation-gate`
+       entry.
     3. Invent three more mutations aimed at the weakest checks.
     4. Is the promised bound justified by the problem, or chosen to exclude
        failures?

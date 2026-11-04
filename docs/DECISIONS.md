@@ -499,3 +499,25 @@ Rejected:
   proves unreliable.
 
 Check: `./hooks/context-handoff-selftest.py`.
+
+## 2026-11-04: record broken inputs as test cases
+
+Supports `fresh-eye`, `ship-loop` and `mutation-gate`. The case is EdSim PR
+#520, which tags each constant that a Virginia answer would change.
+
+- Its second review round used 101k tokens, and its third used 69k. Recount:
+  the `Rounds:` line of the PR body
+  (`gh pr view 520 --repo georgetown-mdi/EdSim --json body`).
+- Between those rounds, commit 9f29452 added a table of 13 broken inputs and
+  one valid input to `tests/dcetep/requirements/test_va_waits_on.py`. Recount:
+  `git show 9f29452:tests/dcetep/requirements/test_va_waits_on.py`, then count
+  the `_CASES` entries.
+- After the third round, commit 41cd8de added three more broken inputs that the
+  round found. Recount: `git show 41cd8de`.
+
+Two rounds do not prove the cases caused the drop in tokens. The owner asked
+for the rule in conversation on 2026-11-04. That request has no public record.
+
+Considered and rejected: put every mutation into the `mutation-gate` data file.
+The gate breaks a script's code and needs its runner. A bad input to a check
+that takes an argument is cheaper as an ordinary test beside the check.

@@ -21,6 +21,13 @@ closes it mechanically. Measured on
 2026-09-16: 281 recorded breakages (`--list | tail -1` on that repo before #186),
 and the gate is what caught them.
 
+## Gate entries and broken-input cases
+
+A gate entry is a code breakage of a script that the script's own `_demo()`
+must catch. A bad input that a check must reject is a broken-input case, an
+ordinary test beside the check. `fresh-eye` gives that shape and the rule for
+which survivor goes where. The incident rule below covers gate entries only.
+
 ## The rule for adding an entry
 
 An entry is added only when:
@@ -98,9 +105,10 @@ run in parallel; a hang counts as killed, bounded by `DEMO_TIMEOUT_SECONDS`.
 
 ## Hands off to
 
-- `/yw-workflow:fresh-eye` is where entries come from: a reviewer who finds an
-  assertion that cannot fail names it, and the fix adds the entry with the PR
-  as its `source`.
+- `/yw-workflow:fresh-eye` is where entries come from: a reviewer who finds a
+  code breakage that a script's self-check misses names it, and the fix adds
+  the entry with the PR as its `source`. A surviving bad input becomes a
+  broken-input case instead.
 - `/yw-workflow:harden` wires the CI step so the gate holds where the work
   runs, rather than only on one laptop.
 - `/yw-workflow:ship-loop` runs the gate as part of "run what CI runs" before
