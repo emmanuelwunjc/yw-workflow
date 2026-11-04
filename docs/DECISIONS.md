@@ -515,8 +515,8 @@ Supports `fresh-eye`, `ship-loop` and `mutation-gate`. The case is EdSim PR
 - After the third round, commit 41cd8de added three more broken inputs that the
   round found. Recount: `git show 41cd8de`.
 
-Two rounds do not prove the cases caused the drop in tokens. The owner chose
-the rule on that evidence.
+Two rounds do not prove the cases caused the drop in tokens. The owner asked
+for the rule in conversation on 2026-11-04. That request has no public record.
 
 Considered and rejected: put every mutation into the `mutation-gate` data file.
 The gate breaks a script's code and needs its runner. A bad input to a check

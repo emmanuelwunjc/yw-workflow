@@ -218,9 +218,10 @@ function, or line number, it belongs in Agent-facing specifics instead.
        the check's file, mutate it in place, run the cases, and restore
        the backup. A case must fail for each branch you break:
        <list>
-       Report any that survived, loudly. Name each survivor's route: a
-       surviving broken input or check mutation becomes a new case, and a
-       script breakage its own self-check missed becomes a gate entry.
+       Report any that survived, loudly. Name each survivor's route. A
+       surviving broken input or check mutation becomes a new case. A
+       script breakage its own self-check missed becomes a `mutation-gate`
+       entry.
     3. Invent three more mutations aimed at the weakest checks.
     4. Is the promised bound justified by the problem, or chosen to exclude
        failures?
