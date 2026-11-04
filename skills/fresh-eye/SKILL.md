@@ -68,6 +68,22 @@ loudly:
 Then ask it to invent three more mutations you did not think of, aimed at the
 weakest checks. Those are the ones that find things.
 
+**Record each mutation as a test case, so no round repeats one.** When a check
+can take its input as an argument (a string, a row, a dict), each mutation
+lives in the repo's tests beside the check: a small broken input and the exact
+problem it must produce, plus one valid input that must produce none. The cases
+run in memory with the suite, in every run and in CI. The author writes them
+with the check. Then the reviewer runs the suite once, mutates the check
+function itself to confirm a case fails for each branch, and spends its hand
+mutations on new ones only. Every survivor it finds becomes a new case in the
+fix. Hand edits of real files are only for checks that cannot take their input
+as an argument: record those with `mutation-gate`.
+
+Measured on EdSim #518 (tag each constant a Virginia answer changes),
+2026-11-04: round 2 spent about 6.5 minutes and 101k tokens, mostly on 21 hand
+mutations. The fix for that round turned thirteen of them into recorded cases
+in that repo's `tests/dcetep/requirements/test_va_waits_on.py`.
+
 **Ask what a bound excludes.** If the change narrows a promise ("works above
 1024 wide"), ask directly: is that bound justified by the physics of the problem,
 or was it chosen to put the failing cases outside the promise? Goalpost-moving is
@@ -189,9 +205,12 @@ function, or line number, it belongs in Agent-facing specifics instead.
 
     1. Run <the gate command>. It must exit 0. NOTE: it reports failures on
        stderr and signals with its exit code; do not grep stdout.
-    2. Mutate the source and prove each new check fails:
+    2. Run the recorded mutation cases with the suite. Mutate the check
+       function itself and confirm a case fails for each branch. Then
+       mutate the source for anything the cases cannot hold:
        <list>
-       Revert each after. Report any that survived, loudly.
+       Revert each after. Report any that survived, loudly, each stated as
+       a new recorded case to add.
     3. Invent three more mutations aimed at the weakest checks.
     4. Is the promised bound justified by the problem, or chosen to exclude
        failures?

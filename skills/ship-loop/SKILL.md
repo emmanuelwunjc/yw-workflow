@@ -88,6 +88,11 @@ Write the failing probe before the fix, or you will ship something that never
 runs. Then the smallest change that passes, at the root cause: grep every caller
 of the function you touch and fix the shared function once.
 
+A new check ships with its recorded mutation cases: broken inputs, each with the
+problem it must produce, run in memory by the suite. `fresh-eye` gives the
+shape. A reviewer survivor becomes a new case in the fix, so the next round
+does not repeat it.
+
 Two failure modes to watch, both of which produce a commit message that claims a
 fix that did not happen:
 

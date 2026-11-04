@@ -21,6 +21,12 @@ closes it mechanically. Measured on
 2026-09-16: 281 recorded breakages (`--list | tail -1` on that repo before #186),
 and the gate is what caught them.
 
+## First: can the check take its input as an argument?
+
+If it can, record the breakage as a test case beside the check. The case runs in memory in milliseconds and needs no runner (`fresh-eye`
+gives the shape). This gate is for checks that read real files and cannot be
+called on a string.
+
 ## The rule for adding an entry
 
 An entry is added only when:
