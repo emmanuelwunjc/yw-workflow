@@ -74,21 +74,25 @@ a typo. A *check mutation* is an edit to the check's own code, e.g. a deleted
 branch or a looser regex.
 
 When a check takes its input as an argument (a string, a row, a dict), the
-author records each broken input as a test case beside it: the input and the
-problem text it must contain, plus one valid input that must give none. Give
+author records each broken input as a test case beside it. A case holds the
+input and the problem text it must contain. Add one valid input that must give
+no problem. Give
 each branch its own problem text, so a case shows which branch fired. These are
 ordinary tests, written with the check. The suite runs them every round and in
 CI.
 
-Check mutations stay hand work each round, because the check's code is what
-changes between rounds. The reviewer has no Edit tool, so it copies the check
-aside, edits it with a Bash-run script, runs the cases, and copies the original
-back. A case must fail for each branch it mutates.
+Check mutations stay hand work each round, because the check's code changes
+between rounds. The reviewer backs up the check's file, edits the file in
+place with a Bash-run script, and runs the cases. Then it restores the backup.
+The tests load the real file, so an edit to a copy tests nothing. For each
+branch the reviewer breaks, at least one case must fail.
 
-A survivor goes through `ship-loop` step 5 like any finding. A blocking broken
-input becomes a new case in the fix. A code breakage that a script's own
-self-check missed becomes a `mutation-gate` entry. Cases go when their check
-goes. The measurement behind this rule is in `docs/DECISIONS.md` (2026-11-04).
+Every survivor goes through `ship-loop` step 5 like any finding. A surviving
+broken input becomes a new case, blocking or not, because a case costs almost
+nothing to run. A surviving check mutation gets the case that kills it. A code
+breakage that a script's own self-check missed becomes a `mutation-gate`
+entry. Cases go when their check goes. The measurement behind this rule is in
+`docs/DECISIONS.md` (2026-11-04).
 
 **Ask what a bound excludes.** If the change narrows a promise ("works above
 1024 wide"), ask directly: is that bound justified by the physics of the problem,
@@ -211,12 +215,12 @@ function, or line number, it belongs in Agent-facing specifics instead.
 
     1. Run <the gate command>. It must exit 0. NOTE: it reports failures on
        stderr and signals with its exit code; do not grep stdout.
-    2. Run the recorded broken-input cases with the suite. Then mutate
-       the check's code (on a copy, restored after) and confirm a case
-       fails for each branch:
+    2. Run the recorded broken-input cases with the suite. Then back up
+       the check's file, mutate it in place, run the cases, and restore
+       the backup. A case must fail for each branch you break:
        <list>
-       Report any that survived, loudly. State each surviving broken input
-       as a new case to add.
+       Report any that survived, loudly. State each survivor as the new
+       case that would kill it.
     3. Invent three more mutations aimed at the weakest checks.
     4. Is the promised bound justified by the problem, or chosen to exclude
        failures?
