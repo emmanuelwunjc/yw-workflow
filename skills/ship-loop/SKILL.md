@@ -26,14 +26,7 @@ Step 6 says exactly when the loop stops.
 ## 1. Ticket
 
 Every unit of work starts as a written ticket, agent-ready, so it can feed a
-test-first loop without a conversation.
-
-Before you write it, read the open housekeeping tickets (step 7):
-
-    gh issue list --label housekeeping --state open
-
-If one lists this ticket, or this work fits its pattern, do that housekeeping
-fix first. Then start this ticket on top of it. A ticket holds:
+test-first loop without a conversation:
 
 - **Reproduction.** The literal commands and the observed wrong output.
 - **Acceptance criteria as checkable boxes.** Objectively true or false, so a
@@ -50,6 +43,14 @@ gets built and never recorded, and then quietly cancelled by a later one.
 
 Short-lived branch off trunk, `type/short-description`. Never commit to
 `main`/`master`, even solo, even for one line.
+
+When the lane starts, read the open housekeeping tickets (step 7), whoever
+wrote this ticket and whenever:
+
+    gh issue list --label housekeeping --state open
+
+If one lists this ticket, or this work fits its pattern, that housekeeping
+ticket goes first (step 7, "Moving it to the front").
 
 If another agent or session might be working the repo, **load `/yw-workflow:git-lanes`**
 and take a worktree. Check first with `git status --short` and
@@ -136,8 +137,8 @@ exists today. Written ahead of the code, it has nothing to fail against, and it
 still costs a round. This ticket's own failing probe still comes first.
 
 If a finding fits the pattern of an open housekeeping ticket (step 7), the
-pattern came back before its general fix. Stop the lane. Do the housekeeping
-fix first, then rebase the lane on it and continue.
+pattern came back before its general fix. That housekeeping ticket goes first
+(step 7, "Moving it to the front").
 
 Then post the verdict where the change lives, including what you did not fix.
 
@@ -200,27 +201,41 @@ copies those notes into the log. `/yw-workflow:handoff` has the steps.
 
 A ticket that needed three or more fix rounds before its clean round found a
 pattern, and the pattern is rarely in one ticket only. A fix round is a round
-that returned `BLOCK` or `REVIEW` and changed the work. Before the branch
-merges:
+that returned `BLOCK`, or a `REVIEW` whose answer changed the work. Count every
+fix round of the ticket. A change of direction (step 6) does not restart this
+count. Before the branch merges:
 
 1. Name the pattern in one general line. E.g. "a write-up states a claim wider
    than the run that measured it", not "line 104 of the 0.3a write-up".
 2. Search the tracker for open tickets that can meet it. Search by the kind of
    work, e.g. every ticket that writes up a measurement.
 3. File one ticket with the label `housekeeping`. It holds the pattern, the
-   general fix, the similar tickets, and the PR that found it. The general fix
-   is a mechanism where one can exist: a check that runs, then a rule in a
-   ticket template or reviewer prompt, then prose (the order in `CLAUDE.md`).
-4. Add a line to each similar ticket: `Watch: housekeeping #N (the pattern)`.
+   general fix, the similar tickets, and the PR that found it. Make the general
+   fix a mechanism where one can exist: a hook or CI check that fails on it,
+   then a rule in a ticket template or reviewer prompt, then prose.
 
-Create the label once for each repo:
+Create the label once for each repo. `--force` makes a second run harmless and
+still reports a real error:
 
-    gh label create housekeeping --description "General fix for a pattern a long review loop found" 2>/dev/null || true
+    gh label create housekeeping --force --description "General fix for a pattern a long review loop found"
+
+### Moving it to the front
 
 The housekeeping ticket waits in the queue as ordinary work. It moves to the
-front at two points: when a ticket it lists starts (step 1), and when a review
-finding fits its pattern (step 5). Do not batch it after the pattern has come
-back, because each recurrence costs a full review loop.
+front at two points: when a lane starts on work it lists or that fits its
+pattern (step 2), and when a review finding fits its pattern (step 5). Do not
+wait for a batch, because each recurrence costs a full review loop.
+
+1. Assign it to yourself, so a second lane does not start it too:
+   `gh issue edit N --add-assignee @me`.
+2. Freeze the lane. Never put the general fix into the lane's branch.
+3. Run the housekeeping ticket through this loop on its own branch from trunk,
+   and merge it.
+4. Rebase the lane on trunk and continue. The rebase changes the work, so the
+   next review round is mandatory (step 6).
+
+If the general fix needs an owner call, queue the call for the owner and
+continue other lanes.
 
 ## Running it unattended
 
