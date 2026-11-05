@@ -232,21 +232,18 @@ wait for a batch, because each recurrence costs a full review loop.
 1. Freeze the lane: commit its work on its own branch. Never put the general
    fix into the lane's branch.
 2. Take a new worktree (`git-lanes`) from trunk on the branch
-   `chore/housekeeping-N`. Git refuses a branch name that exists, so a failure
-   here means another lane holds the ticket. Then read
-   `gh pr list --head chore/housekeeping-N --state all`. A merged PR: go to
-   step 4. An open PR: wait for its merge. No PR: ask the owner whether to take
-   the branch over.
+   `chore/housekeeping-N`. If git refuses the name, another lane in this clone
+   holds the ticket. Wait for its merge, then go to step 4.
 3. Run the housekeeping ticket through this loop. Put `Closes #N` in its PR
    body, so the ticket closes on merge and the check at lane start stops
    finding it. Merge it.
 4. Rebase the lane on trunk and continue. The rebase changes the work, so the
    next review round is mandatory (step 6).
 
-A lane on another machine cannot see a branch that is not pushed yet. Two
-machines can both start the same fix, and the second finds the first only when
-its PR opens. That gap is accepted, because a guard for it costs more than a
-rare duplicate PR.
+The branch lock holds inside one clone only. A lane in another clone, e.g. a
+cloud routine, does not see the branch, so two clones can both start the same
+fix. The second finds the first when it pushes or opens its PR. That gap is
+accepted, because a rare duplicate PR costs less than a guard for it.
 
 If the general fix needs an owner call, queue the call for the owner and
 continue other lanes.
