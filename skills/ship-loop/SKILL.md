@@ -3,7 +3,7 @@ name: ship-loop
 description: Run work as a closing loop instead of a trailing-off one. Ticket, branch, implement test-first, dispatch an independent review, fix what blocks, file what does not, and repeat until a review round comes back clean. Use when asked to "run the loop", "keep going until it's right", "loop until the feedback is perfect", "babysit this to done", or when handed a backlog of tickets to work through. Also use to decide what happens to review findings.
 origin: authored
 tags: [workflow, review, tdd, subagents, loop, tickets]
-version: 1.1.0
+version: 1.2.0
 ---
 
 # Ship loop
@@ -43,6 +43,16 @@ gets built and never recorded, and then quietly cancelled by a later one.
 
 Short-lived branch off trunk, `type/short-description`. Never commit to
 `main`/`master`, even solo, even for one line.
+
+When the lane starts, read the open housekeeping tickets (step 7), even if this
+ticket is older than they are. A repo with no GitHub tracker reads its own
+tracker, or skips this if it has none:
+
+    gh issue list --label housekeeping --state open
+
+If one lists this ticket, or this work fits its pattern, that housekeeping
+ticket goes first (step 7, "Moving it to the front"). The lane that runs the
+housekeeping ticket itself skips this check.
 
 If another agent or session might be working the repo, **load `/yw-workflow:git-lanes`**
 and take a worktree. Check first with `git status --short` and
@@ -128,6 +138,10 @@ into that ticket's acceptance criteria. A guard protects only behavior that
 exists today. Written ahead of the code, it has nothing to fail against, and it
 still costs a round. This ticket's own failing probe still comes first.
 
+If a finding fits the pattern of an open housekeeping ticket (step 7), the
+pattern came back before its general fix. That housekeeping ticket goes first
+(step 7, "Moving it to the front").
+
 Then post the verdict where the change lives, including what you did not fix.
 
 ## 6. Loop
@@ -185,6 +199,51 @@ of its PR body, and never edits `docs/HANDOFF.md`. The session that merges the
 PRs runs the handoff pass before it stops: one `docs/handoff-*` branch that
 copies those notes into the log. `/yw-workflow:handoff` has the steps.
 
+## 7. Housekeeping after a long loop
+
+A ticket that needed three or more fix rounds before its clean round found a
+pattern, and the pattern is rarely in one ticket only. A fix round is a round
+that returned `BLOCK`, or a `REVIEW` whose answer changed the work. Count every
+fix round of the ticket. A change of direction (step 6) does not restart this
+count. Before the branch merges:
+
+1. Name the pattern in one general line. E.g. "a write-up states a claim wider
+   than the run that measured it", not "line 104 of the 0.3a write-up".
+2. Search the tracker for open tickets that can meet it. Search by the kind of
+   work, e.g. every ticket that writes up a measurement.
+3. File one ticket with the label `housekeeping`. It holds the pattern, the
+   general fix, the similar tickets, and the PR that found it. Make the general
+   fix a mechanism where one can exist, in the order of `~/CLAUDE.md` section
+   3: a hook that blocks it, CI that fails on it, a config setting that forbids
+   it. Below those, a rule in a ticket template or reviewer prompt, then prose.
+
+Create the label once for each repo. `--force` makes a second run harmless and
+still reports a real error:
+
+    gh label create housekeeping --force --description "General fix for a pattern a long review loop found"
+
+### Moving it to the front
+
+The housekeeping ticket waits in the queue as ordinary work. It moves to the
+front at two points: when a lane starts on work it lists or that fits its
+pattern (step 2), and when a review finding fits its pattern (step 5). Do not
+wait for a batch, because each recurrence costs a full review loop.
+
+1. Freeze the lane: commit its work on its own branch. Never put the general
+   fix into the lane's branch.
+2. Run the housekeeping ticket through this loop, in a new worktree
+   (`git-lanes`) on a branch from trunk. Put `Closes #N` in its PR body, so the
+   ticket closes on merge and the check at lane start stops finding it. Merge
+   it.
+3. Rebase the lane on trunk and continue. The rebase changes the work, so the
+   next review round is mandatory (step 6).
+
+Two lanes can start the same housekeeping ticket at the same time. This step
+has no guard against that, because a rare duplicate costs less than the guard.
+
+If the general fix needs an owner call, queue the call for the owner and
+continue other lanes.
+
 ## Running it unattended
 
 If asked to keep looping without check-ins:
@@ -203,7 +262,8 @@ If asked to keep looping without check-ins:
 Goal met. Diff reviewed by someone who did not write it. Behavior verified by
 running something, with the output. No orphaned code your change created. Every
 finding fixed, ticketed, or rejected in writing. A review round that came back
-clean, as step 6 defines it. A `Rounds:` line in the PR body.
+clean, as step 6 defines it. A `Rounds:` line in the PR body. A housekeeping
+ticket, if the loop took three or more fix rounds (step 7).
 
 ## Suggested skills
 
