@@ -44,8 +44,8 @@ gets built and never recorded, and then quietly cancelled by a later one.
 Short-lived branch off trunk, `type/short-description`. Never commit to
 `main`/`master`, even solo, even for one line.
 
-When the lane starts, read the open housekeeping tickets (step 7), including
-for a ticket filed before them. A repo with no GitHub tracker reads its own
+When the lane starts, read the open housekeeping tickets (step 7), even if this
+ticket is older than they are. A repo with no GitHub tracker reads its own
 tracker, or skips this if it has none:
 
     gh issue list --label housekeeping --state open
@@ -231,17 +231,22 @@ wait for a batch, because each recurrence costs a full review loop.
 
 1. Freeze the lane: commit its work on its own branch. Never put the general
    fix into the lane's branch.
-2. Check whether another lane holds the ticket. Every lane can sign in as the
-   same account, so the assignee does not tell lanes apart. Look for a branch
-   or PR that names the ticket:
-   `gh pr list --search "housekeeping #N" --state open` and
-   `git branch -a --list "*housekeeping-N*"`. If one exists, wait for its merge,
-   then go to step 4.
-3. Otherwise take a new worktree (`git-lanes`) on a branch from trunk named
-   `chore/housekeeping-N`. Name the ticket in the PR title as
-   `housekeeping #N`. Run it through this loop and merge it.
+2. Take a new worktree (`git-lanes`) from trunk on the branch
+   `chore/housekeeping-N`. Git refuses a branch name that exists, so a failure
+   here means another lane holds the ticket. Then read
+   `gh pr list --head chore/housekeeping-N --state all`. A merged PR: go to
+   step 4. An open PR: wait for its merge. No PR: ask the owner whether to take
+   the branch over.
+3. Run the housekeeping ticket through this loop. Put `Closes #N` in its PR
+   body, so the ticket closes on merge and the check at lane start stops
+   finding it. Merge it.
 4. Rebase the lane on trunk and continue. The rebase changes the work, so the
    next review round is mandatory (step 6).
+
+A lane on another machine cannot see a branch that is not pushed yet. Two
+machines can both start the same fix, and the second finds the first only when
+its PR opens. That gap is accepted, because a guard for it costs more than a
+rare duplicate PR.
 
 If the general fix needs an owner call, queue the call for the owner and
 continue other lanes.
