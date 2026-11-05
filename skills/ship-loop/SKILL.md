@@ -44,13 +44,15 @@ gets built and never recorded, and then quietly cancelled by a later one.
 Short-lived branch off trunk, `type/short-description`. Never commit to
 `main`/`master`, even solo, even for one line.
 
-When the lane starts, read the open housekeeping tickets (step 7), whoever
-wrote this ticket and whenever:
+When the lane starts, read the open housekeeping tickets (step 7), including
+for a ticket filed before them. A repo with no GitHub tracker reads its own
+tracker, or skips this if it has none:
 
     gh issue list --label housekeeping --state open
 
 If one lists this ticket, or this work fits its pattern, that housekeeping
-ticket goes first (step 7, "Moving it to the front").
+ticket goes first (step 7, "Moving it to the front"). The lane that runs the
+housekeeping ticket itself skips this check.
 
 If another agent or session might be working the repo, **load `/yw-workflow:git-lanes`**
 and take a worktree. Check first with `git status --short` and
@@ -211,8 +213,9 @@ count. Before the branch merges:
    work, e.g. every ticket that writes up a measurement.
 3. File one ticket with the label `housekeeping`. It holds the pattern, the
    general fix, the similar tickets, and the PR that found it. Make the general
-   fix a mechanism where one can exist: a hook or CI check that fails on it,
-   then a rule in a ticket template or reviewer prompt, then prose.
+   fix a mechanism where one can exist, in the order of `~/CLAUDE.md` section
+   3: a hook that blocks it, CI that fails on it, a config setting that forbids
+   it. Below those, a rule in a ticket template or reviewer prompt, then prose.
 
 Create the label once for each repo. `--force` makes a second run harmless and
 still reports a real error:
@@ -226,11 +229,17 @@ front at two points: when a lane starts on work it lists or that fits its
 pattern (step 2), and when a review finding fits its pattern (step 5). Do not
 wait for a batch, because each recurrence costs a full review loop.
 
-1. Assign it to yourself, so a second lane does not start it too:
-   `gh issue edit N --add-assignee @me`.
-2. Freeze the lane. Never put the general fix into the lane's branch.
-3. Run the housekeeping ticket through this loop on its own branch from trunk,
-   and merge it.
+1. Freeze the lane: commit its work on its own branch. Never put the general
+   fix into the lane's branch.
+2. Check whether another lane holds the ticket. Every lane can sign in as the
+   same account, so the assignee does not tell lanes apart. Look for a branch
+   or PR that names the ticket:
+   `gh pr list --search "housekeeping #N" --state open` and
+   `git branch -a --list "*housekeeping-N*"`. If one exists, wait for its merge,
+   then go to step 4.
+3. Otherwise take a new worktree (`git-lanes`) on a branch from trunk named
+   `chore/housekeeping-N`. Name the ticket in the PR title as
+   `housekeeping #N`. Run it through this loop and merge it.
 4. Rebase the lane on trunk and continue. The rebase changes the work, so the
    next review round is mandatory (step 6).
 
