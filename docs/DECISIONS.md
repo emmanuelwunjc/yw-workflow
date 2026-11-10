@@ -546,8 +546,18 @@ task, and a lane with no claim or release in 7 days goes to the owner.
 A claim holds for 24 hours, or while ListAgents shows its session live.
 ListAgents sees one machine and one harness only, so a claim by a cloud
 routine or another machine must not read as free the moment it is posted.
-When two sessions claim at once, the first claim since the last release
-wins, and the loser posts nothing.
+
+The holder is the latest comment whose first line is exactly a claim or a
+release. Every step uses that rule: the list, the pick, and the check after
+a claim. A session whose claim is not the holder line posts nothing and
+picks again. This rule replaced "the first claim since the last release
+wins" on 2026-11-10, after review round 2 on the change. The first-claim
+rule locked a lane forever behind an expired claim, and it named a
+different holder than the list did.
+
+The handoff pass closes a lane issue only when a merged PR's notes say
+`Lane: #<N>. finished`. Notes with no lane line or no next step go to the
+owner, because a guess there would close an open lane.
 
 What `handoff-freshness.py` checks, offline, in the section from the
 `## Start here` line to the next `## ` heading: a line that starts with

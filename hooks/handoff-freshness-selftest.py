@@ -36,15 +36,16 @@ whole briefing. Nobody writes you a separate prompt. Do these in order.
    `gh label list --search lane --json name --jq '.[] | select(.name == "lane") | .name'`
    It prints nothing: this repo has no lane label yet. Read the LAST
    section of this file for the first task, and go to step 6.
-3. List the open lanes, oldest claim or release first:
+3. List the open lanes. Each line ends with the lane's holder line, and
+   the oldest comes first:
 
-   gh issue list --label lane --state open --json number,title,comments --jq 'map({n: .number, t: .title, c: ([.comments[] | select(.body | test("^(claimed|released) by "; "i"))] | last)}) | sort_by(.c.createdAt // "") | .[] | "#\(.n) \(.t) | \(.c.createdAt // "never") | \((.c.body // "no claim yet") | split("\n")[0])"'
+   gh issue list --label lane --state open --json number,title,comments --jq 'map({n: .number, t: .title, c: ([.comments[] | {at: .createdAt, l: (.body | split("\n")[0] | rtrimstr("\r"))} | select(.l | test("^(claimed|released) by .+, [0-9]{4}-[0-9]{2}-[0-9]{2}$"; "i"))] | last)}) | sort_by(.c.at // "") | .[] | "#\(.n) \(.t) | \(.c.at // "never") | \(.c.l // "no claim yet")"'
 
    No lines: no lane is open. Read the LAST section of this file for the
    first task, and go to step 6.
-4. Pick a lane. A lane is held when its line is a claim under 24 hours
-   old, or a claim whose session ListAgents shows live. Every other lane
-   is free. Take the lane the owner named. Else, one free lane: take it.
+4. Pick a lane. A lane is held when its holder line is a claim under 24
+   hours old, or a claim by a session ListAgents shows live. A release,
+   no claim, or an older claim is free. Take the lane the owner named. Else, one free lane: take it.
    More than one: ask the owner with one AskUserQuestion, one option per
    free lane in list order, the first recommended. No owner present (a
    cloud routine, a headless run): take the first free lane. No free
@@ -52,9 +53,9 @@ whole briefing. Nobody writes you a separate prompt. Do these in order.
 5. Claim it: `gh issue comment <N> --body "claimed by <name>, <YYYY-MM-DD>"`.
    <name> is your session name as ListAgents prints it. With no
    ListAgents, name your harness and worktree, e.g. `cloud routine
-   nightly` or `laptop:04-handoff-lanes`. Then check who won:
-   `gh issue view <N> --json comments --jq '[.comments[] | .body | split("\n")[0] | select(test("^(claimed|released) by "; "i"))] | ((map(test("^released"; "i")) | rindex(true)) // -1) as $r | .[($r + 1):] | first // "no claim yet"'`
-   It prints another session's claim: that session won. Go back to step 4.
+   nightly` or `laptop:04-handoff-lanes`. Then run step 3 again. Lane
+   <N>'s holder line is your claim: you hold it. It is another session's
+   claim: that session holds it. Post nothing, and go back to step 4.
 6. Read the lane issue's `## Next`, or with no lane the LAST section.
    Read the recent sections of this file for traps. Run the recount
    commands before trusting any number. Start the first task it names.
@@ -112,6 +113,15 @@ OUTSIDE = ("# Handoff\n\ngh issue list --label lane --state open\n" + "\n" * 41
 # the command in the dated section under the block, still inside 40 lines
 BELOW = OLD_BLOCK + "\n## 2026-09-16\n\ngh issue list --label lane\n"
 assert len(BELOW.splitlines()) <= 40
+LANE_XYZ = GOOD.replace(CMD, CMD.replace("--label lane", "--label lane-xyz"), 1)
+SUB_HEADING = GOOD.replace("1. Load skills", "### Note\n\n1. Load skills", 1)
+TICKED = GOOD.replace(CMD, "   `" + CMD.strip() + "`", 1)
+SECOND_LATE = BLOCK.replace("Judgment and reasoning only.",
+                            "\n" * 30 + CMD + "\n\nJudgment and reasoning only.", 1) + TAIL
+assert SECOND_LATE.splitlines().index(next(l for l in reversed(SECOND_LATE.splitlines())
+                                           if l.startswith(CMD))) >= 40
+H3_START = GOOD.replace("## Start here\n", "### Start here\n", 1)
+LATER_START = GOOD.replace("## Start here\n", "## Start here later\n", 1)
 # pad inside the section so the lane list sits exactly at line 40, then 41
 AT = {n: BLOCK.replace("## Start here\n", "## Start here\n" + "\n" * (n - CMD_LINE), 1) + TAIL
       for n in (40, 41)}
@@ -174,6 +184,21 @@ CASES = [
     ("lane list under the next heading is outside the block",
      {"docs/HANDOFF.md": BELOW}, ["docs/HANDOFF.md"],
      ["HANDOFF SHAPE", "outside its `## Start here` section"], []),
+    ("lane list for label lane-xyz warns and names it",
+     {"docs/HANDOFF.md": LANE_XYZ}, ["docs/HANDOFF.md"],
+     ["HANDOFF SHAPE", "asks for label `lane-xyz`"], []),
+    ("a ### heading inside the block does not end it",
+     {"docs/HANDOFF.md": SUB_HEADING}, ["docs/HANDOFF.md"], [], ["HANDOFF SHAPE"]),
+    ("a command line in backticks counts",
+     {"docs/HANDOFF.md": TICKED}, ["docs/HANDOFF.md"], [], ["HANDOFF SHAPE"]),
+    ("the first command line decides, a second one past line 40 is fine",
+     {"docs/HANDOFF.md": SECOND_LATE}, ["docs/HANDOFF.md"], [], ["HANDOFF SHAPE"]),
+    ("### Start here is no Start here line",
+     {"docs/HANDOFF.md": H3_START}, ["docs/HANDOFF.md"],
+     ["HANDOFF SHAPE", "has no `## Start here` line"], []),
+    ("## Start here later is no Start here line",
+     {"docs/HANDOFF.md": LATER_START}, ["docs/HANDOFF.md"],
+     ["HANDOFF SHAPE", "has no `## Start here` line"], []),
     ("lane list at line 40 is inside the window",
      {"docs/HANDOFF.md": AT[40]}, ["docs/HANDOFF.md"], [], ["HANDOFF SHAPE"]),
     ("lane list at line 41 is past the window",

@@ -11,15 +11,16 @@ whole briefing. Nobody writes you a separate prompt. Do these in order.
    `gh label list --search lane --json name --jq '.[] | select(.name == "lane") | .name'`
    It prints nothing: this repo has no lane label yet. Read the LAST
    section of this file for the first task, and go to step 6.
-3. List the open lanes, oldest claim or release first:
+3. List the open lanes. Each line ends with the lane's holder line, and
+   the oldest comes first:
 
-   gh issue list --label lane --state open --json number,title,comments --jq 'map({n: .number, t: .title, c: ([.comments[] | select(.body | test("^(claimed|released) by "; "i"))] | last)}) | sort_by(.c.createdAt // "") | .[] | "#\(.n) \(.t) | \(.c.createdAt // "never") | \((.c.body // "no claim yet") | split("\n")[0])"'
+   gh issue list --label lane --state open --json number,title,comments --jq 'map({n: .number, t: .title, c: ([.comments[] | {at: .createdAt, l: (.body | split("\n")[0] | rtrimstr("\r"))} | select(.l | test("^(claimed|released) by .+, [0-9]{4}-[0-9]{2}-[0-9]{2}$"; "i"))] | last)}) | sort_by(.c.at // "") | .[] | "#\(.n) \(.t) | \(.c.at // "never") | \(.c.l // "no claim yet")"'
 
    No lines: no lane is open. Read the LAST section of this file for the
    first task, and go to step 6.
-4. Pick a lane. A lane is held when its line is a claim under 24 hours
-   old, or a claim whose session ListAgents shows live. Every other lane
-   is free. Take the lane the owner named. Else, one free lane: take it.
+4. Pick a lane. A lane is held when its holder line is a claim under 24
+   hours old, or a claim by a session ListAgents shows live. A release,
+   no claim, or an older claim is free. Take the lane the owner named. Else, one free lane: take it.
    More than one: ask the owner with one AskUserQuestion, one option per
    free lane in list order, the first recommended. No owner present (a
    cloud routine, a headless run): take the first free lane. No free
@@ -27,9 +28,9 @@ whole briefing. Nobody writes you a separate prompt. Do these in order.
 5. Claim it: `gh issue comment <N> --body "claimed by <name>, <YYYY-MM-DD>"`.
    <name> is your session name as ListAgents prints it. With no
    ListAgents, name your harness and worktree, e.g. `cloud routine
-   nightly` or `laptop:04-handoff-lanes`. Then check who won:
-   `gh issue view <N> --json comments --jq '[.comments[] | .body | split("\n")[0] | select(test("^(claimed|released) by "; "i"))] | ((map(test("^released"; "i")) | rindex(true)) // -1) as $r | .[($r + 1):] | first // "no claim yet"'`
-   It prints another session's claim: that session won. Go back to step 4.
+   nightly` or `laptop:04-handoff-lanes`. Then run step 3 again. Lane
+   <N>'s holder line is your claim: you hold it. It is another session's
+   claim: that session holds it. Post nothing, and go back to step 4.
 6. Read the lane issue's `## Next`, or with no lane the LAST section.
    Read the recent sections of this file for traps. Run the recount
    commands before trusting any number. Start the first task it names.
@@ -814,7 +815,9 @@ by the first line of `find`, found the originating PR for every one of the
 
 Six repos each carried a handoff in its own shape, and every fresh session
 still needed a hand-written opening prompt on top of it. The owner decided
-that pointing an agent at `docs/HANDOFF.md` is the whole prompt. That is
+that pointing an agent at `docs/HANDOFF.md` is the whole prompt. (Superseded
+2026-11-10: the Start here block now sends each session to one open `lane`
+issue, whose `## Next` names its first task. See `docs/DECISIONS.md`.) That is
 only true if every file opens the same way, so the shape lives here once:
 `skills/handoff/SKILL.md` carries the `## Start here` block verbatim, and
 `hooks/handoff-freshness.py` warns (`HANDOFF SHAPE`) when a repo's file
