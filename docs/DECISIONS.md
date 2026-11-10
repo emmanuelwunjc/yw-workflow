@@ -717,6 +717,18 @@ Every `gh` call now times out at two thirds of the wait, and a timeout
 exits 2 like any `gh` failure, so a claim whose edit is that slow ends
 without reporting a hold. What remains: an edit the client gave up on can
 still land on GitHub after the timeout. That case is left for a ticket.
+Superseded 2026-11-10 (review round 9): the span that matters runs from the
+read being served to the edit landing, so two calls each under two thirds
+of the wait could together pass it. The reviewer got two holders with a
+3-second wait, a 1.6-second read and a 1.6-second edit. Now the read and
+the edit share one budget of half the wait, from the start of the read to
+the end of the edit. Each `gh` call gets what is left as its timeout, and
+a run past the budget exits 2 without writing. Another session's read and
+edit then both fit inside one wait. The self-test checks the budget is at
+most half the default wait, and that a read and an edit that each fit the
+budget, but not together, write nothing. What remains is #50: an edit that
+`gh` gave up on can still land on GitHub after the timeout. It is accepted
+and ticketed.
 
 Round 8 also found that the Start here block sent every non-zero exit back
 to step 4. With no `scripts/lane_claim.py`, or with `gh` failing, a session
@@ -724,6 +736,16 @@ then walked every lane. Step 5 now reads exit 1 as "pick again" and any
 other exit as "stop and tell the owner". `handoff-freshness.py` warns,
 offline, when the block runs `scripts/lane_claim.py` and the repo has no
 such file, and prints the copy command.
+
+Round 9 found that the script still exited 1 on errors it did not expect,
+e.g. no `gh` on PATH, so step 5 read them as refusals. The script now exits
+1 only on a refusal, and one handler turns any other error into exit 2.
+The self-test covers no `gh` on PATH, a `gh`
+that exits non-zero or times out, and `gh` output that is not JSON or has
+no `body`: each exits 2. The STALE warning carries the exit rule word for
+word. The missing-script warning now checks the repo top and prints the
+copy command with the repo-top path, and a copy that git does not track
+warns too.
 
 Check: `./hooks/lane-claim-selftest.py`, `./hooks/handoff-freshness-selftest.py`
 and `./hooks/context-handoff-selftest.py`.

@@ -16,12 +16,22 @@ Line one of the issue body is the holder line (docs/DECISIONS.md, 2026-11-10):
                                                 the future
   anything else                                 malformed, so free
 
-Usage, in USAGE below. Exit 0: done. Exit 1: refused, nothing changed by
-this run (a lost claim leaves the winner's line). Exit 2: bad arguments, a
-bad LANE_CLAIM_WAIT_SECONDS, or a `gh` call that failed or timed out.
-LANE_CLAIM_WAIT_SECONDS sets the wait after a claim (default 30). Every
-`gh` call times out at two thirds of the wait, so an edit slower than the
-wait ends the run with exit 2 and never reports a hold.
+Usage, in USAGE below. Exit 0: done. Exit 1: a refusal, and only a
+refusal. Nothing changed by this run (a lost claim leaves the winner's
+line). Exit 2: everything else, e.g. bad arguments, a bad
+LANE_CLAIM_WAIT_SECONDS, a `gh` that is missing, fails, times out or prints
+no body, or any other error. The Start here block reads exit 1 as "pick
+again" and any other exit as "stop", so an error never walks every lane.
+
+The wait after a claim is 30 seconds. LANE_CLAIM_WAIT_SECONDS exists for
+the self-test, which sets it to a few seconds or 0. Real runs leave it
+unset, so the default is used.
+
+The read before a write and the edit share one budget of half the wait,
+counted from the start of the read to the end of the edit. Each `gh` call
+gets what is left of it as its timeout. Past it, the run exits 2 and does
+not write. Another session's read and edit then land inside half the wait,
+before this session's second read.
 """
 import json
 import os
@@ -37,7 +47,8 @@ FREE = "Held by: nobody"
 HOLD_HOURS = 24
 WAIT_ENV = "LANE_CLAIM_WAIT_SECONDS"
 DEFAULT_WAIT_SECONDS = 30
-TIMEOUT = None  # seconds for each `gh` call, set in main from the wait
+BUDGET = None  # seconds for one read and its edit, set in main from the wait
+DEADLINE = None  # when the current budget runs out, on the monotonic clock
 USAGE = """usage:
   lane_claim.py claim <issue> <name> [--holder-not-live]
   lane_claim.py write <issue> <name> <file>
@@ -72,24 +83,40 @@ def wait_seconds(env):
     return wait
 
 
-def gh_timeout(wait):
-    """Under the wait, so a slow edit cannot land after the second read.
-    ponytail: a wait of 0 (the self-test) means no timeout."""
-    return wait * 2 / 3 or None
+def gh_budget(wait):
+    """Seconds from the start of a read to the end of its edit: half the
+    wait. Another session's read and edit then both fit inside one wait, so
+    its edit lands before this session's second read.
+    ponytail: a wait of 0 (the self-test) means no budget."""
+    return wait / 2 or None
+
+
+def start_budget():
+    """Start the budget for one read and the edit that follows it."""
+    global DEADLINE
+    DEADLINE = time.monotonic() + BUDGET if BUDGET else None
 
 
 def gh(args, body=None):
+    what = "gh " + " ".join(args[:3])
+    left = None if DEADLINE is None else DEADLINE - time.monotonic()
+    if left is not None and left <= 0:
+        fail(f"{what} timed out: the read and edit budget of {BUDGET:g} "
+             f"seconds is spent.")
     try:
         out = subprocess.run(["gh", *args], input=body, capture_output=True,
-                             text=True, timeout=TIMEOUT)
+                             text=True, timeout=left)
     except subprocess.TimeoutExpired:
-        fail(f"gh {' '.join(args[:3])} timed out after {TIMEOUT:g} seconds.")
+        fail(f"{what} timed out: the read and edit budget of {BUDGET:g} "
+             f"seconds is spent.")
     if out.returncode != 0:
-        fail(f"gh {' '.join(args[:3])} failed: {out.stderr.strip()}")
+        fail(f"{what} failed: {out.stderr.strip()}")
     return out.stdout
 
 
 def read(issue):
+    """The issue body. Output that is not JSON with a `body` raises, and the
+    handler at the bottom turns that into exit 2."""
     return json.loads(gh(["issue", "view", issue, "--json", "body"]))["body"] or ""
 
 
@@ -113,6 +140,7 @@ def fail(msg):
 
 
 def claim(issue, name, holder_not_live, wait):
+    start_budget()
     first, rest = split(read(issue))
     held = holder(first)
     if held and held[0] != name:
@@ -131,6 +159,7 @@ def claim(issue, name, holder_not_live, wait):
     else:
         write(issue, line + "\n" + first + rest)
     time.sleep(wait)
+    start_budget()  # a fresh budget for the second read, which writes nothing
     first, _ = split(read(issue))
     held = holder(first)
     if not held or held[0] != name:
@@ -141,6 +170,7 @@ def claim(issue, name, holder_not_live, wait):
 
 def check_holder(issue, name):
     """The body's rest, when line one is this name's holder line. Else refuse."""
+    start_budget()
     first, rest = split(read(issue))
     held = holder(first)
     if not held or held[0] != name:
@@ -155,9 +185,9 @@ def main(argv):
     need = {"claim": 3, "write": 4, "release": 3}
     if not args or need.get(args[0]) != len(args) or (flag and args[0] != "claim"):
         fail(USAGE)
-    global TIMEOUT
+    global BUDGET
     wait = wait_seconds(os.environ)
-    TIMEOUT = gh_timeout(wait)
+    BUDGET = gh_budget(wait)
     cmd, issue, name = args[:3]
     stamp = now_minute()
     if holder(f"Held by: {name}, since {stamp}") != (name, stamp):
@@ -176,4 +206,7 @@ def main(argv):
 
 
 if __name__ == "__main__":
-    main(sys.argv[1:])
+    try:
+        main(sys.argv[1:])
+    except Exception as e:  # exit 1 is a refusal only, so any error is a 2
+        fail(f"lane_claim.py stopped on an error: {type(e).__name__}: {e}")

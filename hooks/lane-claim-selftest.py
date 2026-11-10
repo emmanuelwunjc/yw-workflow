@@ -5,7 +5,8 @@ Each case puts a fake `gh` first on PATH. The fake keeps one issue body in a
 file, prints it for `gh issue view`, and stores it for `gh issue edit`. With
 FAKE_GH_STEAL set, it then puts that line on line one, as another session
 would that writes during the wait. With FAKE_GH_HANG set, an edit hangs
-before it writes. LANE_CLAIM_WAIT_SECONDS=0 skips the wait, and one check
+before it writes. FAKE_GH_VIEW_DELAY and FAKE_GH_EDIT_DELAY slow each call
+down, and FAKE_GH_VIEW set to `nonjson`, `nobody` or `fail` breaks the view. LANE_CLAIM_WAIT_SECONDS=0 skips the wait, and one check
 reads the default wait from the script, so a run never sleeps 30 seconds.
 
 It lives in hooks/ so the loop that runs every self-test, in CI and by hand,
@@ -29,12 +30,19 @@ FAKE_GH = r'''#!/usr/bin/env python3
 import json, os, sys
 body = os.environ["FAKE_GH_BODY"]
 args = sys.argv[1:]
+import time
 if args[:2] == ["issue", "view"]:
-    print(json.dumps({"body": open(body).read()}))
+    text = open(body).read()
+    time.sleep(float(os.environ.get("FAKE_GH_VIEW_DELAY", "0")))
+    mode = os.environ.get("FAKE_GH_VIEW")
+    if mode == "fail":
+        sys.exit("HTTP 401: Bad credentials")
+    print("not json" if mode == "nonjson" else
+          json.dumps({"title": "x"} if mode == "nobody" else {"body": text}))
 elif args[:2] == ["issue", "edit"]:
     if os.environ.get("FAKE_GH_HANG"):
-        import time
         time.sleep(10)
+    time.sleep(float(os.environ.get("FAKE_GH_EDIT_DELAY", "0")))
     src = args[args.index("--body-file") + 1]
     text = sys.stdin.read() if src == "-" else open(src).read()
     steal = os.environ.get("FAKE_GH_STEAL")
@@ -70,8 +78,8 @@ def run(tmp, body, args, steal=None, file_text=None, env_extra=None):
         args = args + [str(pathlib.Path(tmp, "next.md"))]
     env = dict(os.environ, PATH=tmp + os.pathsep + os.environ["PATH"],
                FAKE_GH_BODY=str(body_path), LANE_CLAIM_WAIT_SECONDS="0")
-    env.pop("FAKE_GH_STEAL", None)
-    env.pop("FAKE_GH_HANG", None)
+    for key in [k for k in env if k.startswith("FAKE_GH_") and k != "FAKE_GH_BODY"]:
+        del env[key]
     if steal:
         env["FAKE_GH_STEAL"] = steal
     env.update(env_extra or {})
@@ -162,10 +170,32 @@ def main():
          {"LANE_CLAIM_WAIT_SECONDS": "-5"}, ["LANE_CLAIM_WAIT_SECONDS"]),
         ("a gh edit that hangs is a gh failure",
          {"LANE_CLAIM_WAIT_SECONDS": "1.5", "FAKE_GH_HANG": "1"}, ["timed out"]),
+        # Round 9: any failure but a refusal exits 2, so step 5 stops.
+        ("no gh on PATH is a failure, never a refusal",
+         {"PATH": "/nonexistent-lane-claim-path"}, ["FileNotFoundError"]),
+        ("gh that exits non-zero is a failure, never a refusal",
+         {"FAKE_GH_VIEW": "fail"}, ["failed: HTTP 401: Bad credentials"]),
+        ("gh output that is not JSON is a failure",
+         {"FAKE_GH_VIEW": "nonjson"}, ["JSONDecodeError"]),
+        ("gh JSON with no body is a failure",
+         {"FAKE_GH_VIEW": "nobody"}, ["KeyError"]),
+        # Round 9: the read and the edit share one budget of half the wait.
+        # Each call here fits half the wait alone, and the two together do
+        # not, so per-call timeouts, or a budget near the wait, let it write.
+        # The margins are 0.6 seconds or more, for a busy machine.
+        ("a read and an edit that together pass half the wait write nothing",
+         {"LANE_CLAIM_WAIT_SECONDS": "3", "FAKE_GH_VIEW_DELAY": "0.9",
+          "FAKE_GH_EDIT_DELAY": "0.9"}, ["timed out"]),
     ]
     for name, env, carry in env_cases:
         cases.append((name, free, ["claim", "7", "me"], None, None, 2, carry,
                       free, env))
+    cases.append(("a read and an edit inside half the wait still claim",
+                  free, ["claim", "7", "me"], None, None, True, [],
+                  lambda b: b.startswith(mine + ", since ") and b.endswith(rest),
+                  # a 1.5 second budget, so a slow start of the fake gh
+                  # on a busy machine still fits
+                  {"LANE_CLAIM_WAIT_SECONDS": "3"}))
     failures = 0
     # The default wait is what makes a claim see a later writer. The cases
     # above set the wait to 0, so this check is the one that sees the default.
@@ -174,10 +204,10 @@ def main():
     if not wait >= 30:
         failures += 1
         print(f"FAIL the default wait is {wait} seconds, under 30")
-    timeout = mod.gh_timeout(wait)
-    if timeout is None or not timeout < wait:
+    budget = mod.gh_budget(wait)
+    if budget is None or not budget <= wait / 2:
         failures += 1
-        print(f"FAIL the gh timeout {timeout} is not under the wait {wait}")
+        print(f"FAIL the gh budget {budget} is over half the wait {wait}")
     for name, body, args, steal, file_text, ok, carry, after, *env in cases:
         with tempfile.TemporaryDirectory() as tmp:
             code, err, got = run(tmp, body, args, steal, file_text,

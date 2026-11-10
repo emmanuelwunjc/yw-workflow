@@ -70,9 +70,10 @@ file has the shape skills/handoff/SKILL.md describes. So it warns when:
   - a file named like a handoff (HANDOFF.md, AGENT_HANDOFF.md, *handoff*.md,
     any case) is tracked anywhere outside docs/, because two handoffs means
     the next session reads the wrong one
-  - the block runs scripts/lane_claim.py and the repo has no such file, so
-    every claim would fail. The warning prints the command that copies it
-    from this plugin.
+  - the block runs scripts/lane_claim.py and the repo top has no such file,
+    so every claim would fail. The warning prints the command that copies it
+    from this plugin to the repo top. A copy that git does not track warns
+    too, because a fresh clone would not have it.
 
 Escape hatch: SKIP_HANDOFF_CHECK=1 in the environment, for all of it.
 """
@@ -106,6 +107,9 @@ NOTES_HEADING = "## Handoff notes"
 STOP_RULE = ("Write a lane body only with `scripts/lane_claim.py write` or "
              "`release`, and if it refuses, change nothing, stop, and tell "
              "the owner.")
+# Step 5's rule for an exit that is no refusal, word for word. Self-tested.
+EXIT_RULE = ("Any other exit, e.g. no `scripts/lane_claim.py` or a failed "
+             "`gh`: change nothing, stop, and tell the owner.")
 
 START_HERE = "## Start here"
 OLD_PREAMBLE = ("end of a session", "end of the session")
@@ -144,13 +148,22 @@ def block_lines(lines: list[str]) -> list[tuple[int, str]]:
 
 
 def script_problems(top: str, lines: list[str]) -> list[str]:
-    """The block runs scripts/lane_claim.py, so the repo must have it."""
-    if (any(LANE_SCRIPT in ln for _, ln in block_lines(lines))
-            and not os.path.isfile(os.path.join(top, LANE_SCRIPT))):
+    """The block runs scripts/lane_claim.py, so the repo must have it, at its
+    top and tracked, since a fresh clone or a cloud routine has only what git
+    tracks."""
+    if not any(LANE_SCRIPT in ln for _, ln in block_lines(lines)):
+        return []
+    target = os.path.join(top, LANE_SCRIPT)
+    if not os.path.isfile(target):
         return [f"{HANDOFF}'s `{START_HERE}` block runs {LANE_SCRIPT}, and "
                 f"this repo has no {LANE_SCRIPT}, so every lane claim fails. "
                 f"Copy it from the plugin and commit it:\n"
-                f"  mkdir -p scripts && cp '{PLUGIN_SCRIPT}' {LANE_SCRIPT}"]
+                f"  mkdir -p '{os.path.dirname(target)}' && "
+                f"cp '{PLUGIN_SCRIPT}' '{target}'"]
+    if not git("-C", top, "ls-files", "--", LANE_SCRIPT).strip():
+        return [f"{LANE_SCRIPT} is not tracked, so a fresh clone or a cloud "
+                f"routine has no copy and every lane claim there fails. "
+                f"Commit it:\n  git -C '{top}' add {LANE_SCRIPT}"]
     return []
 
 
@@ -360,7 +373,9 @@ def main() -> None:
         f"So: {what}. Put each next step for open work in its `lane` issue's "
         f"`## Next`: claim the lane first with `python3 scripts/lane_claim.py "
         f"claim <N> \"<name>\"`, then write with `python3 scripts/lane_claim.py "
-        f"write <N> \"<name>\" <file>` and release it. {STOP_RULE} Then close a `lane` "
+        f"write <N> \"<name>\" <file>` and release it. A claim that exits 1 "
+        f"is a refusal: leave that lane to its holder. {EXIT_RULE} "
+        f"{STOP_RULE} Then close a `lane` "
         f"issue only when a "
         f"merged PR's notes have the exact line `Lane: #<N>. finished`. A few lines per meaningful step. Judgment, not derivable "
         f"state: why a decision went the way it did, what was deliberately not "

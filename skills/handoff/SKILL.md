@@ -130,8 +130,9 @@ within hours. Derive them with `gh issue list` and the scripts in the repo.
   session is not live. Else it writes your line as line one, waits, and
   reads again. Exit 0: you hold the lane. Exit 1: change nothing and pick
   again. Any other exit, e.g. no `scripts/lane_claim.py` or a failed `gh`:
-  change nothing, stop, and tell the owner. Each `gh` call times out at two
-  thirds of the wait, so an edit slower than the wait ends with exit 2.
+  change nothing, stop, and tell the owner. The script exits 1 only on a
+  refusal. The read and the edit share one budget of half the wait, and a
+  run past it exits 2 without writing.
 - **Session names are unique per run.** Use the name ListAgents prints.
   With no ListAgents, use the harness and worktree, e.g.
   `laptop:04-handoff-lanes`. A cloud routine adds its run start time, e.g.

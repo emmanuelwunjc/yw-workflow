@@ -245,7 +245,10 @@ CASES = [
      ["## Start here"], ["--label lane"]),
     ("a block that runs the script, in a repo without it, warns with the copy",
      {"docs/HANDOFF.md": GOOD, SCRIPT: None}, ["docs/HANDOFF.md"],
-     ["HANDOFF SHAPE", NO_SCRIPT, f"cp '{PLUGIN_SCRIPT}' {SCRIPT}"], []),
+     ["HANDOFF SHAPE", NO_SCRIPT, f"cp '{PLUGIN_SCRIPT}' '"], []),
+    ("a copy git does not track warns",
+     {"docs/HANDOFF.md": GOOD, SCRIPT: "x\n"}, ["docs/HANDOFF.md"],
+     ["HANDOFF SHAPE", f"{SCRIPT} is not tracked"], [NO_SCRIPT]),
     ("a repo with the script gets no copy warning",
      {"docs/HANDOFF.md": GOOD}, ["docs/HANDOFF.md"], [], [NO_SCRIPT]),
     ("the script named only below the block needs no copy",
@@ -329,9 +332,12 @@ def run_hook(cwd, env_extra=None):
 
 
 def make_repo(tmp, files, tracked):
-    """Every repo has the script the block runs, unless files maps it to None."""
+    """Every repo has the script the block runs, tracked, unless files names
+    it: None leaves it out, text writes it untracked unless listed."""
     git(tmp, "init", "-q")
-    for rel, text in {SCRIPT: "x\n", **files}.items():
+    if SCRIPT not in files:
+        files, tracked = {SCRIPT: "x\n", **files}, [SCRIPT, *tracked]
+    for rel, text in files.items():
         if text is None:
             continue
         p = pathlib.Path(tmp, rel)
@@ -380,7 +386,7 @@ STOP_RULE = ("Write a lane body only with `scripts/lane_claim.py write` or "
 # the pass claims a lane before it writes its `## Next` (review round 7)
 CLAIM_FIRST = 'claim the lane first with `python3 scripts/lane_claim.py claim <N> "<name>"`'
 STALE = [STOP_RULE, "HANDOFF STALE", "handoff pass", "`lane` issue", CLOSE_RULE,
-         CLAIM_FIRST]
+         CLAIM_FIRST, EXIT_RULE]
 
 # (name, first branch, steps, stderr must carry, stderr must not carry)
 BRANCH_CASES = [
@@ -552,6 +558,26 @@ def main():
             failures += 1
             print(f"FAIL {name}: exit={got.returncode} missing={missing} "
                   f"unwanted={present}\n--- stderr ---\n{err}")
+
+    # Round 9: run from a subfolder, the hook checks the script at the repo
+    # top, and the copy command it prints targets the repo top.
+    for label, files, want, forbid in (
+            ("missing", {"docs/HANDOFF.md": GOOD, SCRIPT: None},
+             [NO_SCRIPT, "{top}/" + SCRIPT, "mkdir -p '{top}/scripts'"], []),
+            ("present", {"docs/HANDOFF.md": GOOD}, [], [NO_SCRIPT, "not tracked"])):
+        with tempfile.TemporaryDirectory() as tmp:
+            make_repo(tmp, files, ["docs/HANDOFF.md"])
+            sub = pathlib.Path(tmp, "src", "deep")
+            sub.mkdir(parents=True)
+            top = subprocess.run(["git", "rev-parse", "--show-toplevel"], cwd=tmp,
+                                 capture_output=True, text=True).stdout.strip()
+            got = run_hook(sub)
+        missing = [w.format(top=top) for w in want if w.format(top=top) not in got.stderr]
+        present = [f for f in forbid if f in got.stderr]
+        if missing or present or got.returncode != 0:
+            failures += 1
+            print(f"FAIL from a subfolder, script {label}: missing={missing} "
+                  f"unwanted={present}\n--- stderr ---\n{got.stderr}")
 
     # the escape hatch silences the shape check as well as the freshness one
     with tempfile.TemporaryDirectory() as tmp:
