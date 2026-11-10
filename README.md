@@ -62,9 +62,10 @@ has when the loop stops and the `Rounds:` line each PR body carries.
 one skill that ships a script: a repo copies `skills/mutation-gate/mutation_gate.py`
 verbatim and adds a data file, and `fresh-eye` findings are where its entries come from.
 
-`handoff` closes a session: the last section of `docs/HANDOFF.md` is the next
-session's whole prompt, and `handoff-freshness.py` warns when the file lacks
-the shape that makes that true. Lanes never edit that file. Each writes a
+`handoff` closes a session: the Start here block of `docs/HANDOFF.md` has the
+next session claim one open `lane` issue, whose `## Next` names its first
+task, and `handoff-freshness.py` warns when the file lacks the shape that makes
+that true. Lanes never edit that file. Each writes a
 `## Handoff notes` section in its PR body, and one handoff pass on a
 `docs/handoff-*` branch folds the notes in after the merges.
 
@@ -85,7 +86,7 @@ plugin path only.
 | **require-code-review.py** | PreToolUse | Blocks `gh pr merge <number>` on a 25+ line PR with no review, looked up in the repo the command targets (`cd`, `-R`, a PR URL, `GH_REPO`) rather than the folder the session started in. A merge it finds and cannot tie to a literal PR and repo is blocked with a request for `-R owner/repo`. It reads the merge from the command text, so a command that only mentions one with a number is judged as a merge, and a merge with no number is invisible to it (#17). Override: `export SKIP_REVIEW_GATE=1;` in front of the command, announced on stderr when honored. |
 | **no-ai-attribution.py** | PreToolUse | Keeps AI-generation footers out of anything people read. Commit trailers stay. |
 | **claude-md-guard.py** | UserPromptSubmit, Stop | Blocks em-dashes, negation-then-correction, and prose questions where checkboxes are required. |
-| **handoff-freshness.py** | Stop | On a lane whose net diff from trunk changes real files, reminds it to write the PR body's `## Handoff notes` section, and warns any lane (a detached HEAD included) whose net diff changes `docs/HANDOFF.md`. On trunk (`main`, `master`, or what `origin/HEAD` names) or a `docs/handoff-*` branch, catches work piling up against an untouched `docs/HANDOFF.md`. Also catches a `docs/HANDOFF.md` that lacks the `## Start here` block, still opens with an "end of a session" preamble, or has a handoff-named `.md` tracked outside `docs/` (the shape in skill `handoff`). Override: `SKIP_HANDOFF_CHECK=1`. |
+| **handoff-freshness.py** | Stop | On a lane whose net diff from trunk changes real files, reminds it to write the PR body's `## Handoff notes` section, and warns any lane (a detached HEAD included) whose net diff changes `docs/HANDOFF.md`. On trunk (`main`, `master`, or what `origin/HEAD` names) or a `docs/handoff-*` branch, catches work piling up against an untouched `docs/HANDOFF.md`. Also catches a `docs/HANDOFF.md` that lacks the `## Start here` block, has a block that never lists the open `lane` issues, still opens with an "end of a session" preamble, or has a handoff-named `.md` tracked outside `docs/` (the shape in skill `handoff`). Override: `SKIP_HANDOFF_CHECK=1`. |
 | **context-handoff.py** | PostToolBatch, UserPromptSubmit, Stop | Winds a session down when its context passes about 120k tokens, the end of the "smart zone", and again at every 100k past that. The notice tells the model to start no new work, spawn no subagents, let running ones finish for at most 15 minutes, then write the handoff and tell the user to start a fresh session. After the 15 minutes, with no handoff written, a second notice says to save what each running subagent has, stop it, and write the handoff now. Blocks one Stop per notice while `docs/HANDOFF.md` is untouched since the notice, on any branch or worktree. Known limits: it cannot see a lane's notes in a PR body, or anything in a folder that is not a git repo, so there the deadline notice and the one block always arrive. The hook instructs and the model acts: it stops no subagent itself. Reads the size from the last assistant message's usage in the transcript. Main thread only. Settings: `[rules] context_handoff` and `[context_handoff] first`, `step`, `grace_minutes` in `.handrail.toml`. |
 
 Wire them in one place only. Wiring the same hook here and in

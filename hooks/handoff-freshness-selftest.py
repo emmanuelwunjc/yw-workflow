@@ -23,7 +23,40 @@ REPO_HANDOFF = SKILL.parent.parent.parent / "docs" / "HANDOFF.md"
 
 # The block skills/handoff/SKILL.md tells every repo to paste. Pinned here so
 # the skill cannot drift from it without this test noticing.
-BLOCK = """# Handoff
+BLOCK = r"""# Handoff
+
+## Start here
+
+You are a fresh session and this file is your whole briefing. Nobody
+writes you a separate prompt. Do these in order, then work.
+
+1. Load skills `ship-loop`, `git-lanes` and `fresh-eye` before touching
+   anything. Read the repo `CLAUDE.md`.
+2. List the open lanes, each with its latest claim or release:
+
+   gh issue list --label lane --state open --json number,title,comments --jq '.[] | "#\(.number) \(.title) | \([.comments[].body | select(test("^(claimed|released) by "))] | last // "no claim yet")"'
+
+3. Pick one lane. Take the lane the owner named. Else skip each lane
+   whose latest line is a claim by a session that ListAgents shows as
+   live. One free lane: take it. More than one: ask the owner with one
+   AskUserQuestion, one option per free lane, recommended first. No open
+   lane at all: read the LAST section of this file for the first task.
+4. Claim it, with your session name as ListAgents prints it:
+   `gh issue comment <N> --body "claimed by <session name>, <YYYY-MM-DD>"`
+5. Read the lane issue's `## Next`. Read the recent sections of this file
+   for traps. Run the recount commands before trusting any number.
+6. Start the first task `## Next` names. Ask the owner nothing it answers.
+
+When you stop on a lane, rewrite its `## Next` with `gh issue edit` and
+post `released by <session name>, <YYYY-MM-DD>` on it. Leave this block alone.
+
+Judgment and reasoning only. No counts, no SHAs, no issue tallies: those rot
+within hours. Derive them with `gh issue list` and the scripts in the repo.
+"""
+
+# The block before 2026-11-10: one first task for every session, so two
+# sessions on two lanes both took the same one. It must warn.
+OLD_BLOCK = """# Handoff
 
 ## Start here
 
@@ -50,6 +83,9 @@ GOOD = BLOCK + "\n## 2026-09-16\n\nFirst task: x.\n"
 # the phrase past the 40-line window is body text, e.g. a quote of the old rule
 LATE_PREAMBLE = GOOD + "\n" * 20 + "The old rule said: written at the end of the session.\n"
 NO_BLOCK = "# Handoff\n\n## 2026-09-16\n\nFirst task: x.\n"
+OLD_SINGLE_TASK = OLD_BLOCK + "\n## 2026-09-16\n\nFirst task: x.\n"
+# the lane command only past the 40-line window is body text, not the block
+LATE_LANE = (OLD_BLOCK + "\n" * 40 + "gh issue list --label lane\n")
 OLD_PREAMBLE = ("# Handoff\n\n## Start here\n\nWritten at the end of a session, "
                 "this file says where things stand.\n")
 
@@ -79,6 +115,15 @@ CASES = [
      {"README.md": "x\n"}, ["README.md"], [], ["HANDOFF SHAPE"]),
     ("untracked but present handoff is still shape-checked",
      {"docs/HANDOFF.md": NO_BLOCK}, [], ["HANDOFF SHAPE"], []),
+    ("old single-first-task Start here block",
+     {"docs/HANDOFF.md": OLD_SINGLE_TASK}, ["docs/HANDOFF.md"],
+     ["HANDOFF SHAPE", "--label lane", "skills/handoff"], []),
+    ("lane command past line 40 does not count as the block",
+     {"docs/HANDOFF.md": LATE_LANE}, ["docs/HANDOFF.md"],
+     ["HANDOFF SHAPE", "--label lane"], []),
+    ("missing block gets one warning, the lane one stays quiet",
+     {"docs/HANDOFF.md": NO_BLOCK}, ["docs/HANDOFF.md"],
+     ["## Start here"], ["--label lane"]),
     ("preamble phrase past line 40 is body text, no warning",
      {"docs/HANDOFF.md": LATE_PREAMBLE}, ["docs/HANDOFF.md"], [], ["HANDOFF SHAPE"]),
 ]

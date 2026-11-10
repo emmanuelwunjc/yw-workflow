@@ -59,6 +59,10 @@ shape skills/handoff/SKILL.md describes. So it warns when:
   - docs/HANDOFF.md exists and has no "## Start here" line
   - its first 40 lines still carry the old "end of a session" preamble, which
     told the reader the file was written at close and contradicts the block
+  - it has the block, and its first 40 lines never say `--label lane`. That is
+    the block before 2026-11-10, which gave every session the same first task,
+    so two sessions on two lanes both took one. The block now lists the open
+    `lane` issues instead. Offline by design: the hook reads the file only.
   - a file named like a handoff (HANDOFF.md, AGENT_HANDOFF.md, *handoff*.md,
     any case) is tracked anywhere outside docs/, because two handoffs means
     the next session reads the wrong one
@@ -94,6 +98,7 @@ NOTES_HEADING = "## Handoff notes"
 START_HERE = "## Start here"
 OLD_PREAMBLE = ("end of a session", "end of the session")
 PREAMBLE_LINES = 40
+LANE_LIST = "--label lane"
 SHAPE_HELP = ("The shape, with the block to paste, is in the yw-workflow skill "
               "skills/handoff (invoke /yw-workflow:handoff).")
 
@@ -121,7 +126,14 @@ def shape_problems(top: str) -> list[str]:
                 f"{HANDOFF} has no `{START_HERE}` line. A fresh session reads this "
                 f"file as its whole prompt, so paste the Start here block at the "
                 f"top, above everything else.")
-        head = "\n".join(lines[:PREAMBLE_LINES]).lower()
+        top_lines = "\n".join(lines[:PREAMBLE_LINES])
+        if any(ln.strip() == START_HERE for ln in lines) and LANE_LIST not in top_lines:
+            problems.append(
+                f"{HANDOFF}'s `{START_HERE}` block never says `{LANE_LIST}` in its "
+                f"first {PREAMBLE_LINES} lines. That is the old block, which sends "
+                f"every session to one first task. Replace it with the block that "
+                f"lists the open `lane` issues and has a session claim one.")
+        head = top_lines.lower()
         hit = next((p for p in OLD_PREAMBLE if p in head), None)
         if hit:
             problems.append(

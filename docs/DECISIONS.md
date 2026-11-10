@@ -521,3 +521,30 @@ for the rule in conversation on 2026-11-04. That request has no public record.
 Considered and rejected: put every mutation into the `mutation-gate` data file.
 The gate breaks a script's code and needs its runner. A bad input to a check
 that takes an argument is cheaper as an ordinary test beside the check.
+
+## 2026-11-10: one GitHub issue per open lane holds its next task
+
+Supports `handoff`. The case is EdSim on 2026-11-10. Two lanes were open: a
+wage fix, run by a live session, and drafts of redesign tickets. A new session
+read the Start here block of `docs/HANDOFF.md`, which sent it to the last
+section. That section named the wage fix, so the new session took a lane
+that was already taken. The drafts' next step was only in the Handoff notes
+of a merged PR, and no handoff pass had folded it in. One file gave every
+session the same first task.
+
+The owner decided the fix. Each open lane has one issue with label `lane`,
+and its body holds the lane's `## Next`. A session claims a lane with a
+comment `claimed by <session name>, <YYYY-MM-DD>` and lets it go with
+`released by <session name>, <YYYY-MM-DD>`. Issue edits cost no CI minutes,
+and every machine and cloud routine can read them. `docs/HANDOFF.md` stays
+the shared log of decisions, traps and judgment.
+
+The handoff pass reviewer now checks three things: each next step in merged
+Handoff notes has a `lane` issue, no two lane issues name the same first
+task, and a lane with no claim or release in 7 days goes to the owner.
+
+Considered and rejected: a `gh` call in `handoff-freshness.py` to compare the
+issues with the notes. A Stop hook must work offline, so the hook only checks
+that the block lists the lane issues, and the reviewer checks the rest.
+
+Check: `./hooks/handoff-freshness-selftest.py`.

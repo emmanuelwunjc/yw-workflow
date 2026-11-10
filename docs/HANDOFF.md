@@ -7,15 +7,23 @@ writes you a separate prompt. Do these in order, then work.
 
 1. Load skills `ship-loop`, `git-lanes` and `fresh-eye` before touching
    anything. Read the repo `CLAUDE.md`.
-2. Read the LAST section of this file (the most recent date). It names
-   the first task, the tickets in order, and what waits on the owner.
-3. Run the recount commands that section carries before trusting any
-   number in it.
-4. Start the first task it names. Ask the owner nothing that section
-   already answers.
+2. List the open lanes, each with its latest claim or release:
 
-Whoever closes a session rewrites the last section so step 2 stays true,
-and leaves this block alone.
+   gh issue list --label lane --state open --json number,title,comments --jq '.[] | "#\(.number) \(.title) | \([.comments[].body | select(test("^(claimed|released) by "))] | last // "no claim yet")"'
+
+3. Pick one lane. Take the lane the owner named. Else skip each lane
+   whose latest line is a claim by a session that ListAgents shows as
+   live. One free lane: take it. More than one: ask the owner with one
+   AskUserQuestion, one option per free lane, recommended first. No open
+   lane at all: read the LAST section of this file for the first task.
+4. Claim it, with your session name as ListAgents prints it:
+   `gh issue comment <N> --body "claimed by <session name>, <YYYY-MM-DD>"`
+5. Read the lane issue's `## Next`. Read the recent sections of this file
+   for traps. Run the recount commands before trusting any number.
+6. Start the first task `## Next` names. Ask the owner nothing it answers.
+
+When you stop on a lane, rewrite its `## Next` with `gh issue edit` and
+post `released by <session name>, <YYYY-MM-DD>` on it. Leave this block alone.
 
 Judgment and reasoning only. No counts, no SHAs, no issue tallies: those rot
 within hours. Derive them with `gh issue list` and the scripts in the repo.
