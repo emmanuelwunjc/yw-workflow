@@ -39,7 +39,7 @@ whole briefing. Nobody writes you a separate prompt. Do these in order.
 3. List the open lanes. Free lanes come first, lowest issue number
    first. Held lanes follow, oldest time first:
 
-   gh issue list --label lane --state open --limit 100 --json number,title,body --jq '(now | strftime("%Y-%m-%dT%H:%MZ")) as $now | map(((.body // "") | split("\n") | first // "" | rtrimstr("\r")) as $h | {n: .number, t: .title, h: $h, s: (($h | capture("^Held by: (?<w>.+), since (?<s>[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}Z)$") | select(.w != "nobody" and .s <= $now) | .s) // null)}) | sort_by(if .s then [1, .s, .n] else [0, .n] end) | .[] | "#\(.n) \(.t) | \(if .s or .h == "Held by: nobody" then .h else "Held by: (malformed)" end)"'
+   gh issue list --label lane --state open --limit 100 --json number,title,body --jq '(now | strftime("%Y-%m-%dT%H:%MZ")) as $now | map(((.body // "") | split("\n") | first // "" | rtrimstr("\r")) as $h | {n: .number, t: .title, h: $h, s: (($h | capture("^Held by: (?<name>.+), since (?<time>[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}Z)$") | select(.name != "nobody" and .time <= $now) | .time) // null)}) | sort_by(if .s then [1, .s, .n] else [0, .n] end) | .[] | "#\(.n) \(.t) | \(if .s or .h == "Held by: nobody" then .h else "Held by: (malformed)" end)"'
 
    No lines: no lane is open. Read the LAST section of this file for the
    first task, and go to step 6. 100 lines: raise `--limit`, list again.
@@ -53,12 +53,13 @@ whole briefing. Nobody writes you a separate prompt. Do these in order.
    and stop.
 5. Claim it, after any answer from the owner. Read the body:
    `gh issue view <N> --json body --jq .body > lane.md`. Held, by step 4:
-   go back to step 4. Free: set the first line of the body to
-   `Held by: <name>, since <time>`, where <time> is
-   `date -u +%Y-%m-%dT%H:%MZ`. Keep the rest, and run
+   go back to step 4. Free: your line is `Held by: <name>, since <time>`,
+   where <time> is `date -u +%Y-%m-%dT%H:%MZ`. If line one starts with
+   `Held by:`, replace it with your line. Else insert your line as a new
+   line one. Keep every other line, and run
    `gh issue edit <N> --body-file lane.md`. Wait 30 seconds and read the
-   body again. The line names you: you hold the lane. It names another
-   session: change nothing, and go back to step 4. <name> is your
+   body again. Line one is your line: you hold the lane. Else change
+   nothing, and go back to step 4. <name> is your
    session name as ListAgents prints it. With no ListAgents, use your
    harness and worktree, e.g. `laptop:04-handoff-lanes`. A cloud routine
    adds its run start, e.g. `cloud routine nightly 2026-11-10T06:17Z`.
@@ -67,14 +68,10 @@ whole briefing. Nobody writes you a separate prompt. Do these in order.
    commands before trusting any number. Start the first task it names.
    Ask the owner nothing it already answers.
 
-Read just before every write. Each later write to the lane body starts
-from a new read, and changes the `Held by:` line only to refresh your own
-time or to release. Before your first push and at every later write,
-read the line again. It names another session: change nothing, stop, and
-tell the owner. When you update `## Next`,
-write a new time on your line. When you stop, rewrite `## Next`, and if
-the line still names you, set it to `Held by: nobody`. Leave this block
-alone.
+Before every write to a lane body, read it again, and if line one is not
+your own holder line, change nothing, stop, and tell the owner. Otherwise
+write, keeping line one as read, with a new time when you update
+`## Next`, or as `Held by: nobody` when you stop. Leave this block alone.
 
 Judgment and reasoning only. No counts, no SHAs, no issue tallies: those rot
 within hours. Derive them with `gh issue list` and the scripts in the repo.
@@ -256,13 +253,24 @@ LANES = [
     (2, "crlf held", "Held by: eta, since 2026-11-08T05:00Z\r\n\r\n## Next"),
     (11, "same since, higher", "Held by: theta, since 2026-11-09T12:00Z\n## Next"),
     (10, "same since, lower", "Held by: iota, since 2026-11-09T12:00Z\n## Next"),
+    (13, "text after the time", "Held by: a, since 2026-11-10T08:00Z (back at 3)"),
+    (14, "quoted", "> Held by: a, since 2026-11-10T08:00Z"),
+    (15, "empty name", "Held by: , since 2026-11-10T08:00Z"),
+    (16, "one minute ahead", "Held by: b, since 2026-11-10T09:01Z"),
 ]
+# "now" for the fixtures. Lane 9's time equals it, so `<=` must hold.
+FIXED_NOW = "2026-11-10T09:00Z"
+NOW_PREFIX = '(now | strftime("%Y-%m-%dT%H:%MZ")) as $now | ' 
 LANE_ORDER = """#3 nobody | Held by: nobody
 #4 empty body | Held by: (malformed)
 #5 no line | Held by: (malformed)
 #6 nobody with since | Held by: (malformed)
 #7 future | Held by: (malformed)
 #8 seconds | Held by: (malformed)
+#13 text after the time | Held by: (malformed)
+#14 quoted | Held by: (malformed)
+#15 empty name | Held by: (malformed)
+#16 one minute ahead | Held by: (malformed)
 #2 crlf held | Held by: eta, since 2026-11-08T05:00Z
 #10 same since, lower | Held by: iota, since 2026-11-09T12:00Z
 #11 same since, higher | Held by: theta, since 2026-11-09T12:00Z
@@ -271,15 +279,21 @@ LANE_ORDER = """#3 nobody | Held by: nobody
 
 
 def check_lane_jq():
-    """0 on pass or SKIP, 1 on a wrong order or label."""
+    """0 on pass, 1 on a wrong order or label, or when jq is missing."""
     import json
     if not shutil.which("jq"):
-        print("SKIP step 3 jq: no jq on PATH")
-        return 0
+        print("FAIL step 3 jq: no jq on PATH. The block pins a jq program that "
+              "must be run; install jq (e.g. `brew install jq`) and run again.")
+        return 1
     line = next(l for l in BLOCK.splitlines() if l.startswith(CMD))
     program = re.search(r"--jq '(.*)'$", line).group(1)
+    if not program.startswith(NOW_PREFIX):
+        print(f"FAIL step 3 jq does not start with {NOW_PREFIX!r}")
+        return 1
     data = json.dumps([{"number": n, "title": t, "body": b} for n, t, b in LANES])
-    got = subprocess.run(["jq", "-r", program], input=data, capture_output=True, text=True)
+    got = subprocess.run(["jq", "-r", "--arg", "now", FIXED_NOW,
+                          program[len(NOW_PREFIX):]],
+                         input=data, capture_output=True, text=True)
     if got.returncode != 0 or got.stdout != LANE_ORDER:
         print(f"FAIL step 3 jq printed (exit {got.returncode}):\n{got.stdout}{got.stderr}")
         return 1
@@ -339,10 +353,11 @@ REVERT_ADVICE = "git checkout $(git merge-base HEAD origin/main) -- docs/HANDOFF
 UPSTREAM_PASS = [("git", "checkout", "-q", "-b", "up", "origin/main"), PASS,
                  ("git", "push", "-q", "origin", "up:main")]
 CLOSE_RULE = "close a `lane` issue only when a merged PR's notes have the exact line `Lane: #<N>. finished`"
-LANE_WRITE = ("Put each next step for open work in its `lane` issue's `## Next` "
-              "with `gh issue edit`, reading that body again just before you "
-              "write and keeping its `Held by:` line as read, and ")
-STALE = [LANE_WRITE, "HANDOFF STALE", "handoff pass", "`lane` issue", CLOSE_RULE]
+# The one stop rule. The skill rules, the block, this hook's STALE text and
+# context-handoff.py's wind-down notice each carry it word for word.
+STOP_RULE = ("Before every write to a lane body, read it again, and if line one "
+             "is not your own holder line, change nothing, stop, and tell the owner.")
+STALE = [STOP_RULE, "HANDOFF STALE", "handoff pass", "`lane` issue", CLOSE_RULE]
 
 # (name, first branch, steps, stderr must carry, stderr must not carry)
 BRANCH_CASES = [
@@ -615,6 +630,14 @@ def main():
                   f"unwanted={present}\n--- stderr ---\n{got.stderr}")
 
     failures += check_lane_jq()
+
+    # the stop rule, word for word, in the block and in the skill's rules
+    flat = lambda text: " ".join(text.split())
+    rules = SKILL.read_text().split("## The rules", 1)[-1].split("\n## ", 1)[0]
+    for where, text in (("the pinned block", BLOCK), ("the skill rules", rules)):
+        if STOP_RULE not in flat(text):
+            failures += 1
+            print(f"FAIL {where} does not carry the stop rule word for word")
 
     # the block pinned above is the block the skill tells repos to paste, and
     # the block this repo's own handoff opens with

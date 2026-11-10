@@ -99,6 +99,9 @@ MIN_COMMITS = 2
 FALLBACK_TRUNKS = ("main", "master")
 HANDOFF_BRANCH_PREFIX = "docs/handoff-"
 NOTES_HEADING = "## Handoff notes"
+# The one stop rule of skills/handoff, word for word. The self-test checks it.
+STOP_RULE = ("Before every write to a lane body, read it again, and if line one "
+             "is not your own holder line, change nothing, stop, and tell the owner.")
 
 START_HERE = "## Start here"
 OLD_PREAMBLE = ("end of a session", "end of the session")
@@ -326,8 +329,7 @@ def main() -> None:
         f"Written at the end, it is composed from a compacted memory of the "
         f"session, and the reasoning that mattered is what drops out first.\n\n"
         f"So: {what}. Put each next step for open work in its `lane` issue's "
-        f"`## Next` with `gh issue edit`, reading that body again just before you "
-        f"write and keeping its `Held by:` line as read, and close a `lane` "
+        f"`## Next` with `gh issue edit`. {STOP_RULE} Then close a `lane` "
         f"issue only when a "
         f"merged PR's notes have the exact line `Lane: #<N>. finished`. A few lines per meaningful step. Judgment, not derivable "
         f"state: why a decision went the way it did, what was deliberately not "

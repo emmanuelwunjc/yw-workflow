@@ -14,7 +14,7 @@ whole briefing. Nobody writes you a separate prompt. Do these in order.
 3. List the open lanes. Free lanes come first, lowest issue number
    first. Held lanes follow, oldest time first:
 
-   gh issue list --label lane --state open --limit 100 --json number,title,body --jq '(now | strftime("%Y-%m-%dT%H:%MZ")) as $now | map(((.body // "") | split("\n") | first // "" | rtrimstr("\r")) as $h | {n: .number, t: .title, h: $h, s: (($h | capture("^Held by: (?<w>.+), since (?<s>[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}Z)$") | select(.w != "nobody" and .s <= $now) | .s) // null)}) | sort_by(if .s then [1, .s, .n] else [0, .n] end) | .[] | "#\(.n) \(.t) | \(if .s or .h == "Held by: nobody" then .h else "Held by: (malformed)" end)"'
+   gh issue list --label lane --state open --limit 100 --json number,title,body --jq '(now | strftime("%Y-%m-%dT%H:%MZ")) as $now | map(((.body // "") | split("\n") | first // "" | rtrimstr("\r")) as $h | {n: .number, t: .title, h: $h, s: (($h | capture("^Held by: (?<name>.+), since (?<time>[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}Z)$") | select(.name != "nobody" and .time <= $now) | .time) // null)}) | sort_by(if .s then [1, .s, .n] else [0, .n] end) | .[] | "#\(.n) \(.t) | \(if .s or .h == "Held by: nobody" then .h else "Held by: (malformed)" end)"'
 
    No lines: no lane is open. Read the LAST section of this file for the
    first task, and go to step 6. 100 lines: raise `--limit`, list again.
@@ -28,12 +28,13 @@ whole briefing. Nobody writes you a separate prompt. Do these in order.
    and stop.
 5. Claim it, after any answer from the owner. Read the body:
    `gh issue view <N> --json body --jq .body > lane.md`. Held, by step 4:
-   go back to step 4. Free: set the first line of the body to
-   `Held by: <name>, since <time>`, where <time> is
-   `date -u +%Y-%m-%dT%H:%MZ`. Keep the rest, and run
+   go back to step 4. Free: your line is `Held by: <name>, since <time>`,
+   where <time> is `date -u +%Y-%m-%dT%H:%MZ`. If line one starts with
+   `Held by:`, replace it with your line. Else insert your line as a new
+   line one. Keep every other line, and run
    `gh issue edit <N> --body-file lane.md`. Wait 30 seconds and read the
-   body again. The line names you: you hold the lane. It names another
-   session: change nothing, and go back to step 4. <name> is your
+   body again. Line one is your line: you hold the lane. Else change
+   nothing, and go back to step 4. <name> is your
    session name as ListAgents prints it. With no ListAgents, use your
    harness and worktree, e.g. `laptop:04-handoff-lanes`. A cloud routine
    adds its run start, e.g. `cloud routine nightly 2026-11-10T06:17Z`.
@@ -42,14 +43,10 @@ whole briefing. Nobody writes you a separate prompt. Do these in order.
    commands before trusting any number. Start the first task it names.
    Ask the owner nothing it already answers.
 
-Read just before every write. Each later write to the lane body starts
-from a new read, and changes the `Held by:` line only to refresh your own
-time or to release. Before your first push and at every later write,
-read the line again. It names another session: change nothing, stop, and
-tell the owner. When you update `## Next`,
-write a new time on your line. When you stop, rewrite `## Next`, and if
-the line still names you, set it to `Held by: nobody`. Leave this block
-alone.
+Before every write to a lane body, read it again, and if line one is not
+your own holder line, change nothing, stop, and tell the owner. Otherwise
+write, keeping line one as read, with a new time when you update
+`## Next`, or as `Held by: nobody` when you stop. Leave this block alone.
 
 Judgment and reasoning only. No counts, no SHAs, no issue tallies: those rot
 within hours. Derive them with `gh issue list` and the scripts in the repo.

@@ -613,3 +613,37 @@ the notes. A Stop hook must work offline, so the reviewer of each handoff
 pass checks the issues against the notes.
 
 Check: `./hooks/handoff-freshness-selftest.py`.
+
+## 2026-11-10: the lane claim cut to four rules
+
+Supports `handoff`. Six review rounds on the lane claim found 2, 3, 3, 2,
+1, then 3 blocking findings. The count rose again, and each new branch of
+the protocol was a new gap: a separate first-push check, a separate "names
+another session" case, a release only "if it still names you", and a
+parser that scanned past `## Next`. So the claim is cut to four rules,
+inside the owner's decision of one `Held by:` first line per lane issue:
+
+1. Line one of the body, with a trailing CR stripped, decides. It is free
+   when it matches `^Held by: nobody$`. It is a holder line when it matches
+   `^Held by: (?<name>.+), since (?<time>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}Z)$`,
+   with a name other than `nobody` and a time not in the future. Anything
+   else is malformed and free. A holder line holds for 24 hours, or while
+   ListAgents shows its session live.
+2. To claim, replace line one if it starts with `Held by:`, else insert a
+   new line one. Wait 30 seconds and read again.
+3. One stop rule for every later write: before every write to a lane body,
+   read it again, and if line one is not your own holder line, change
+   nothing, stop, and tell the owner. Otherwise write, keeping line one as
+   read, with a new time, or as `Held by: nobody` on release.
+4. Session names are unique per run.
+
+This supersedes the rules of review rounds 4 to 6 in the entry above: read
+just before every write with its own exceptions, the first-push check, and
+the release condition. The skill rules, the Start here block, the STALE
+warning in `handoff-freshness.py` and the wind-down notice in
+`context-handoff.py` carry the stop rule word for word, and the self-tests
+fail if any one loses it. The handoff pass writes a lane body only as its
+holder, so it follows the same rule.
+
+Check: `./hooks/handoff-freshness-selftest.py` and
+`./hooks/context-handoff-selftest.py`.
