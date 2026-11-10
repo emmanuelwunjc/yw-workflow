@@ -564,7 +564,17 @@ GitHub offers no compare-and-set on an issue body. The 30-second wait and
 the read before the first push catch most of these, and a holder that
 finds its line gone stops and tells the owner.
 
-A body with no `Held by:` line, or a line with no time, counts as free.
+The holder line is the first line of the issue body. With a trailing CR
+stripped, it must match
+`^Held by: (nobody|.+, since \d{4}-\d{2}-\d{2}T\d{2}:\d{2}Z)$`. Any other
+first line is malformed and counts as free: no line, an empty body,
+`Held by: nobody, since ...`, seconds in the time, or a time in the future.
+This superseded "the first `Held by:` line above `## Next`, outside a code
+fence" on 2026-11-10 (review round 5). That parser broke on nested fences
+and on a fenced `## Next`, and nobody could check it by eye. Anyone can read
+a first line.
+
+A body with no `Held by:` line, or a malformed one, counts as free.
 The choice keeps a lane opened by hand, without the line, from being
 locked forever. The risk: a holder whose line was deleted or mangled looks
 free, and another session can take its lane. The read before the first

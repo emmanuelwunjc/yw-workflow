@@ -11,16 +11,16 @@ whole briefing. Nobody writes you a separate prompt. Do these in order.
    `gh label list --search lane --json name --jq '.[] | select(.name == "lane") | .name'`
    It prints nothing: this repo has no lane label yet. Read the LAST
    section of this file for the first task, and go to step 6.
-3. List the open lanes. Lanes with no timed holder come first, lowest
-   issue number first. Lanes with a holder follow, oldest time first:
+3. List the open lanes. Free lanes come first, lowest issue number
+   first. Held lanes follow, oldest time first:
 
-   gh issue list --label lane --state open --limit 100 --json number,title,body --jq 'map({n: .number, t: .title, h: ([foreach (.body | split("\n")[] | rtrimstr("\r")) as $l ({f: false, x: false, o: null}; if .x then . elif ($l | startswith("## Next")) then .x = true elif ($l | test("^ *(`{3}|~{3})")) then .f = (.f | not) elif (.f or .o) then . elif ($l | startswith("Held by: ")) then .o = $l else . end; .o)] | last)}) | map(. + {s: (((.h // "") | capture("^Held by: .+, since (?<s>[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}Z)$").s) // null)}) | sort_by(if .s then [1, .s] else [0, .n] end) | .[] | "#\(.n) \(.t) | \(if .h == null then "Held by: (no line)" elif .h == "Held by: nobody" or .s then .h else "Held by: (malformed)" end)"'
+   gh issue list --label lane --state open --limit 100 --json number,title,body --jq '(now | strftime("%Y-%m-%dT%H:%MZ")) as $now | map(((.body // "") | split("\n") | first // "" | rtrimstr("\r")) as $h | {n: .number, t: .title, h: $h, s: (($h | capture("^Held by: (?<w>.+), since (?<s>[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}Z)$") | select(.w != "nobody" and .s <= $now) | .s) // null)}) | sort_by(if .s then [1, .s, .n] else [0, .n] end) | .[] | "#\(.n) \(.t) | \(if .s or .h == "Held by: nobody" then .h else "Held by: (malformed)" end)"'
 
    No lines: no lane is open. Read the LAST section of this file for the
    first task, and go to step 6. 100 lines: raise `--limit`, list again.
-4. Pick a lane. A lane is free when its `Held by:` line says nobody, is
-   missing or malformed, or its time is over 24 hours old and ListAgents
-   does not show that session live. Else it is held. Take the lane the
+4. Pick a lane. A lane is free when its `Held by:` line says nobody or
+   is malformed, or its time is over 24 hours old and ListAgents does
+   not show that session live. Else it is held. Take the lane the
    owner named. Else, one free lane: take it. More than one: ask the
    owner with one AskUserQuestion, one option per free lane in list
    order, the first recommended. No owner present (a cloud routine, a
@@ -28,8 +28,8 @@ whole briefing. Nobody writes you a separate prompt. Do these in order.
    and stop.
 5. Claim it, after any answer from the owner. Read the body:
    `gh issue view <N> --json body --jq .body > lane.md`. Held, by step 4:
-   go back to step 4. Free: set the first `Held by:` line above `## Next`
-   to `Held by: <name>, since <time>`, where <time> is
+   go back to step 4. Free: set the first line of the body to
+   `Held by: <name>, since <time>`, where <time> is
    `date -u +%Y-%m-%dT%H:%MZ`. Keep the rest, and run
    `gh issue edit <N> --body-file lane.md`. Wait 30 seconds and read the
    body again. The line names you: you hold the lane. It names another
@@ -44,8 +44,9 @@ whole briefing. Nobody writes you a separate prompt. Do these in order.
 
 Read just before every write. Each later write to the lane body starts
 from a new read, and changes the `Held by:` line only to refresh your own
-time or to release. Before your first push, read the line again. It no
-longer names you: stop and tell the owner. When you update `## Next`,
+time or to release. Before your first push and at every later write,
+read the line again. It names another session: change nothing, stop, and
+tell the owner. When you update `## Next`,
 write a new time on your line. When you stop, rewrite `## Next`, and if
 the line still names you, set it to `Held by: nobody`. Leave this block
 alone.
