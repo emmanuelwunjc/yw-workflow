@@ -16,6 +16,7 @@ script itself, which is what Claude Code runs.
 
 Run: ./hooks/context-handoff-selftest.py
 """
+import importlib.util
 import json
 import os
 import pathlib
@@ -31,6 +32,13 @@ DRIVER = ("import importlib.util, sys\n"
           "hook = importlib.util.module_from_spec(spec)\n"
           "spec.loader.exec_module(hook)\n"
           "sys.stdout.write(hook.main(sys.stdin.read(), float(sys.argv[2])))\n")
+# The one stop rule, from the hook that owns it, so this test checks the
+# notice against that text and never against a copy of its own.
+_spec = importlib.util.spec_from_file_location(
+    "freshness", pathlib.Path(__file__).with_name("handoff-freshness.py"))
+_freshness = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_freshness)
+STOP_RULE = _freshness.STOP_RULE
 T0 = 1_790_000_000.0  # any fixed clock
 MIN = 60
 
@@ -184,10 +192,9 @@ check("the notice says where the handoff goes",
       and "## Handoff notes" in text, True)
 check("the notice ends with a fresh session", "fresh session" in text, True)
 check("the notice hands the lane off on its issue",
-      "Before every write to a lane body, read it again, and if line one is "
-      "not your own holder line, change nothing, stop, and tell the owner."
-      in text and "`## Next` with `gh issue edit`" in text
-      and "`Held by: nobody`" in text, True)
+      STOP_RULE in text
+      and "`python3 scripts/lane_claim.py write <N> <name> <file>`" in text
+      and "`python3 scripts/lane_claim.py release <N> <name>`" in text, True)
 check("the time of the notice is recorded", e.state().get("noticed"), T0)
 check("150k, same step: no second notice", silent(e.at(150_000, now=T0 + 1)), True)
 check("219,999: still step 0, silent", silent(e.at(219_999, now=T0 + 2)), True)

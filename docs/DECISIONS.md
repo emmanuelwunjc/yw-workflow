@@ -535,8 +535,9 @@ session the same first task.
 The owner decided the fix. Each open lane has one issue with label `lane`,
 and its body holds the lane's `## Next`. A session claims a lane with the
 body line `Held by: <session name>, since <YYYY-MM-DDTHH:MMZ>` and lets it
-go with `Held by: nobody`. Issue edits cost no CI minutes,
-and every machine and cloud routine can read them. `docs/HANDOFF.md` stays
+go with `Held by: nobody`. Issue edits cost no CI minutes unless a
+workflow runs `on: issues`, and every machine and cloud routine can read
+them. `docs/HANDOFF.md` stays
 the shared log of decisions, traps and judgment.
 
 The handoff pass reviewer now checks four things: each next step in merged
@@ -546,14 +547,18 @@ task, each closed lane issue cites a PR whose notes say
 are both over 7 days old goes to the owner.
 
 A claim holds for 24 hours, or while ListAgents shows its session live.
-ListAgents sees one machine and one harness only, so a claim by a cloud
-routine or another machine must not read as free the moment it is posted.
+The 24 hours keep a claim held for its first day even when ListAgents does
+not list its session. Corrected 2026-11-10 (review round 7): this line
+also said ListAgents sees one machine and one harness only. No source
+confirmed it, so the claim is dropped.
 
 The holder is one `Held by:` line in the issue body. To claim, a session
 reads the body, writes its line if the lane is free, waits 30 seconds, and
 reads again. The line names it: it holds the lane. Otherwise it changes
 nothing and picks again. A loser must not write `Held by: nobody`, because
-that would free the winner's lane.
+that would free the winner's lane. Superseded 2026-11-10 by the entry "the
+lane claim moves into a script": `scripts/lane_claim.py claim` does the
+read, the write, the wait and the second read in one process.
 
 Every write to a lane body reads the body just before it and keeps the
 `Held by:` line as read, unless the write is a claim, a refresh or a
@@ -562,7 +567,12 @@ an old read erased a claim made since (review round 4). The limit that is
 left: two writes inside the same few seconds still lose one, because
 GitHub offers no compare-and-set on an issue body. The 30-second wait and
 the read before the first push catch most of these, and a holder that
-finds its line gone stops and tells the owner.
+finds its line gone stops and tells the owner. Superseded 2026-11-10 by
+the entry "the lane claim cut to four rules": the exceptions for a claim,
+a refresh and a release, and the read before the first push, are gone.
+Every write after a claim follows the one stop rule, and since the entry
+"the lane claim moves into a script", every write runs through
+`scripts/lane_claim.py`.
 
 The holder line is the first line of the issue body. With a trailing CR
 stripped, it must match
@@ -578,13 +588,15 @@ A body with no `Held by:` line, or a malformed one, counts as free.
 The choice keeps a lane opened by hand, without the line, from being
 locked forever. The risk: a holder whose line was deleted or mangled looks
 free, and another session can take its lane. The read before the first
-push is where the first holder finds out.
+push is where the first holder finds out. Superseded 2026-11-10: there is
+no first-push read now. The holder finds out when `lane_claim.py write` or
+`release` refuses.
 
 Free lanes sort by issue number, oldest first, and held lanes follow by
 their time. Before that, every free lane tied in the sort, so a routine
 with no owner always took the newest lane (review round 4).
 
-Superseded 2026-11-10, twice, on this change:
+Superseded 2026-11-10 on this change, before the body line was chosen:
 - First rule: claim and release comments, where the first claim since the
   last release won. Review round 2 found it locked a lane forever behind an
   expired claim, and it named a different holder than the list did.
@@ -595,6 +607,10 @@ Superseded 2026-11-10, twice, on this change:
   rounds passed without the blocking count falling (2, 3, 3), so the owner
   chose the body line. One line has one value, so every reader sees the
   same holder.
+
+Later on 2026-11-10, three more changes superseded parts of this entry:
+the first-line parser (review round 5, above), the four rules (next entry)
+and the claim script (the entry after it).
 
 The handoff pass closes a lane issue only when a merged PR's notes have the
 exact line `Lane: #<N>. finished`, with nothing after it. Notes with no lane
@@ -631,10 +647,11 @@ inside the owner's decision of one `Held by:` first line per lane issue:
    ListAgents shows its session live.
 2. To claim, replace line one if it starts with `Held by:`, else insert a
    new line one. Wait 30 seconds and read again.
-3. One stop rule for every later write: before every write to a lane body,
-   read it again, and if line one is not your own holder line, change
-   nothing, stop, and tell the owner. Otherwise write, keeping line one as
-   read, with a new time, or as `Held by: nobody` on release.
+3. One stop rule for every later write: "Before every write to a lane
+   body, read it again, and if line one is not your own holder line,
+   change nothing, stop, and tell the owner. Otherwise write, keeping line
+   one as read, with a new time when you update `## Next`, or as
+   `Held by: nobody` when you stop."
 4. Session names are unique per run.
 
 This supersedes the rules of review rounds 4 to 6 in the entry above: read
@@ -645,5 +662,52 @@ warning in `handoff-freshness.py` and the wind-down notice in
 fail if any one loses it. The handoff pass writes a lane body only as its
 holder, so it follows the same rule.
 
+Superseded 2026-11-10 by the next entry, for rules 2 and 3: the claim and
+every later write run in `scripts/lane_claim.py`, and the stop rule now
+reads "Write a lane body only with `scripts/lane_claim.py write` or `release`, and if it refuses, change nothing, stop, and tell the owner." Rules 1 and 4 stand.
+
 Check: `./hooks/handoff-freshness-selftest.py` and
 `./hooks/context-handoff-selftest.py`.
+
+## 2026-11-10: the lane claim moves into a script
+
+Supports `handoff`. Review round 7 found two blocking faults in the claim
+as prose. First: the claim read the body in one tool call and wrote it in
+a later one, and nothing bounded the gap. A session that read a free lane
+at minute 0 and wrote at minute 45 overwrote a claim made at minute 8, and
+both sessions then held the lane. Second: the claim said "wait 30
+seconds", and Claude Code refuses a standalone `sleep 30` in a Bash call,
+so an agent could not follow it. Rounds 5 to 7 found 1, 3, then 2
+blocking faults. Each round of prose moved the gap, so the owner moved the
+protocol into code.
+
+`skills/handoff/lane_claim.py` is one stdlib Python script that calls
+`gh`. A repo copies it to `scripts/lane_claim.py`, as `mutation-gate` does
+with its runner, and this repo links that path to the canonical file.
+
+- `claim <issue> <name>` reads the body. A holder line for another name
+  under 24 hours old: it refuses and names the holder. Over 24 hours old:
+  it refuses unless `--holder-not-live` is passed, which the agent does
+  only after ListAgents shows the holder is not live. Else it writes this
+  name with the current UTC minute as line one, waits 30 seconds
+  (`LANE_CLAIM_WAIT_SECONDS` sets it for the self-test), reads again, and
+  exits 0 only if line one is this name's holder line.
+- `write <issue> <name> <file>` and `release <issue> <name>` change
+  nothing and print the stop rule when line one is not this name's holder
+  line. `write` replaces the body after line one with the file and puts a
+  new time on line one. `release` sets line one to `Held by: nobody`.
+
+Rule 1 of the entry above, the holder line and its malformed-is-free
+cases, is unchanged. The stop rule is one sentence, word for word in the
+skill rules, the Start here block, the STALE warning, the wind-down notice
+and the script:
+
+Write a lane body only with `scripts/lane_claim.py write` or `release`,
+and if it refuses, change nothing, stop, and tell the owner.
+
+What remains: two claims inside the same second can still both write,
+because GitHub offers no compare-and-set on an issue body. The read after
+the wait catches it, since only one line can be line one.
+
+Check: `./hooks/lane-claim-selftest.py`, `./hooks/handoff-freshness-selftest.py`
+and `./hooks/context-handoff-selftest.py`.

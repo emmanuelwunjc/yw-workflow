@@ -100,8 +100,9 @@ FALLBACK_TRUNKS = ("main", "master")
 HANDOFF_BRANCH_PREFIX = "docs/handoff-"
 NOTES_HEADING = "## Handoff notes"
 # The one stop rule of skills/handoff, word for word. The self-test checks it.
-STOP_RULE = ("Before every write to a lane body, read it again, and if line one "
-             "is not your own holder line, change nothing, stop, and tell the owner.")
+STOP_RULE = ("Write a lane body only with `scripts/lane_claim.py write` or "
+             "`release`, and if it refuses, change nothing, stop, and tell "
+             "the owner.")
 
 START_HERE = "## Start here"
 OLD_PREAMBLE = ("end of a session", "end of the session")
@@ -241,7 +242,9 @@ def lane_notes(touched_handoff: bool, real: bool, ref: str, detached: bool) -> N
               f"concurrent lane that does hits a merge conflict there. Move "
               f"those lines into the PR body and restore the file from where "
               f"this work left trunk:\n"
-              f"  git checkout $(git merge-base HEAD {ref}) -- {HANDOFF}\n\n"
+              f"  git checkout $(git merge-base HEAD {ref}) -- {HANDOFF}\n"
+              f"One exception: a lane that changes the `{START_HERE}` block "
+              f"itself edits {HANDOFF}, and this warning is expected there.\n\n"
               if touched_handoff else "")
     if not real:
         print(f"HANDOFF NOTES: {edited}Deliberate skip: SKIP_HANDOFF_CHECK=1\n",
@@ -329,7 +332,9 @@ def main() -> None:
         f"Written at the end, it is composed from a compacted memory of the "
         f"session, and the reasoning that mattered is what drops out first.\n\n"
         f"So: {what}. Put each next step for open work in its `lane` issue's "
-        f"`## Next` with `gh issue edit`. {STOP_RULE} Then close a `lane` "
+        f"`## Next`: claim the lane first with `python3 scripts/lane_claim.py "
+        f"claim <N> <name>`, then write with `python3 scripts/lane_claim.py "
+        f"write <N> <name> <file>` and release it. {STOP_RULE} Then close a `lane` "
         f"issue only when a "
         f"merged PR's notes have the exact line `Lane: #<N>. finished`. A few lines per meaningful step. Judgment, not derivable "
         f"state: why a decision went the way it did, what was deliberately not "

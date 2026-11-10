@@ -45,21 +45,18 @@ whole briefing. Nobody writes you a separate prompt. Do these in order.
    first task, and go to step 6. 100 lines: raise `--limit`, list again.
 4. Pick a lane. A lane is free when its `Held by:` line says nobody or
    is malformed, or its time is over 24 hours old and ListAgents does
-   not show that session live. Else it is held. Take the lane the
-   owner named. Else, one free lane: take it. More than one: ask the
-   owner with one AskUserQuestion, one option per free lane in list
-   order, the first recommended. No owner present (a cloud routine, a
-   headless run): take the first free lane. No free lane: tell the owner,
-   and stop.
-5. Claim it, after any answer from the owner. Read the body:
-   `gh issue view <N> --json body --jq .body > lane.md`. Held, by step 4:
-   go back to step 4. Free: your line is `Held by: <name>, since <time>`,
-   where <time> is `date -u +%Y-%m-%dT%H:%MZ`. If line one starts with
-   `Held by:`, replace it with your line. Else insert your line as a new
-   line one. Keep every other line, and run
-   `gh issue edit <N> --body-file lane.md`. Wait 30 seconds and read the
-   body again. Line one is your line: you hold the lane. Else change
-   nothing, and go back to step 4. <name> is your
+   not show that session live. Else it is held. The owner named a lane:
+   take it, and if it is held, tell the owner and stop. Else, one free
+   lane: take it. More than one: ask the owner with one AskUserQuestion,
+   one option per free lane in list order, the first recommended. No
+   owner present (a cloud routine, a headless run): take the first free
+   lane. No free lane: tell the owner, and stop.
+5. Claim it, after any answer from the owner:
+   `python3 scripts/lane_claim.py claim <N> <name>`. Add
+   `--holder-not-live` only when step 4 found the lane free by its
+   24-hour rule. Exit 0: you hold the lane. Else it says why: change
+   nothing. The owner named this lane: tell the owner and stop. Else go
+   back to step 4. <name> is your
    session name as ListAgents prints it. With no ListAgents, use your
    harness and worktree, e.g. `laptop:04-handoff-lanes`. A cloud routine
    adds its run start, e.g. `cloud routine nightly 2026-11-10T06:17Z`.
@@ -68,10 +65,11 @@ whole briefing. Nobody writes you a separate prompt. Do these in order.
    commands before trusting any number. Start the first task it names.
    Ask the owner nothing it already answers.
 
-Before every write to a lane body, read it again, and if line one is not
-your own holder line, change nothing, stop, and tell the owner. Otherwise
-write, keeping line one as read, with a new time when you update
-`## Next`, or as `Held by: nobody` when you stop. Leave this block alone.
+Write a lane body only with `scripts/lane_claim.py write` or `release`,
+and if it refuses, change nothing, stop, and tell the owner. Update
+`## Next` with `python3 scripts/lane_claim.py write <N> <name> <file>`,
+and free the lane with `python3 scripts/lane_claim.py release <N> <name>`
+when you stop. Leave this block alone.
 
 Judgment and reasoning only. No counts, no SHAs, no issue tallies: those rot
 within hours. Derive them with `gh issue list` and the scripts in the repo.
@@ -355,9 +353,13 @@ UPSTREAM_PASS = [("git", "checkout", "-q", "-b", "up", "origin/main"), PASS,
 CLOSE_RULE = "close a `lane` issue only when a merged PR's notes have the exact line `Lane: #<N>. finished`"
 # The one stop rule. The skill rules, the block, this hook's STALE text and
 # context-handoff.py's wind-down notice each carry it word for word.
-STOP_RULE = ("Before every write to a lane body, read it again, and if line one "
-             "is not your own holder line, change nothing, stop, and tell the owner.")
-STALE = [STOP_RULE, "HANDOFF STALE", "handoff pass", "`lane` issue", CLOSE_RULE]
+STOP_RULE = ("Write a lane body only with `scripts/lane_claim.py write` or "
+             "`release`, and if it refuses, change nothing, stop, and tell "
+             "the owner.")
+# the pass claims a lane before it writes its `## Next` (review round 7)
+CLAIM_FIRST = "claim the lane first with `python3 scripts/lane_claim.py claim <N> <name>`"
+STALE = [STOP_RULE, "HANDOFF STALE", "handoff pass", "`lane` issue", CLOSE_RULE,
+         CLAIM_FIRST]
 
 # (name, first branch, steps, stderr must carry, stderr must not carry)
 BRANCH_CASES = [
@@ -365,7 +367,9 @@ BRANCH_CASES = [
      "main", [BASE, ("branch", "feat/x"), *WORK], LANE, ["HANDOFF STALE"]),
     ("lane that edited the handoff is told lanes do not",
      "main", [BASE, ("branch", "feat/x"), WORK[0], TOUCH],
-     ["HANDOFF NOTES", "Lanes do not edit"], ["HANDOFF STALE"]),
+     ["HANDOFF NOTES", "Lanes do not edit",
+      "a lane that changes the `## Start here` block itself edits docs/HANDOFF.md, "
+      "and this warning is expected there"], ["HANDOFF STALE"]),
     ("handoff branch keeps the stale warning",
      "main", [BASE, ("branch", "docs/handoff-0921"), *WORK], ["HANDOFF STALE"],
      ["HANDOFF NOTES"]),
