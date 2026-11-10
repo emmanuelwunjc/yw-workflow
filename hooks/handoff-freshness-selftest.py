@@ -36,33 +36,38 @@ whole briefing. Nobody writes you a separate prompt. Do these in order.
    `gh label list --search lane --json name --jq '.[] | select(.name == "lane") | .name'`
    It prints nothing: this repo has no lane label yet. Read the LAST
    section of this file for the first task, and go to step 6.
-3. List the open lanes. Each line ends with the lane's holder line, and
-   the oldest comes first:
+3. List the open lanes with their `Held by:` lines, oldest first:
 
-   gh issue list --label lane --state open --json number,title,comments --jq 'map({n: .number, t: .title, c: ([.comments[] | {at: .createdAt, l: (.body | split("\n")[0] | rtrimstr("\r"))} | select(.l | test("^(claimed|released) by .+, [0-9]{4}-[0-9]{2}-[0-9]{2}$"; "i"))] | last)}) | sort_by(.c.at // "") | .[] | "#\(.n) \(.t) | \(.c.at // "never") | \(.c.l // "no claim yet")"'
+   gh issue list --label lane --state open --limit 100 --json number,title,body --jq 'map({n: .number, t: .title, h: ((.body | split("\n") | map(rtrimstr("\r") | select(startswith("Held by: "))) | first) // "Held by: (no line)")}) | sort_by((.h | capture("since (?<s>[0-9T:-]+Z)$").s) // "") | .[] | "#\(.n) \(.t) | \(.h)"'
 
    No lines: no lane is open. Read the LAST section of this file for the
-   first task, and go to step 6.
-4. Pick a lane. A lane is held when its holder line is a claim under 24
-   hours old, or a claim by a session ListAgents shows live. A release,
-   no claim, or an older claim is free. Take the lane the owner named. Else, one free lane: take it.
-   More than one: ask the owner with one AskUserQuestion, one option per
-   free lane in list order, the first recommended. No owner present (a
-   cloud routine, a headless run): take the first free lane. No free
-   lane: tell the owner every lane is held, and stop.
-5. Claim it: `gh issue comment <N> --body "claimed by <name>, <YYYY-MM-DD>"`.
-   <name> is your session name as ListAgents prints it. With no
-   ListAgents, name your harness and worktree, e.g. `cloud routine
-   nightly` or `laptop:04-handoff-lanes`. Then run step 3 again. Lane
-   <N>'s holder line is your claim: you hold it. It is another session's
-   claim: that session holds it. Post nothing, and go back to step 4.
+   first task, and go to step 6. 100 lines: raise `--limit`, list again.
+4. Pick a lane. A lane is free when its line says nobody or has no
+   line, or its time is over 24 hours old and ListAgents does not show
+   that session live. Else it is held. Take the lane the owner named.
+   Else, one free lane: take it. More than one: ask the owner with one
+   AskUserQuestion, one option per free lane in list order, the first
+   recommended. No owner present (a cloud routine, a headless run): take
+   the first free lane. No free lane: tell the owner, and stop.
+5. Claim it, after any answer from the owner, so a lane taken while you
+   waited is caught. Run `gh issue view <N> --json body --jq .body >
+   lane.md`. Held, by step 4: go back to step 4. Free: set its line to
+   `Held by: <name>, since <time>`, where <time> is
+   `date -u +%Y-%m-%dT%H:%MZ`, keep the rest, and run
+   `gh issue edit <N> --body-file lane.md`. Wait 30 seconds and read the
+   body again. The line names you: you hold the lane. It names another
+   session: change nothing, and go back to step 4. <name> is your
+   session name as ListAgents prints it. With no ListAgents, use your
+   harness and worktree, e.g. `laptop:04-handoff-lanes`. A cloud routine
+   adds its run start, e.g. `cloud routine nightly 2026-11-10T06:17Z`.
 6. Read the lane issue's `## Next`, or with no lane the LAST section.
    Read the recent sections of this file for traps. Run the recount
    commands before trusting any number. Start the first task it names.
    Ask the owner nothing it already answers.
 
-When you stop on a lane, rewrite its `## Next` with `gh issue edit` and
-post `released by <name>, <YYYY-MM-DD>` on it. Leave this block alone.
+When you update `## Next`, write a new time on your `Held by:` line. When
+you stop, rewrite `## Next`, and if the line still names you, set it to
+`Held by: nobody`. Leave this block alone.
 
 Judgment and reasoning only. No counts, no SHAs, no issue tallies: those rot
 within hours. Derive them with `gh issue list` and the scripts in the repo.
@@ -122,6 +127,9 @@ assert SECOND_LATE.splitlines().index(next(l for l in reversed(SECOND_LATE.split
                                            if l.startswith(CMD))) >= 40
 H3_START = GOOD.replace("## Start here\n", "### Start here\n", 1)
 LATER_START = GOOD.replace("## Start here\n", "## Start here later\n", 1)
+# "1. Read the LAST section" in a dated section below the block is history
+OLD_STEP_BELOW = GOOD + "\n## 2026-09-17\n\n1. Read the LAST section of this file.\n"
+LATER_ONLY = "# Handoff\n\n## Start here later\n\nFirst task: x.\n"
 # pad inside the section so the lane list sits exactly at line 40, then 41
 AT = {n: BLOCK.replace("## Start here\n", "## Start here\n" + "\n" * (n - CMD_LINE), 1) + TAIL
       for n in (40, 41)}
@@ -199,6 +207,11 @@ CASES = [
     ("## Start here later is no Start here line",
      {"docs/HANDOFF.md": LATER_START}, ["docs/HANDOFF.md"],
      ["HANDOFF SHAPE", "has no `## Start here` line"], []),
+    ("a LAST-section step below the block is no warning",
+     {"docs/HANDOFF.md": OLD_STEP_BELOW}, ["docs/HANDOFF.md"], [], ["HANDOFF SHAPE"]),
+    ("## Start here later alone gets only the missing-block warning",
+     {"docs/HANDOFF.md": LATER_ONLY}, ["docs/HANDOFF.md"],
+     ["has no `## Start here` line"], ["--label lane"]),
     ("lane list at line 40 is inside the window",
      {"docs/HANDOFF.md": AT[40]}, ["docs/HANDOFF.md"], [], ["HANDOFF SHAPE"]),
     ("lane list at line 41 is past the window",
@@ -264,7 +277,8 @@ REVERT_ADVICE = "git checkout $(git merge-base HEAD origin/main) -- docs/HANDOFF
 # a handoff pass lands on origin/main from elsewhere; cwd ends on branch up
 UPSTREAM_PASS = [("git", "checkout", "-q", "-b", "up", "origin/main"), PASS,
                  ("git", "push", "-q", "origin", "up:main")]
-STALE = ["HANDOFF STALE", "handoff pass", "`lane` issue"]
+CLOSE_RULE = "close a `lane` issue only when a merged PR's notes have the exact line `Lane: #<N>. finished`"
+STALE = ["HANDOFF STALE", "handoff pass", "`lane` issue", CLOSE_RULE]
 
 # (name, first branch, steps, stderr must carry, stderr must not carry)
 BRANCH_CASES = [

@@ -533,31 +533,43 @@ of a merged PR, and no handoff pass had folded it in. One file gave every
 session the same first task.
 
 The owner decided the fix. Each open lane has one issue with label `lane`,
-and its body holds the lane's `## Next`. A session claims a lane with a
-comment `claimed by <session name>, <YYYY-MM-DD>` and lets it go with
-`released by <session name>, <YYYY-MM-DD>`. Issue edits cost no CI minutes,
+and its body holds the lane's `## Next`. A session claims a lane with the
+body line `Held by: <session name>, since <YYYY-MM-DDTHH:MMZ>` and lets it
+go with `Held by: nobody`. Issue edits cost no CI minutes,
 and every machine and cloud routine can read them. `docs/HANDOFF.md` stays
 the shared log of decisions, traps and judgment.
 
-The handoff pass reviewer now checks three things: each next step in merged
+The handoff pass reviewer now checks four things: each next step in merged
 Handoff notes has a `lane` issue, no two lane issues name the same first
-task, and a lane with no claim or release in 7 days goes to the owner.
+task, each closed lane issue cites a PR whose notes say
+`Lane: #<N>. finished`, and a lane whose `updatedAt` and `Held by:` time
+are both over 7 days old goes to the owner.
 
 A claim holds for 24 hours, or while ListAgents shows its session live.
 ListAgents sees one machine and one harness only, so a claim by a cloud
 routine or another machine must not read as free the moment it is posted.
 
-The holder is the latest comment whose first line is exactly a claim or a
-release. Every step uses that rule: the list, the pick, and the check after
-a claim. A session whose claim is not the holder line posts nothing and
-picks again. This rule replaced "the first claim since the last release
-wins" on 2026-11-10, after review round 2 on the change. The first-claim
-rule locked a lane forever behind an expired claim, and it named a
-different holder than the list did.
+The holder is one `Held by:` line in the issue body. To claim, a session
+reads the body, writes its line if the lane is free, waits 30 seconds, and
+reads again. The line names it: it holds the lane. Otherwise it changes
+nothing and picks again.
 
-The handoff pass closes a lane issue only when a merged PR's notes say
-`Lane: #<N>. finished`. Notes with no lane line or no next step go to the
-owner, because a guess there would close an open lane.
+Superseded 2026-11-10, twice, on this change:
+- First rule: claim and release comments, where the first claim since the
+  last release won. Review round 2 found it locked a lane forever behind an
+  expired claim, and it named a different holder than the list did.
+- Second rule: the latest claim or release comment held the lane. Review
+  round 3 found two faults. The comment read stops at 100 comments, so a
+  long lane loses its holder. And a late claim from a session that listed
+  before the holder's claim took a working session's lane. Three review
+  rounds passed without the blocking count falling (2, 3, 3), so the owner
+  chose the body line. One line has one value, so every reader sees the
+  same holder.
+
+The handoff pass closes a lane issue only when a merged PR's notes have the
+exact line `Lane: #<N>. finished`, with nothing after it. Notes with no lane
+line or no next step go to the owner, because a guess there would close an
+open lane.
 
 What `handoff-freshness.py` checks, offline, in the section from the
 `## Start here` line to the next `## ` heading: a line that starts with
@@ -569,9 +581,5 @@ not check what the command prints or whether the label exists.
 Considered and rejected: a `gh` call in the hook to compare the issues with
 the notes. A Stop hook must work offline, so the reviewer of each handoff
 pass checks the issues against the notes.
-
-Considered and rejected: the loser of a claim race posts a release. The
-release would be the newest line, so the lane would show as free while the
-winner holds it.
 
 Check: `./hooks/handoff-freshness-selftest.py`.

@@ -3,7 +3,7 @@ name: git-lanes
 description: Run concurrent agents in isolated git worktrees without them colliding. Use before starting multi-file work in a repo where another agent may be active, when asked to "run these in parallel", "spin up lanes", "use worktrees", when dispatching a reviewer, or when about to git checkout/pull/stash in a repo you did not just create. Also covers where built deliverables live and how lanes merge back to trunk.
 origin: authored
 tags: [git, worktree, concurrency, multi-agent, merge]
-version: 1.2.0
+version: 1.2.1
 ---
 
 # Git lanes
@@ -92,6 +92,8 @@ in a `## Handoff notes` section of its PR body. After the merges, one handoff
 pass on a `docs/handoff-*` branch copies those notes into the log. The session
 that merges the PRs runs that pass before it stops. The steps and the command
 that collects the notes are in `/yw-workflow:handoff`.
+One exception: a change to the Start here block itself edits the file on a
+lane, as `/yw-workflow:handoff` says.
 
 ## A lane must not hold its own copy of gitignored input data
 
