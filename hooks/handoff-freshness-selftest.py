@@ -52,11 +52,12 @@ whole briefing. Nobody writes you a separate prompt. Do these in order.
    owner present (a cloud routine, a headless run): take the first free
    lane. No free lane: tell the owner, and stop.
 5. Claim it, after any answer from the owner:
-   `python3 scripts/lane_claim.py claim <N> <name>`. Add
+   `python3 scripts/lane_claim.py claim <N> "<name>"`. Add
    `--holder-not-live` only when step 4 found the lane free by its
-   24-hour rule. Exit 0: you hold the lane. Else it says why: change
+   24-hour rule. Exit 0: you hold the lane. Exit 1: it says why. Change
    nothing. The owner named this lane: tell the owner and stop. Else go
-   back to step 4. <name> is your
+   back to step 4. Any other exit, e.g. no `scripts/lane_claim.py` or a
+   failed `gh`: change nothing, stop, and tell the owner. <name> is your
    session name as ListAgents prints it. With no ListAgents, use your
    harness and worktree, e.g. `laptop:04-handoff-lanes`. A cloud routine
    adds its run start, e.g. `cloud routine nightly 2026-11-10T06:17Z`.
@@ -67,8 +68,8 @@ whole briefing. Nobody writes you a separate prompt. Do these in order.
 
 Write a lane body only with `scripts/lane_claim.py write` or `release`,
 and if it refuses, change nothing, stop, and tell the owner. Update
-`## Next` with `python3 scripts/lane_claim.py write <N> <name> <file>`,
-and free the lane with `python3 scripts/lane_claim.py release <N> <name>`
+`## Next` with `python3 scripts/lane_claim.py write <N> "<name>" <file>`,
+and free the lane with `python3 scripts/lane_claim.py release <N> "<name>"`
 when you stop. Leave this block alone.
 
 Judgment and reasoning only. No counts, no SHAs, no issue tallies: those rot
@@ -101,6 +102,15 @@ within hours. Derive them with `gh issue list` and the scripts in the repo.
 """
 
 GOOD = BLOCK + "\n## 2026-09-16\n\nFirst task: x.\n"
+# The block runs this script, so a repo without it gets a copy command
+# naming the plugin's file (review round 8).
+SCRIPT = "scripts/lane_claim.py"
+PLUGIN_SCRIPT = SKILL.parent / "lane_claim.py"
+NO_SCRIPT = f"has no {SCRIPT}"
+# Step 5 treats exit 1 and any other exit apart, so a missing script or a
+# failed `gh` stops the session instead of walking every lane (round 8).
+EXIT_RULE = ("Any other exit, e.g. no `scripts/lane_claim.py` or a failed "
+             "`gh`: change nothing, stop, and tell the owner.")
 # the phrase past the 40-line window is body text, e.g. a quote of the old rule
 LATE_PREAMBLE = GOOD + "\n" * 20 + "The old rule said: written at the end of the session.\n"
 NO_BLOCK = "# Handoff\n\n## 2026-09-16\n\nFirst task: x.\n"
@@ -233,6 +243,14 @@ CASES = [
     ("missing block gets one warning, the lane one stays quiet",
      {"docs/HANDOFF.md": NO_BLOCK}, ["docs/HANDOFF.md"],
      ["## Start here"], ["--label lane"]),
+    ("a block that runs the script, in a repo without it, warns with the copy",
+     {"docs/HANDOFF.md": GOOD, SCRIPT: None}, ["docs/HANDOFF.md"],
+     ["HANDOFF SHAPE", NO_SCRIPT, f"cp '{PLUGIN_SCRIPT}' {SCRIPT}"], []),
+    ("a repo with the script gets no copy warning",
+     {"docs/HANDOFF.md": GOOD}, ["docs/HANDOFF.md"], [], [NO_SCRIPT]),
+    ("the script named only below the block needs no copy",
+     {"docs/HANDOFF.md": OLD_BLOCK + f"\n## 2026-09-17\n\nRun `python3 {SCRIPT}`.\n",
+      SCRIPT: None}, ["docs/HANDOFF.md"], ["HANDOFF SHAPE"], [NO_SCRIPT]),
     ("preamble phrase past line 40 is body text, no warning",
      {"docs/HANDOFF.md": LATE_PREAMBLE}, ["docs/HANDOFF.md"], [], ["HANDOFF SHAPE"]),
 ]
@@ -281,7 +299,7 @@ def check_lane_jq():
     import json
     if not shutil.which("jq"):
         print("FAIL step 3 jq: no jq on PATH. The block pins a jq program that "
-              "must be run; install jq (e.g. `brew install jq`) and run again.")
+              "must be run. Install jq (e.g. `brew install jq`) and run again.")
         return 1
     line = next(l for l in BLOCK.splitlines() if l.startswith(CMD))
     program = re.search(r"--jq '(.*)'$", line).group(1)
@@ -311,8 +329,11 @@ def run_hook(cwd, env_extra=None):
 
 
 def make_repo(tmp, files, tracked):
+    """Every repo has the script the block runs, unless files maps it to None."""
     git(tmp, "init", "-q")
-    for rel, text in files.items():
+    for rel, text in {SCRIPT: "x\n", **files}.items():
+        if text is None:
+            continue
         p = pathlib.Path(tmp, rel)
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(text)
@@ -357,7 +378,7 @@ STOP_RULE = ("Write a lane body only with `scripts/lane_claim.py write` or "
              "`release`, and if it refuses, change nothing, stop, and tell "
              "the owner.")
 # the pass claims a lane before it writes its `## Next` (review round 7)
-CLAIM_FIRST = "claim the lane first with `python3 scripts/lane_claim.py claim <N> <name>`"
+CLAIM_FIRST = 'claim the lane first with `python3 scripts/lane_claim.py claim <N> "<name>"`'
 STALE = [STOP_RULE, "HANDOFF STALE", "handoff pass", "`lane` issue", CLOSE_RULE,
          CLAIM_FIRST]
 
@@ -642,6 +663,9 @@ def main():
         if STOP_RULE not in flat(text):
             failures += 1
             print(f"FAIL {where} does not carry the stop rule word for word")
+        if EXIT_RULE not in flat(text):
+            failures += 1
+            print(f"FAIL {where} does not tell exit 1 from any other exit")
 
     # the block pinned above is the block the skill tells repos to paste, and
     # the block this repo's own handoff opens with

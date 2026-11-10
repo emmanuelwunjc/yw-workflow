@@ -193,8 +193,8 @@ check("the notice says where the handoff goes",
 check("the notice ends with a fresh session", "fresh session" in text, True)
 check("the notice hands the lane off on its issue",
       STOP_RULE in text
-      and "`python3 scripts/lane_claim.py write <N> <name> <file>`" in text
-      and "`python3 scripts/lane_claim.py release <N> <name>`" in text, True)
+      and '`python3 scripts/lane_claim.py write <N> "<name>" <file>`' in text
+      and '`python3 scripts/lane_claim.py release <N> "<name>"`' in text, True)
 check("the time of the notice is recorded", e.state().get("noticed"), T0)
 check("150k, same step: no second notice", silent(e.at(150_000, now=T0 + 1)), True)
 check("219,999: still step 0, silent", silent(e.at(219_999, now=T0 + 2)), True)

@@ -4,7 +4,9 @@
 Each case puts a fake `gh` first on PATH. The fake keeps one issue body in a
 file, prints it for `gh issue view`, and stores it for `gh issue edit`. With
 FAKE_GH_STEAL set, it then puts that line on line one, as another session
-would that writes during the wait. LANE_CLAIM_WAIT_SECONDS=0 skips the wait.
+would that writes during the wait. With FAKE_GH_HANG set, an edit hangs
+before it writes. LANE_CLAIM_WAIT_SECONDS=0 skips the wait, and one check
+reads the default wait from the script, so a run never sleeps 30 seconds.
 
 It lives in hooks/ so the loop that runs every self-test, in CI and by hand,
 runs it too.
@@ -30,6 +32,9 @@ args = sys.argv[1:]
 if args[:2] == ["issue", "view"]:
     print(json.dumps({"body": open(body).read()}))
 elif args[:2] == ["issue", "edit"]:
+    if os.environ.get("FAKE_GH_HANG"):
+        import time
+        time.sleep(10)
     src = args[args.index("--body-file") + 1]
     text = sys.stdin.read() if src == "-" else open(src).read()
     steal = os.environ.get("FAKE_GH_STEAL")
@@ -54,7 +59,7 @@ def minute(delta_hours=0):
     return t.strftime("%Y-%m-%dT%H:%MZ")
 
 
-def run(tmp, body, args, steal=None, file_text=None):
+def run(tmp, body, args, steal=None, file_text=None, env_extra=None):
     """(exit code, stderr, body after) for one run of the script."""
     body_path = pathlib.Path(tmp, "body")
     body_path.write_text(body)
@@ -66,11 +71,20 @@ def run(tmp, body, args, steal=None, file_text=None):
     env = dict(os.environ, PATH=tmp + os.pathsep + os.environ["PATH"],
                FAKE_GH_BODY=str(body_path), LANE_CLAIM_WAIT_SECONDS="0")
     env.pop("FAKE_GH_STEAL", None)
+    env.pop("FAKE_GH_HANG", None)
     if steal:
         env["FAKE_GH_STEAL"] = steal
+    env.update(env_extra or {})
     got = subprocess.run([sys.executable, SCRIPT, *args], env=env,
                          capture_output=True, text=True)
     return got.returncode, got.stderr, body_path.read_text()
+
+
+def load_script():
+    spec = importlib.util.spec_from_file_location("lane_claim", SCRIPT)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
 
 
 def main():
@@ -138,12 +152,39 @@ def main():
          ["claim", "7", "nobody"], None, None, False, ["not a usable name"],
          "Held by: nobody" + rest),
     ]
+    # (name, env, exit code, stderr must carry). Each must exit 2 and leave
+    # the body as it was (review round 8).
+    free = "Held by: nobody" + rest
+    env_cases = [
+        ("a wait that is no number writes nothing",
+         {"LANE_CLAIM_WAIT_SECONDS": "soon"}, ["LANE_CLAIM_WAIT_SECONDS"]),
+        ("a negative wait writes nothing",
+         {"LANE_CLAIM_WAIT_SECONDS": "-5"}, ["LANE_CLAIM_WAIT_SECONDS"]),
+        ("a gh edit that hangs is a gh failure",
+         {"LANE_CLAIM_WAIT_SECONDS": "1.5", "FAKE_GH_HANG": "1"}, ["timed out"]),
+    ]
+    for name, env, carry in env_cases:
+        cases.append((name, free, ["claim", "7", "me"], None, None, 2, carry,
+                      free, env))
     failures = 0
-    for name, body, args, steal, file_text, ok, carry, after in cases:
+    # The default wait is what makes a claim see a later writer. The cases
+    # above set the wait to 0, so this check is the one that sees the default.
+    mod = load_script()
+    wait = mod.wait_seconds({})
+    if not wait >= 30:
+        failures += 1
+        print(f"FAIL the default wait is {wait} seconds, under 30")
+    timeout = mod.gh_timeout(wait)
+    if timeout is None or not timeout < wait:
+        failures += 1
+        print(f"FAIL the gh timeout {timeout} is not under the wait {wait}")
+    for name, body, args, steal, file_text, ok, carry, after, *env in cases:
         with tempfile.TemporaryDirectory() as tmp:
-            code, err, got = run(tmp, body, args, steal, file_text)
+            code, err, got = run(tmp, body, args, steal, file_text,
+                                 env[0] if env else None)
         problems = []
-        if (code == 0) != ok:
+        # ok: True means exit 0, False any other exit, an int that exit
+        if (code != ok) if type(ok) is int else ((code == 0) != ok):
             problems.append(f"exit {code}")
         problems += [f"stderr lacks {c!r}" for c in carry if c not in err]
         if not (after(got) if callable(after) else got == after):

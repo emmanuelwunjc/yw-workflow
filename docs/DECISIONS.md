@@ -705,9 +705,25 @@ and the script:
 Write a lane body only with `scripts/lane_claim.py write` or `release`,
 and if it refuses, change nothing, stop, and tell the owner.
 
-What remains: two claims inside the same second can still both write,
-because GitHub offers no compare-and-set on an issue body. The read after
-the wait catches it, since only one line can be line one.
+Two claims inside the same second can both write, because GitHub offers
+no compare-and-set on an issue body. The read after the wait catches that,
+since only one line can be line one.
+
+Corrected 2026-11-10 (review round 8): this entry first said the
+same-second case was all that remained. Round 8 measured another: an edit
+slower than the wait. A 3-second edit and a 2-second wait gave two
+holders, because one session's edit landed after the other's second read.
+Every `gh` call now times out at two thirds of the wait, and a timeout
+exits 2 like any `gh` failure, so a claim whose edit is that slow ends
+without reporting a hold. What remains: an edit the client gave up on can
+still land on GitHub after the timeout. That case is left for a ticket.
+
+Round 8 also found that the Start here block sent every non-zero exit back
+to step 4. With no `scripts/lane_claim.py`, or with `gh` failing, a session
+then walked every lane. Step 5 now reads exit 1 as "pick again" and any
+other exit as "stop and tell the owner". `handoff-freshness.py` warns,
+offline, when the block runs `scripts/lane_claim.py` and the repo has no
+such file, and prints the copy command.
 
 Check: `./hooks/lane-claim-selftest.py`, `./hooks/handoff-freshness-selftest.py`
 and `./hooks/context-handoff-selftest.py`.

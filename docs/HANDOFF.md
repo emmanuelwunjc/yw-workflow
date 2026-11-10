@@ -27,11 +27,12 @@ whole briefing. Nobody writes you a separate prompt. Do these in order.
    owner present (a cloud routine, a headless run): take the first free
    lane. No free lane: tell the owner, and stop.
 5. Claim it, after any answer from the owner:
-   `python3 scripts/lane_claim.py claim <N> <name>`. Add
+   `python3 scripts/lane_claim.py claim <N> "<name>"`. Add
    `--holder-not-live` only when step 4 found the lane free by its
-   24-hour rule. Exit 0: you hold the lane. Else it says why: change
+   24-hour rule. Exit 0: you hold the lane. Exit 1: it says why. Change
    nothing. The owner named this lane: tell the owner and stop. Else go
-   back to step 4. <name> is your
+   back to step 4. Any other exit, e.g. no `scripts/lane_claim.py` or a
+   failed `gh`: change nothing, stop, and tell the owner. <name> is your
    session name as ListAgents prints it. With no ListAgents, use your
    harness and worktree, e.g. `laptop:04-handoff-lanes`. A cloud routine
    adds its run start, e.g. `cloud routine nightly 2026-11-10T06:17Z`.
@@ -42,8 +43,8 @@ whole briefing. Nobody writes you a separate prompt. Do these in order.
 
 Write a lane body only with `scripts/lane_claim.py write` or `release`,
 and if it refuses, change nothing, stop, and tell the owner. Update
-`## Next` with `python3 scripts/lane_claim.py write <N> <name> <file>`,
-and free the lane with `python3 scripts/lane_claim.py release <N> <name>`
+`## Next` with `python3 scripts/lane_claim.py write <N> "<name>" <file>`,
+and free the lane with `python3 scripts/lane_claim.py release <N> "<name>"`
 when you stop. Leave this block alone.
 
 Judgment and reasoning only. No counts, no SHAs, no issue tallies: those rot

@@ -81,9 +81,9 @@ TAIL_BYTES = 2 * 1024 * 1024
 WRITE = ("write the handoff now: load the handoff skill, then %s on a "
          "docs/handoff-* branch, or a `## Handoff notes` section in the PR "
          "body on a lane, per the repo's rules. If you hold a lane, rewrite "
-         "its `## Next` with `python3 scripts/lane_claim.py write <N> <name> "
+         "its `## Next` with `python3 scripts/lane_claim.py write <N> \"<name>\" "
          "<file>`, then free it with `python3 scripts/lane_claim.py release "
-         "<N> <name>`. Write a lane body only with `scripts/lane_claim.py "
+         "<N> \"<name>\"`. Write a lane body only with `scripts/lane_claim.py "
          "write` or `release`, and if it refuses, change nothing, stop, and "
          "tell the owner. Then tell the user to start a fresh session."
          % HANDOFF)

@@ -72,11 +72,12 @@ whole briefing. Nobody writes you a separate prompt. Do these in order.
    owner present (a cloud routine, a headless run): take the first free
    lane. No free lane: tell the owner, and stop.
 5. Claim it, after any answer from the owner:
-   `python3 scripts/lane_claim.py claim <N> <name>`. Add
+   `python3 scripts/lane_claim.py claim <N> "<name>"`. Add
    `--holder-not-live` only when step 4 found the lane free by its
-   24-hour rule. Exit 0: you hold the lane. Else it says why: change
+   24-hour rule. Exit 0: you hold the lane. Exit 1: it says why. Change
    nothing. The owner named this lane: tell the owner and stop. Else go
-   back to step 4. <name> is your
+   back to step 4. Any other exit, e.g. no `scripts/lane_claim.py` or a
+   failed `gh`: change nothing, stop, and tell the owner. <name> is your
    session name as ListAgents prints it. With no ListAgents, use your
    harness and worktree, e.g. `laptop:04-handoff-lanes`. A cloud routine
    adds its run start, e.g. `cloud routine nightly 2026-11-10T06:17Z`.
@@ -87,8 +88,8 @@ whole briefing. Nobody writes you a separate prompt. Do these in order.
 
 Write a lane body only with `scripts/lane_claim.py write` or `release`,
 and if it refuses, change nothing, stop, and tell the owner. Update
-`## Next` with `python3 scripts/lane_claim.py write <N> <name> <file>`,
-and free the lane with `python3 scripts/lane_claim.py release <N> <name>`
+`## Next` with `python3 scripts/lane_claim.py write <N> "<name>" <file>`,
+and free the lane with `python3 scripts/lane_claim.py release <N> "<name>"`
 when you stop. Leave this block alone.
 
 Judgment and reasoning only. No counts, no SHAs, no issue tallies: those rot
@@ -123,21 +124,23 @@ within hours. Derive them with `gh issue list` and the scripts in the repo.
   and writes in one process, so the gap between the read and the write is
   about one second. Its self-test is `hooks/lane-claim-selftest.py`.
 - **To claim.** After any answer from the owner, run
-  `python3 scripts/lane_claim.py claim <N> <name>`. It refuses a lane that
+  `python3 scripts/lane_claim.py claim <N> "<name>"`. It refuses a lane that
   another name holds. It refuses a holder line over 24 hours old unless you
   pass `--holder-not-live`, which you do only after ListAgents shows that
   session is not live. Else it writes your line as line one, waits, and
-  reads again. Exit 0: you hold the lane. Else change nothing and pick
-  again.
+  reads again. Exit 0: you hold the lane. Exit 1: change nothing and pick
+  again. Any other exit, e.g. no `scripts/lane_claim.py` or a failed `gh`:
+  change nothing, stop, and tell the owner. Each `gh` call times out at two
+  thirds of the wait, so an edit slower than the wait ends with exit 2.
 - **Session names are unique per run.** Use the name ListAgents prints.
   With no ListAgents, use the harness and worktree, e.g.
   `laptop:04-handoff-lanes`. A cloud routine adds its run start time, e.g.
   `cloud routine nightly 2026-11-10T06:17Z`.
 - **The stop rule, for every write after a claim.** Write a lane body
   only with `scripts/lane_claim.py write` or `release`, and if it refuses,
-  change nothing, stop, and tell the owner. `write <N> <name> <file>`
+  change nothing, stop, and tell the owner. `write <N> "<name>" <file>`
   replaces everything after line one with the file and puts a new time on
-  line one. `release <N> <name>` sets line one to `Held by: nobody`. Both
+  line one. `release <N> "<name>"` sets line one to `Held by: nobody`. Both
   refuse when line one is not your own holder line. An edit replaces the
   whole body, so a write built from an older read would erase a claim made
   since.
@@ -258,8 +261,10 @@ warnings. All are addressed to the model and fix in the same turn.
   `gh issue list --label lane` within the first 40 lines, a step of its
   block opens with "Read the LAST section" (both are the block before
   2026-11-10, with one first task for every session), or a handoff-named
-  `.md` is tracked outside `docs/`. Paste the block, delete the preamble,
-  fold the stray file in.
+  `.md` is tracked outside `docs/`, or the block runs
+  `scripts/lane_claim.py` and the repo has no such file. Paste the block,
+  delete the preamble, fold the stray file in, copy the script with the
+  command the warning prints.
 
 `SKIP_HANDOFF_CHECK=1` silences all three, visibly, for a session that has a
 reason.

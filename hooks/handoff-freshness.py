@@ -70,6 +70,9 @@ file has the shape skills/handoff/SKILL.md describes. So it warns when:
   - a file named like a handoff (HANDOFF.md, AGENT_HANDOFF.md, *handoff*.md,
     any case) is tracked anywhere outside docs/, because two handoffs means
     the next session reads the wrong one
+  - the block runs scripts/lane_claim.py and the repo has no such file, so
+    every claim would fail. The warning prints the command that copies it
+    from this plugin.
 
 Escape hatch: SKIP_HANDOFF_CHECK=1 in the environment, for all of it.
 """
@@ -108,6 +111,10 @@ START_HERE = "## Start here"
 OLD_PREAMBLE = ("end of a session", "end of the session")
 PREAMBLE_LINES = 40
 LANE_LIST = "gh issue list --label lane"
+# The block runs this script. A repo copies it from the plugin (review round 8).
+LANE_SCRIPT = "scripts/lane_claim.py"
+PLUGIN_SCRIPT = os.path.join(os.path.dirname(os.path.dirname(
+    os.path.abspath(__file__))), "skills", "handoff", "lane_claim.py")
 # a command line, maybe in backticks, for exactly the label `lane`
 LANE_CMD = re.compile(r"^\s*`?gh issue list --label lane(?![\w-])")
 ANY_LIST = re.compile(r"gh issue list --label ([^\s`']+)")
@@ -125,15 +132,34 @@ def is_ancestor(a: str, b: str) -> bool:
         return False
 
 
-def lane_problems(lines: list[str]) -> list[str]:
-    """The Start here block must list the open `lane` issues. Silent when the
-    file has no block, which the missing-block warning already covers."""
+def block_lines(lines: list[str]) -> list[tuple[int, str]]:
+    """(1-based number, line) from the Start here line to the next `## `
+    heading. Empty when the file has no block."""
     start = next((i for i, ln in enumerate(lines) if ln.strip() == START_HERE), None)
     if start is None:
         return []
     end = next((i for i in range(start + 1, len(lines))
                 if lines[i].startswith("## ")), len(lines))
-    section = list(enumerate(lines[start + 1:end], start + 2))  # 1-based numbers
+    return list(enumerate(lines[start + 1:end], start + 2))
+
+
+def script_problems(top: str, lines: list[str]) -> list[str]:
+    """The block runs scripts/lane_claim.py, so the repo must have it."""
+    if (any(LANE_SCRIPT in ln for _, ln in block_lines(lines))
+            and not os.path.isfile(os.path.join(top, LANE_SCRIPT))):
+        return [f"{HANDOFF}'s `{START_HERE}` block runs {LANE_SCRIPT}, and "
+                f"this repo has no {LANE_SCRIPT}, so every lane claim fails. "
+                f"Copy it from the plugin and commit it:\n"
+                f"  mkdir -p scripts && cp '{PLUGIN_SCRIPT}' {LANE_SCRIPT}"]
+    return []
+
+
+def lane_problems(lines: list[str]) -> list[str]:
+    """The Start here block must list the open `lane` issues. Silent when the
+    file has no block, which the missing-block warning already covers."""
+    if not any(ln.strip() == START_HERE for ln in lines):
+        return []
+    section = block_lines(lines)
     fix = (f"Paste the current block, whose step runs `{LANE_LIST}` so each "
            f"session claims one open lane.")
     problems = []
@@ -181,7 +207,7 @@ def shape_problems(top: str) -> list[str]:
                 f"{HANDOFF} has no `{START_HERE}` line. A fresh session starts from "
                 f"that block, which sends it to one open `lane` issue, so paste "
                 f"the Start here block at the top, above everything else.")
-        problems += lane_problems(lines)
+        problems += lane_problems(lines) + script_problems(top, lines)
         head = "\n".join(lines[:PREAMBLE_LINES]).lower()
         hit = next((p for p in OLD_PREAMBLE if p in head), None)
         if hit:
@@ -333,8 +359,8 @@ def main() -> None:
         f"session, and the reasoning that mattered is what drops out first.\n\n"
         f"So: {what}. Put each next step for open work in its `lane` issue's "
         f"`## Next`: claim the lane first with `python3 scripts/lane_claim.py "
-        f"claim <N> <name>`, then write with `python3 scripts/lane_claim.py "
-        f"write <N> <name> <file>` and release it. {STOP_RULE} Then close a `lane` "
+        f"claim <N> \"<name>\"`, then write with `python3 scripts/lane_claim.py "
+        f"write <N> \"<name>\" <file>` and release it. {STOP_RULE} Then close a `lane` "
         f"issue only when a "
         f"merged PR's notes have the exact line `Lane: #<N>. finished`. A few lines per meaningful step. Judgment, not derivable "
         f"state: why a decision went the way it did, what was deliberately not "

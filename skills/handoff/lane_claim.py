@@ -16,9 +16,12 @@ Line one of the issue body is the holder line (docs/DECISIONS.md, 2026-11-10):
                                                 the future
   anything else                                 malformed, so free
 
-Usage, in USAGE below. Exit 0: done. Exit 1: refused, nothing changed by this run (a lost claim
-leaves the winner's line). Exit 2: bad arguments or a failed `gh` call.
-LANE_CLAIM_WAIT_SECONDS sets the wait after a claim (default 30).
+Usage, in USAGE below. Exit 0: done. Exit 1: refused, nothing changed by
+this run (a lost claim leaves the winner's line). Exit 2: bad arguments, a
+bad LANE_CLAIM_WAIT_SECONDS, or a `gh` call that failed or timed out.
+LANE_CLAIM_WAIT_SECONDS sets the wait after a claim (default 30). Every
+`gh` call times out at two thirds of the wait, so an edit slower than the
+wait ends the run with exit 2 and never reports a hold.
 """
 import json
 import os
@@ -32,6 +35,9 @@ HOLDER = re.compile(r"Held by: (?P<name>.+), since "
                     r"(?P<time>[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}Z)")
 FREE = "Held by: nobody"
 HOLD_HOURS = 24
+WAIT_ENV = "LANE_CLAIM_WAIT_SECONDS"
+DEFAULT_WAIT_SECONDS = 30
+TIMEOUT = None  # seconds for each `gh` call, set in main from the wait
 USAGE = """usage:
   lane_claim.py claim <issue> <name> [--holder-not-live]
   lane_claim.py write <issue> <name> <file>
@@ -54,19 +60,41 @@ def holder(line):
     return m["name"], m["time"]
 
 
-def read(issue):
-    out = subprocess.run(["gh", "issue", "view", issue, "--json", "body"],
-                         capture_output=True, text=True)
+def wait_seconds(env):
+    """The wait after a claim, from env. A bad value exits 2 before any write."""
+    raw = env.get(WAIT_ENV, str(DEFAULT_WAIT_SECONDS))
+    try:
+        wait = float(raw)
+    except ValueError:
+        wait = -1.0
+    if not 0 <= wait < float("inf"):  # NaN fails this too
+        fail(f"{WAIT_ENV}={raw!r} is not a number of seconds, 0 or more.")
+    return wait
+
+
+def gh_timeout(wait):
+    """Under the wait, so a slow edit cannot land after the second read.
+    ponytail: a wait of 0 (the self-test) means no timeout."""
+    return wait * 2 / 3 or None
+
+
+def gh(args, body=None):
+    try:
+        out = subprocess.run(["gh", *args], input=body, capture_output=True,
+                             text=True, timeout=TIMEOUT)
+    except subprocess.TimeoutExpired:
+        fail(f"gh {' '.join(args[:3])} timed out after {TIMEOUT:g} seconds.")
     if out.returncode != 0:
-        fail(f"gh issue view {issue} failed: {out.stderr.strip()}")
-    return json.loads(out.stdout)["body"] or ""
+        fail(f"gh {' '.join(args[:3])} failed: {out.stderr.strip()}")
+    return out.stdout
+
+
+def read(issue):
+    return json.loads(gh(["issue", "view", issue, "--json", "body"]))["body"] or ""
 
 
 def write(issue, body):
-    out = subprocess.run(["gh", "issue", "edit", issue, "--body-file", "-"],
-                         input=body, capture_output=True, text=True)
-    if out.returncode != 0:
-        fail(f"gh issue edit {issue} failed: {out.stderr.strip()}")
+    gh(["issue", "edit", issue, "--body-file", "-"], body)
 
 
 def split(body):
@@ -84,7 +112,7 @@ def fail(msg):
     refuse(msg, 2)
 
 
-def claim(issue, name, holder_not_live):
+def claim(issue, name, holder_not_live, wait):
     first, rest = split(read(issue))
     held = holder(first)
     if held and held[0] != name:
@@ -102,7 +130,7 @@ def claim(issue, name, holder_not_live):
         write(issue, line + rest)
     else:
         write(issue, line + "\n" + first + rest)
-    time.sleep(float(os.environ.get("LANE_CLAIM_WAIT_SECONDS", "30")))
+    time.sleep(wait)
     first, _ = split(read(issue))
     held = holder(first)
     if not held or held[0] != name:
@@ -127,12 +155,15 @@ def main(argv):
     need = {"claim": 3, "write": 4, "release": 3}
     if not args or need.get(args[0]) != len(args) or (flag and args[0] != "claim"):
         fail(USAGE)
+    global TIMEOUT
+    wait = wait_seconds(os.environ)
+    TIMEOUT = gh_timeout(wait)
     cmd, issue, name = args[:3]
     stamp = now_minute()
     if holder(f"Held by: {name}, since {stamp}") != (name, stamp):
         fail(f"{name!r} is not a usable name for a holder line.")
     if cmd == "claim":
-        claim(issue, name, flag)
+        claim(issue, name, flag, wait)
     elif cmd == "write":
         with open(args[3], encoding="utf-8") as fh:
             text = fh.read()
