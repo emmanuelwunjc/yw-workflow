@@ -521,3 +521,231 @@ for the rule in conversation on 2026-11-04. That request has no public record.
 Considered and rejected: put every mutation into the `mutation-gate` data file.
 The gate breaks a script's code and needs its runner. A bad input to a check
 that takes an argument is cheaper as an ordinary test beside the check.
+
+## 2026-11-10: one GitHub issue per open lane holds its next task
+
+Supports `handoff`. The case is EdSim on 2026-11-10. Two lanes were open: a
+wage fix, run by a live session, and drafts of redesign tickets. A new session
+read the Start here block of `docs/HANDOFF.md`, which sent it to the last
+section. That section named the wage fix, so the new session took a lane
+that was already taken. The drafts' next step was only in the Handoff notes
+of a merged PR, and no handoff pass had folded it in. One file gave every
+session the same first task.
+
+The owner decided the fix. Each open lane has one issue with label `lane`,
+and its body holds the lane's `## Next`. A session claims a lane with the
+body line `Held by: <session name>, since <YYYY-MM-DDTHH:MMZ>` and lets it
+go with `Held by: nobody`. Issue edits cost no CI minutes unless a
+workflow runs `on: issues`, and every machine and cloud routine can read
+them. `docs/HANDOFF.md` stays
+the shared log of decisions, traps and judgment.
+
+The handoff pass reviewer now checks four things: each next step in merged
+Handoff notes has a `lane` issue, no two lane issues name the same first
+task, each closed lane issue cites a PR whose notes say
+`Lane: #<N>. finished`, and a lane whose `updatedAt` and `Held by:` time
+are both over 7 days old goes to the owner.
+
+A claim holds for 24 hours, or while ListAgents shows its session live.
+The 24 hours keep a claim held for its first day even when ListAgents does
+not list its session. Corrected 2026-11-10 (review round 7): this line
+also said ListAgents sees one machine and one harness only. No source
+confirmed it, so the claim is dropped.
+
+The holder is one `Held by:` line in the issue body. To claim, a session
+reads the body, writes its line if the lane is free, waits 30 seconds, and
+reads again. The line names it: it holds the lane. Otherwise it changes
+nothing and picks again. A loser must not write `Held by: nobody`, because
+that would free the winner's lane. Superseded 2026-11-10 by the entry "the
+lane claim moves into a script": `scripts/lane_claim.py claim` does the
+read, the write, the wait and the second read in one process.
+
+Every write to a lane body reads the body just before it and keeps the
+`Held by:` line as read, unless the write is a claim, a refresh or a
+release. An edit replaces the whole body, so a `## Next` update built from
+an old read erased a claim made since (review round 4). The limit that is
+left: two writes inside the same few seconds still lose one, because
+GitHub offers no compare-and-set on an issue body. The 30-second wait and
+the read before the first push catch most of these, and a holder that
+finds its line gone stops and tells the owner. Superseded 2026-11-10 by
+the entry "the lane claim cut to four rules": the exceptions for a claim,
+a refresh and a release, and the read before the first push, are gone.
+Every write after a claim follows the one stop rule, and since the entry
+"the lane claim moves into a script", every write runs through
+`scripts/lane_claim.py`.
+
+The holder line is the first line of the issue body. With a trailing CR
+stripped, it must match
+`^Held by: (nobody|.+, since \d{4}-\d{2}-\d{2}T\d{2}:\d{2}Z)$`. Any other
+first line is malformed and counts as free: no line, an empty body,
+`Held by: nobody, since ...`, seconds in the time, or a time in the future.
+This superseded "the first `Held by:` line above `## Next`, outside a code
+fence" on 2026-11-10 (review round 5). That parser broke on nested fences
+and on a fenced `## Next`, and nobody could check it by eye. Anyone can read
+a first line.
+
+A body with no `Held by:` line, or a malformed one, counts as free.
+The choice keeps a lane opened by hand, without the line, from being
+locked forever. The risk: a holder whose line was deleted or mangled looks
+free, and another session can take its lane. The read before the first
+push is where the first holder finds out. Superseded 2026-11-10: there is
+no first-push read now. The holder finds out when `lane_claim.py write` or
+`release` refuses.
+
+Free lanes sort by issue number, oldest first, and held lanes follow by
+their time. Before that, every free lane tied in the sort, so a routine
+with no owner always took the newest lane (review round 4).
+
+Superseded 2026-11-10 on this change, before the body line was chosen:
+- First rule: claim and release comments, where the first claim since the
+  last release won. Review round 2 found it locked a lane forever behind an
+  expired claim, and it named a different holder than the list did.
+- Second rule: the latest claim or release comment held the lane. Review
+  round 3 found two faults. The comment read stops at 100 comments, so a
+  long lane loses its holder. And a late claim from a session that listed
+  before the holder's claim took a working session's lane. Three review
+  rounds passed without the blocking count falling (2, 3, 3), so the owner
+  chose the body line. One line has one value, so every reader sees the
+  same holder.
+
+Later on 2026-11-10, three more changes superseded parts of this entry:
+the first-line parser (review round 5, above), the four rules (next entry)
+and the claim script (the entry after it).
+
+The handoff pass closes a lane issue only when a merged PR's notes have the
+exact line `Lane: #<N>. finished`, with nothing after it. Notes with no lane
+line or no next step go to the owner, because a guess there would close an
+open lane.
+
+What `handoff-freshness.py` checks, offline, in the section from the
+`## Start here` line to the next `## ` heading: a line that starts with
+`gh issue list --label lane` (a backtick in front is allowed, and the label
+must end there), at line 40 of the file or earlier. It also warns when a
+numbered step in that section starts with "Read the LAST section". It does
+not check what the command prints or whether the label exists.
+
+Considered and rejected: a `gh` call in the hook to compare the issues with
+the notes. A Stop hook must work offline, so the reviewer of each handoff
+pass checks the issues against the notes.
+
+Check: `./hooks/handoff-freshness-selftest.py`.
+
+## 2026-11-10: the lane claim cut to four rules
+
+Supports `handoff`. Six review rounds on the lane claim found 2, 3, 3, 2,
+1, then 3 blocking findings. The count rose again, and each new branch of
+the protocol was a new gap: a separate first-push check, a separate "names
+another session" case, a release only "if it still names you", and a
+parser that scanned past `## Next`. So the claim is cut to four rules,
+inside the owner's decision of one `Held by:` first line per lane issue:
+
+1. Line one of the body, with a trailing CR stripped, decides. It is free
+   when it matches `^Held by: nobody$`. It is a holder line when it matches
+   `^Held by: (?<name>.+), since (?<time>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}Z)$`,
+   with a name other than `nobody` and a time not in the future. Anything
+   else is malformed and free. A holder line holds for 24 hours, or while
+   ListAgents shows its session live.
+2. To claim, replace line one if it starts with `Held by:`, else insert a
+   new line one. Wait 30 seconds and read again.
+3. One stop rule for every later write: "Before every write to a lane
+   body, read it again, and if line one is not your own holder line,
+   change nothing, stop, and tell the owner. Otherwise write, keeping line
+   one as read, with a new time when you update `## Next`, or as
+   `Held by: nobody` when you stop."
+4. Session names are unique per run.
+
+This supersedes the rules of review rounds 4 to 6 in the entry above: read
+just before every write with its own exceptions, the first-push check, and
+the release condition. The skill rules, the Start here block, the STALE
+warning in `handoff-freshness.py` and the wind-down notice in
+`context-handoff.py` carry the stop rule word for word, and the self-tests
+fail if any one loses it. The handoff pass writes a lane body only as its
+holder, so it follows the same rule.
+
+Superseded 2026-11-10 by the next entry, for rules 2 and 3: the claim and
+every later write run in `scripts/lane_claim.py`, and the stop rule now
+reads "Write a lane body only with `scripts/lane_claim.py write` or `release`, and if it refuses, change nothing, stop, and tell the owner." Rules 1 and 4 stand.
+
+Check: `./hooks/handoff-freshness-selftest.py` and
+`./hooks/context-handoff-selftest.py`.
+
+## 2026-11-10: the lane claim moves into a script
+
+Supports `handoff`. Review round 7 found two blocking faults in the claim
+as prose. First: the claim read the body in one tool call and wrote it in
+a later one, and nothing bounded the gap. A session that read a free lane
+at minute 0 and wrote at minute 45 overwrote a claim made at minute 8, and
+both sessions then held the lane. Second: the claim said "wait 30
+seconds", and Claude Code refuses a standalone `sleep 30` in a Bash call,
+so an agent could not follow it. Rounds 5 to 7 found 1, 3, then 2
+blocking faults. Each round of prose moved the gap, so the owner moved the
+protocol into code.
+
+`skills/handoff/lane_claim.py` is one stdlib Python script that calls
+`gh`. A repo copies it to `scripts/lane_claim.py`, as `mutation-gate` does
+with its runner, and this repo links that path to the canonical file.
+
+- `claim <issue> <name>` reads the body. A holder line for another name
+  under 24 hours old: it refuses and names the holder. Over 24 hours old:
+  it refuses unless `--holder-not-live` is passed, which the agent does
+  only after ListAgents shows the holder is not live. Else it writes this
+  name with the current UTC minute as line one, waits 30 seconds
+  (`LANE_CLAIM_WAIT_SECONDS` sets it for the self-test), reads again, and
+  exits 0 only if line one is this name's holder line.
+- `write <issue> <name> <file>` and `release <issue> <name>` change
+  nothing and print the stop rule when line one is not this name's holder
+  line. `write` replaces the body after line one with the file and puts a
+  new time on line one. `release` sets line one to `Held by: nobody`.
+
+Rule 1 of the entry above, the holder line and its malformed-is-free
+cases, is unchanged. The stop rule is one sentence, word for word in the
+skill rules, the Start here block, the STALE warning, the wind-down notice
+and the script:
+
+Write a lane body only with `scripts/lane_claim.py write` or `release`,
+and if it refuses, change nothing, stop, and tell the owner.
+
+Two claims inside the same second can both write, because GitHub offers
+no compare-and-set on an issue body. The read after the wait catches that,
+since only one line can be line one.
+
+Corrected 2026-11-10 (review round 8): this entry first said the
+same-second case was all that remained. Round 8 measured another: an edit
+slower than the wait. A 3-second edit and a 2-second wait gave two
+holders, because one session's edit landed after the other's second read.
+Every `gh` call now times out at two thirds of the wait, and a timeout
+exits 2 like any `gh` failure, so a claim whose edit is that slow ends
+without reporting a hold. What remains: an edit the client gave up on can
+still land on GitHub after the timeout. That case is left for a ticket.
+Superseded 2026-11-10 (review round 9): the span that matters runs from the
+read being served to the edit landing, so two calls each under two thirds
+of the wait could together pass it. The reviewer got two holders with a
+3-second wait, a 1.6-second read and a 1.6-second edit. Now the read and
+the edit share one budget of half the wait, from the start of the read to
+the end of the edit. Each `gh` call gets what is left as its timeout, and
+a run past the budget exits 2 without writing. Another session's read and
+edit then both fit inside one wait. The self-test checks the budget is at
+most half the default wait, and that a read and an edit that each fit the
+budget, but not together, write nothing. What remains is #50: an edit that
+`gh` gave up on can still land on GitHub after the timeout. It is accepted
+and ticketed.
+
+Round 8 also found that the Start here block sent every non-zero exit back
+to step 4. With no `scripts/lane_claim.py`, or with `gh` failing, a session
+then walked every lane. Step 5 now reads exit 1 as "pick again" and any
+other exit as "stop and tell the owner". `handoff-freshness.py` warns,
+offline, when the block runs `scripts/lane_claim.py` and the repo has no
+such file, and prints the copy command.
+
+Round 9 found that the script still exited 1 on errors it did not expect,
+e.g. no `gh` on PATH, so step 5 read them as refusals. The script now exits
+1 only on a refusal, and one handler turns any other error into exit 2.
+The self-test covers no `gh` on PATH, a `gh`
+that exits non-zero or times out, and `gh` output that is not JSON or has
+no `body`: each exits 2. The STALE warning carries the exit rule word for
+word. The missing-script warning now checks the repo top and prints the
+copy command with the repo-top path, and a copy that git does not track
+warns too.
+
+Check: `./hooks/lane-claim-selftest.py`, `./hooks/handoff-freshness-selftest.py`
+and `./hooks/context-handoff-selftest.py`.

@@ -2,20 +2,50 @@
 
 ## Start here
 
-You are a fresh session and this file is your whole briefing. Nobody
-writes you a separate prompt. Do these in order, then work.
+You are a fresh session. This file and the open `lane` issues are your
+whole briefing. Nobody writes you a separate prompt. Do these in order.
 
 1. Load skills `ship-loop`, `git-lanes` and `fresh-eye` before touching
    anything. Read the repo `CLAUDE.md`.
-2. Read the LAST section of this file (the most recent date). It names
-   the first task, the tickets in order, and what waits on the owner.
-3. Run the recount commands that section carries before trusting any
-   number in it.
-4. Start the first task it names. Ask the owner nothing that section
-   already answers.
+2. Check that the repo has the label. This prints `lane` if it does:
+   `gh label list --search lane --json name --jq '.[] | select(.name == "lane") | .name'`
+   It prints nothing: this repo has no lane label yet. Read the LAST
+   section of this file for the first task, and go to step 6.
+3. List the open lanes. Free lanes come first, lowest issue number
+   first. Held lanes follow, oldest time first:
 
-Whoever closes a session rewrites the last section so step 2 stays true,
-and leaves this block alone.
+   gh issue list --label lane --state open --limit 100 --json number,title,body --jq '(now | strftime("%Y-%m-%dT%H:%MZ")) as $now | map(((.body // "") | split("\n") | first // "" | rtrimstr("\r")) as $h | {n: .number, t: .title, h: $h, s: (($h | capture("^Held by: (?<name>.+), since (?<time>[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}Z)$") | select(.name != "nobody" and .time <= $now) | .time) // null)}) | sort_by(if .s then [1, .s, .n] else [0, .n] end) | .[] | "#\(.n) \(.t) | \(if .s or .h == "Held by: nobody" then .h else "Held by: (malformed)" end)"'
+
+   No lines: no lane is open. Read the LAST section of this file for the
+   first task, and go to step 6. 100 lines: raise `--limit`, list again.
+4. Pick a lane. A lane is free when its `Held by:` line says nobody or
+   is malformed, or its time is over 24 hours old and ListAgents does
+   not show that session live. Else it is held. The owner named a lane:
+   take it, and if it is held, tell the owner and stop. Else, one free
+   lane: take it. More than one: ask the owner with one AskUserQuestion,
+   one option per free lane in list order, the first recommended. No
+   owner present (a cloud routine, a headless run): take the first free
+   lane. No free lane: tell the owner, and stop.
+5. Claim it, after any answer from the owner:
+   `python3 scripts/lane_claim.py claim <N> "<name>"`. Add
+   `--holder-not-live` only when step 4 found the lane free by its
+   24-hour rule. Exit 0: you hold the lane. Exit 1: it says why. Change
+   nothing. The owner named this lane: tell the owner and stop. Else go
+   back to step 4. Any other exit, e.g. no `scripts/lane_claim.py` or a
+   failed `gh`: change nothing, stop, and tell the owner. <name> is your
+   session name as ListAgents prints it. With no ListAgents, use your
+   harness and worktree, e.g. `laptop:04-handoff-lanes`. A cloud routine
+   adds its run start, e.g. `cloud routine nightly 2026-11-10T06:17Z`.
+6. Read the lane issue's `## Next`, or with no lane the LAST section.
+   Read the recent sections of this file for traps. Run the recount
+   commands before trusting any number. Start the first task it names.
+   Ask the owner nothing it already answers.
+
+Write a lane body only with `scripts/lane_claim.py write` or `release`,
+and if it refuses, change nothing, stop, and tell the owner. Update
+`## Next` with `python3 scripts/lane_claim.py write <N> "<name>" <file>`,
+and free the lane with `python3 scripts/lane_claim.py release <N> "<name>"`
+when you stop. Leave this block alone.
 
 Judgment and reasoning only. No counts, no SHAs, no issue tallies: those rot
 within hours. Derive them with `gh issue list` and the scripts in the repo.
@@ -793,7 +823,9 @@ by the first line of `find`, found the originating PR for every one of the
 
 Six repos each carried a handoff in its own shape, and every fresh session
 still needed a hand-written opening prompt on top of it. The owner decided
-that pointing an agent at `docs/HANDOFF.md` is the whole prompt. That is
+that pointing an agent at `docs/HANDOFF.md` is the whole prompt. (Superseded
+2026-11-10: the Start here block now sends each session to one open `lane`
+issue, whose `## Next` names its first task. See `docs/DECISIONS.md`.) That is
 only true if every file opens the same way, so the shape lives here once:
 `skills/handoff/SKILL.md` carries the `## Start here` block verbatim, and
 `hooks/handoff-freshness.py` warns (`HANDOFF SHAPE`) when a repo's file

@@ -80,8 +80,13 @@ TAIL_BYTES = 2 * 1024 * 1024
 
 WRITE = ("write the handoff now: load the handoff skill, then %s on a "
          "docs/handoff-* branch, or a `## Handoff notes` section in the PR "
-         "body on a lane, per the repo's rules. Then tell the user to start a "
-         "fresh session." % HANDOFF)
+         "body on a lane, per the repo's rules. If you hold a lane, rewrite "
+         "its `## Next` with `python3 scripts/lane_claim.py write <N> \"<name>\" "
+         "<file>`, then free it with `python3 scripts/lane_claim.py release "
+         "<N> \"<name>\"`. Write a lane body only with `scripts/lane_claim.py "
+         "write` or `release`, and if it refuses, change nothing, stop, and "
+         "tell the owner. Then tell the user to start a fresh session."
+         % HANDOFF)
 # A plain folder has no branch and no PR, so its text names neither.
 WRITE_FOLDER = ("write the handoff now: load the handoff skill, and ask the "
                 "user where it should live if that is not already clear. Then "
