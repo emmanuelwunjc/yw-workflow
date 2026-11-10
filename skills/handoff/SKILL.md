@@ -1,14 +1,14 @@
 ---
 name: handoff
-description: Keep a repo's docs/HANDOFF.md in the one shape that lets a fresh session start from the file alone, with a Start here block on top that has the session claim one open `lane` issue, and dated sections added by a handoff pass after merges, from the Handoff notes each lane PR carries. Use when asked for "a handoff", "/handoff", "write the handoff", "update the handoff", at the close of a session, or when the handoff-freshness hook warns HANDOFF STALE or HANDOFF SHAPE.
+description: Keep a repo's docs/HANDOFF.md in the one shape that lets a fresh session start from the file and the open lane issues alone, with a Start here block on top that has the session claim one open `lane` issue, and dated sections added by a handoff pass after merges, from the Handoff notes each lane PR carries. Use when asked for "a handoff", "/handoff", "write the handoff", "update the handoff", at the close of a session, or when the handoff-freshness hook warns HANDOFF STALE or HANDOFF SHAPE.
 origin: authored
 tags: [handoff, docs, session, continuity]
-version: 1.2.0
+version: 1.3.0
 ---
 
 # Handoff
 
-**In one line:** Keeps `docs/HANDOFF.md` in the shape that lets a fresh session start from the file alone.
+**In one line:** Keeps `docs/HANDOFF.md` and the `lane` issues in the shape that lets a fresh session start from them alone.
 
 Say that line back when you start, so whoever invoked this knows what they
 got.
@@ -16,13 +16,16 @@ got.
 
 A handoff exists so the next session starts working without anyone composing
 an opening prompt. The owner decided on 2026-09-16 that pointing a fresh agent
-at `docs/HANDOFF.md` is the whole prompt. That holds only if every handoff has
-the same shape, so this skill is the shape, and
-`hooks/handoff-freshness.py` warns when a repo drifts from it.
+at `docs/HANDOFF.md` is the whole prompt. Since 2026-11-10 the file's Start
+here block sends the session on to one open `lane` issue, and that issue's
+`## Next` names its first task. That holds only if every handoff has the same
+shape, so this skill is the shape, and `hooks/handoff-freshness.py` warns when
+a repo drifts from it.
 
-This skill never emits a separate prompt for the next session. The file is
-the prompt. If you find yourself writing "paste this to start the next
-session", stop and put it in the `## Next` of that lane's issue instead.
+This skill never emits a separate prompt for the next session. The file and
+the lane issues are the prompt. If you find yourself writing "paste this to
+start the next session", stop and put it in the `## Next` of that lane's
+issue instead.
 
 Each open lane of work has its own next task, so each has its own GitHub
 issue. On 2026-11-10 in EdSim, two lanes were open: a wage fix, run by a live
@@ -43,28 +46,41 @@ else, and leave it alone afterwards:
 
 ## Start here
 
-You are a fresh session and this file is your whole briefing. Nobody
-writes you a separate prompt. Do these in order, then work.
+You are a fresh session. This file and the open `lane` issues are your
+whole briefing. Nobody writes you a separate prompt. Do these in order.
 
 1. Load skills `ship-loop`, `git-lanes` and `fresh-eye` before touching
    anything. Read the repo `CLAUDE.md`.
-2. List the open lanes, each with its latest claim or release:
+2. Check that the repo has the label. This prints `lane` if it does:
+   `gh label list --search lane --json name --jq '.[] | select(.name == "lane") | .name'`
+   It prints nothing: this repo has no lane label yet. Read the LAST
+   section of this file for the first task, and go to step 6.
+3. List the open lanes, oldest claim or release first:
 
-   gh issue list --label lane --state open --json number,title,comments --jq '.[] | "#\(.number) \(.title) | \([.comments[].body | select(test("^(claimed|released) by "))] | last // "no claim yet")"'
+   gh issue list --label lane --state open --json number,title,comments --jq 'map({n: .number, t: .title, c: ([.comments[] | select(.body | test("^(claimed|released) by "; "i"))] | last)}) | sort_by(.c.createdAt // "") | .[] | "#\(.n) \(.t) | \(.c.createdAt // "never") | \((.c.body // "no claim yet") | split("\n")[0])"'
 
-3. Pick one lane. Take the lane the owner named. Else skip each lane
-   whose latest line is a claim by a session that ListAgents shows as
-   live. One free lane: take it. More than one: ask the owner with one
-   AskUserQuestion, one option per free lane, recommended first. No open
-   lane at all: read the LAST section of this file for the first task.
-4. Claim it, with your session name as ListAgents prints it:
-   `gh issue comment <N> --body "claimed by <session name>, <YYYY-MM-DD>"`
-5. Read the lane issue's `## Next`. Read the recent sections of this file
-   for traps. Run the recount commands before trusting any number.
-6. Start the first task `## Next` names. Ask the owner nothing it answers.
+   No lines: no lane is open. Read the LAST section of this file for the
+   first task, and go to step 6.
+4. Pick a lane. A lane is held when its line is a claim under 24 hours
+   old, or a claim whose session ListAgents shows live. Every other lane
+   is free. Take the lane the owner named. Else, one free lane: take it.
+   More than one: ask the owner with one AskUserQuestion, one option per
+   free lane in list order, the first recommended. No owner present (a
+   cloud routine, a headless run): take the first free lane. No free
+   lane: tell the owner every lane is held, and stop.
+5. Claim it: `gh issue comment <N> --body "claimed by <name>, <YYYY-MM-DD>"`.
+   <name> is your session name as ListAgents prints it. With no
+   ListAgents, name your harness and worktree, e.g. `cloud routine
+   nightly` or `laptop:04-handoff-lanes`. Then check who won:
+   `gh issue view <N> --json comments --jq '[.comments[] | .body | split("\n")[0] | select(test("^(claimed|released) by "; "i"))] | ((map(test("^released"; "i")) | rindex(true)) // -1) as $r | .[($r + 1):] | first // "no claim yet"'`
+   It prints another session's claim: that session won. Go back to step 4.
+6. Read the lane issue's `## Next`, or with no lane the LAST section.
+   Read the recent sections of this file for traps. Run the recount
+   commands before trusting any number. Start the first task it names.
+   Ask the owner nothing it already answers.
 
 When you stop on a lane, rewrite its `## Next` with `gh issue edit` and
-post `released by <session name>, <YYYY-MM-DD>` on it. Leave this block alone.
+post `released by <name>, <YYYY-MM-DD>` on it. Leave this block alone.
 
 Judgment and reasoning only. No counts, no SHAs, no issue tallies: those rot
 within hours. Derive them with `gh issue list` and the scripts in the repo.
@@ -84,12 +100,23 @@ within hours. Derive them with `gh issue list` and the scripts in the repo.
   Open a lane with `gh issue create --label lane --title "<lane>" --body-file <file>`.
   The body holds a `## Next` section in the shape below.
 - **A claim and a release are issue comments.** Claim:
-  `claimed by <session name>, <YYYY-MM-DD>`. Release:
-  `released by <session name>, <YYYY-MM-DD>`. The session name is the one
-  ListAgents prints. The latest of these comments says who holds the lane.
+  `claimed by <name>, <YYYY-MM-DD>`. Release:
+  `released by <name>, <YYYY-MM-DD>`. The name is the session name
+  ListAgents prints. A session with no ListAgents tool names its harness
+  and worktree, e.g. `cloud routine nightly` or `laptop:04-handoff-lanes`.
+- **A claim holds for 24 hours, or for as long as ListAgents shows its
+  session live.** After 24 hours, a claim whose session ListAgents does not
+  show is free. ListAgents sees only the sessions of one machine and one
+  harness, so a cloud routine or another machine stays held for its first
+  day even though no tool on this machine sees it.
+- **Two claims at once: the first one since the last release wins.** The
+  block's step 5 prints it. The losing session posts nothing and picks
+  again. A release from the loser would be the newest line and would show
+  the lane as free while the winner holds it.
 - **The session that stops on a lane hands it off on the issue.** Rewrite
   its `## Next` with `gh issue edit <N> --body-file <file>`, then post the
-  release comment. Closing the lane closes its issue.
+  release comment. A finished lane's issue is closed by the handoff pass,
+  with `gh issue close <N>`.
 - **Write it down as you go, in the PR body.** Every decision, defect and
   trap that cost time gets a few lines when it happens. A handoff written at
   close comes from a compacted memory, and the reasoning drops out first.
@@ -97,12 +124,14 @@ within hours. Derive them with `gh issue list` and the scripts in the repo.
   handoff branch) writes its notes in a `## Handoff notes` section of its PR
   body. The owner decided this on 2026-09-21: when every concurrent lane
   appended to the log, every lane hit a merge conflict in it. A repo can
-  enforce it in CI by failing any other branch that touches the file.
+  enforce it in CI by failing any other branch that touches the file. One
+  exception: a change to the Start here block itself edits
+  `docs/HANDOFF.md`, because the self-test pins that file's block.
 - **Dated sections, `## YYYY-MM-DD: what happened`, newest last.** The
   reader scrolls to the end and finds the present. The dated closing
   section is always the final `##` heading in the file, below any
-  topic-grouped sections such as traps or decisions. Step 3 of the block
-  reads it when no lane issue is open.
+  topic-grouped sections such as traps or decisions. The block reads it
+  when the repo has no `lane` label or no open `lane` issue.
 - **A lane issue's `## Next` is that lane's briefing.** The file's closing
   section keeps the same shape, for the case with no open lane. Each names,
   in this order:
@@ -143,7 +172,10 @@ PRs runs it before it stops. A lane session never closes one this way.
 4. Rewrite the `## Next` section (or the closing section, in repos whose handoff uses one) if the first task changed.
 5. Bring the lane issues up to date. A note that names a next step for work
    still open goes into that lane's issue `## Next`, with `gh issue edit`.
-   No issue for that work yet: open one with label `lane`. List them all:
+   No issue for that work yet: open one with label `lane`. A merged PR whose
+   notes name no next step for its lane finished that lane: close the lane's
+   issue with `gh issue close <N> --comment "finished in #<PR>"`. A lane PR
+   names its lane issue in its notes, e.g. `Lane: #57`. List them all:
 
    ```sh
    gh issue list --label lane --state open --json number,title,body,comments
@@ -168,6 +200,7 @@ To make lanes carry the section, add it to `.github/pull_request_template.md`:
 
 ```
 ## Handoff notes
+Lane: #<lane issue>. Its next step, or "finished".
 What the next session needs: decisions and why, traps that cost time, what was deliberately not done. The handoff pass copies this into `docs/HANDOFF.md` after merge. Lanes do not edit that file.
 ```
 
@@ -183,10 +216,12 @@ warnings. All are addressed to the model and fix in the same turn.
   committed real work and nothing touched the handoff. Run the handoff pass.
 - `HANDOFF SHAPE`: the file has no `## Start here` line, its first 40 lines
   still say "end of a session" (the old preamble, which told the reader the
-  file was written at close), its first 40 lines never say `--label lane`
-  (the block before 2026-11-10, with one first task for every session), or a
-  handoff-named `.md` is tracked outside `docs/`. Paste the block, delete the
-  preamble, fold the stray file in.
+  file was written at close), its block has no command line that runs
+  `gh issue list --label lane` within the first 40 lines, a step of its
+  block opens with "Read the LAST section" (both are the block before
+  2026-11-10, with one first task for every session), or a handoff-named
+  `.md` is tracked outside `docs/`. Paste the block, delete the preamble,
+  fold the stray file in.
 
 `SKIP_HANDOFF_CHECK=1` silences all three, visibly, for a session that has a
 reason.
@@ -201,7 +236,8 @@ committed.
 
 ## Hands off to
 
-- The closing section names a task that is not agent-ready:
+- A lane issue's `## Next`, or the closing section, names a task that is
+  not agent-ready:
   `/yw-workflow:ship-loop` says what a ticket needs before it is one.
 - What waits on the owner is more than a line: `/yw-workflow:need-me` is the
   format for asking it.

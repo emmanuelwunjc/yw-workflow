@@ -543,8 +543,25 @@ The handoff pass reviewer now checks three things: each next step in merged
 Handoff notes has a `lane` issue, no two lane issues name the same first
 task, and a lane with no claim or release in 7 days goes to the owner.
 
-Considered and rejected: a `gh` call in `handoff-freshness.py` to compare the
-issues with the notes. A Stop hook must work offline, so the hook only checks
-that the block lists the lane issues, and the reviewer checks the rest.
+A claim holds for 24 hours, or while ListAgents shows its session live.
+ListAgents sees one machine and one harness only, so a claim by a cloud
+routine or another machine must not read as free the moment it is posted.
+When two sessions claim at once, the first claim since the last release
+wins, and the loser posts nothing.
+
+What `handoff-freshness.py` checks, offline, in the section from the
+`## Start here` line to the next `## ` heading: a line that starts with
+`gh issue list --label lane` (a backtick in front is allowed, and the label
+must end there), at line 40 of the file or earlier. It also warns when a
+numbered step in that section starts with "Read the LAST section". It does
+not check what the command prints or whether the label exists.
+
+Considered and rejected: a `gh` call in the hook to compare the issues with
+the notes. A Stop hook must work offline, so the reviewer of each handoff
+pass checks the issues against the notes.
+
+Considered and rejected: the loser of a claim race posts a release. The
+release would be the newest line, so the lane would show as free while the
+winner holds it.
 
 Check: `./hooks/handoff-freshness-selftest.py`.

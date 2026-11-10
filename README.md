@@ -40,7 +40,7 @@ Each one carries a one-line summary at the top.
 | **need-me** | Shows only what is waiting on you, answerable in one word. |
 | **harden** | Gives a repo the CI and branch protection that make its review gate real. |
 | **mutation-gate** | Proves each self-check can fail, by breaking the code it covers and requiring it to notice. |
-| **handoff** | Keeps `docs/HANDOFF.md` in the shape that lets a fresh session start from the file alone. |
+| **handoff** | Keeps `docs/HANDOFF.md` and the `lane` issues in the shape that lets a fresh session start from them alone. |
 | **eli5** | Explains a topic to someone with zero background, as a page of big pictures and few words. |
 | **eli5-text** | Explains a topic to someone with zero background, in the conversation, with nothing to open. |
 

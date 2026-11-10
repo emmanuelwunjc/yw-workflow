@@ -27,28 +27,41 @@ BLOCK = r"""# Handoff
 
 ## Start here
 
-You are a fresh session and this file is your whole briefing. Nobody
-writes you a separate prompt. Do these in order, then work.
+You are a fresh session. This file and the open `lane` issues are your
+whole briefing. Nobody writes you a separate prompt. Do these in order.
 
 1. Load skills `ship-loop`, `git-lanes` and `fresh-eye` before touching
    anything. Read the repo `CLAUDE.md`.
-2. List the open lanes, each with its latest claim or release:
+2. Check that the repo has the label. This prints `lane` if it does:
+   `gh label list --search lane --json name --jq '.[] | select(.name == "lane") | .name'`
+   It prints nothing: this repo has no lane label yet. Read the LAST
+   section of this file for the first task, and go to step 6.
+3. List the open lanes, oldest claim or release first:
 
-   gh issue list --label lane --state open --json number,title,comments --jq '.[] | "#\(.number) \(.title) | \([.comments[].body | select(test("^(claimed|released) by "))] | last // "no claim yet")"'
+   gh issue list --label lane --state open --json number,title,comments --jq 'map({n: .number, t: .title, c: ([.comments[] | select(.body | test("^(claimed|released) by "; "i"))] | last)}) | sort_by(.c.createdAt // "") | .[] | "#\(.n) \(.t) | \(.c.createdAt // "never") | \((.c.body // "no claim yet") | split("\n")[0])"'
 
-3. Pick one lane. Take the lane the owner named. Else skip each lane
-   whose latest line is a claim by a session that ListAgents shows as
-   live. One free lane: take it. More than one: ask the owner with one
-   AskUserQuestion, one option per free lane, recommended first. No open
-   lane at all: read the LAST section of this file for the first task.
-4. Claim it, with your session name as ListAgents prints it:
-   `gh issue comment <N> --body "claimed by <session name>, <YYYY-MM-DD>"`
-5. Read the lane issue's `## Next`. Read the recent sections of this file
-   for traps. Run the recount commands before trusting any number.
-6. Start the first task `## Next` names. Ask the owner nothing it answers.
+   No lines: no lane is open. Read the LAST section of this file for the
+   first task, and go to step 6.
+4. Pick a lane. A lane is held when its line is a claim under 24 hours
+   old, or a claim whose session ListAgents shows live. Every other lane
+   is free. Take the lane the owner named. Else, one free lane: take it.
+   More than one: ask the owner with one AskUserQuestion, one option per
+   free lane in list order, the first recommended. No owner present (a
+   cloud routine, a headless run): take the first free lane. No free
+   lane: tell the owner every lane is held, and stop.
+5. Claim it: `gh issue comment <N> --body "claimed by <name>, <YYYY-MM-DD>"`.
+   <name> is your session name as ListAgents prints it. With no
+   ListAgents, name your harness and worktree, e.g. `cloud routine
+   nightly` or `laptop:04-handoff-lanes`. Then check who won:
+   `gh issue view <N> --json comments --jq '[.comments[] | .body | split("\n")[0] | select(test("^(claimed|released) by "; "i"))] | ((map(test("^released"; "i")) | rindex(true)) // -1) as $r | .[($r + 1):] | first // "no claim yet"'`
+   It prints another session's claim: that session won. Go back to step 4.
+6. Read the lane issue's `## Next`, or with no lane the LAST section.
+   Read the recent sections of this file for traps. Run the recount
+   commands before trusting any number. Start the first task it names.
+   Ask the owner nothing it already answers.
 
 When you stop on a lane, rewrite its `## Next` with `gh issue edit` and
-post `released by <session name>, <YYYY-MM-DD>` on it. Leave this block alone.
+post `released by <name>, <YYYY-MM-DD>` on it. Leave this block alone.
 
 Judgment and reasoning only. No counts, no SHAs, no issue tallies: those rot
 within hours. Derive them with `gh issue list` and the scripts in the repo.
@@ -83,6 +96,25 @@ GOOD = BLOCK + "\n## 2026-09-16\n\nFirst task: x.\n"
 # the phrase past the 40-line window is body text, e.g. a quote of the old rule
 LATE_PREAMBLE = GOOD + "\n" * 20 + "The old rule said: written at the end of the session.\n"
 NO_BLOCK = "# Handoff\n\n## 2026-09-16\n\nFirst task: x.\n"
+# Each wrong Start here block below must warn, each with its own text.
+CMD = "   gh issue list --label lane --state open"
+CMD_LINE = BLOCK.splitlines().index(next(l for l in BLOCK.splitlines() if l.startswith(CMD))) + 1
+assert CMD_LINE < 40, "the pinned block's lane list must sit inside the 40-line window"
+TAIL = "\n## 2026-09-16\n\nFirst task: x.\n"
+OTHER_LABEL = {lbl: GOOD.replace(CMD, CMD.replace("--label lane", "--label " + lbl), 1)
+               for lbl in ("lanes", "bug")}
+PROSE_ONLY = GOOD.replace(CMD, "   We stopped using `--label lane` here.", 1)
+PROSE_CMD = GOOD.replace(CMD, "   We used to run `gh issue list --label lane` here.", 1)
+STEP2 = "2. Check that the repo has the label."
+LAST_STEP = GOOD.replace(STEP2, "2. Read the LAST section. It names the first task.", 1)
+OUTSIDE = ("# Handoff\n\ngh issue list --label lane --state open\n" + "\n" * 41
+           + OLD_BLOCK.split("# Handoff\n", 1)[1] + TAIL)
+# the command in the dated section under the block, still inside 40 lines
+BELOW = OLD_BLOCK + "\n## 2026-09-16\n\ngh issue list --label lane\n"
+assert len(BELOW.splitlines()) <= 40
+# pad inside the section so the lane list sits exactly at line 40, then 41
+AT = {n: BLOCK.replace("## Start here\n", "## Start here\n" + "\n" * (n - CMD_LINE), 1) + TAIL
+      for n in (40, 41)}
 OLD_SINGLE_TASK = OLD_BLOCK + "\n## 2026-09-16\n\nFirst task: x.\n"
 # the lane command only past the 40-line window is body text, not the block
 LATE_LANE = (OLD_BLOCK + "\n" * 40 + "gh issue list --label lane\n")
@@ -117,10 +149,36 @@ CASES = [
      {"docs/HANDOFF.md": NO_BLOCK}, [], ["HANDOFF SHAPE"], []),
     ("old single-first-task Start here block",
      {"docs/HANDOFF.md": OLD_SINGLE_TASK}, ["docs/HANDOFF.md"],
-     ["HANDOFF SHAPE", "--label lane", "skills/handoff"], []),
+     ["HANDOFF SHAPE", "has no line that runs", "skills/handoff"], []),
     ("lane command past line 40 does not count as the block",
      {"docs/HANDOFF.md": LATE_LANE}, ["docs/HANDOFF.md"],
-     ["HANDOFF SHAPE", "--label lane"], []),
+     ["HANDOFF SHAPE", "past line 40"], []),
+    ("lane list for label lanes warns",
+     {"docs/HANDOFF.md": OTHER_LABEL["lanes"]}, ["docs/HANDOFF.md"],
+     ["HANDOFF SHAPE", "asks for label `lanes`"], []),
+    ("lane list for label bug warns",
+     {"docs/HANDOFF.md": OTHER_LABEL["bug"]}, ["docs/HANDOFF.md"],
+     ["HANDOFF SHAPE", "asks for label `bug`"], []),
+    ("--label lane only in prose warns",
+     {"docs/HANDOFF.md": PROSE_ONLY}, ["docs/HANDOFF.md"],
+     ["HANDOFF SHAPE", "only in prose"], []),
+    ("the whole lane command quoted mid-sentence is still prose",
+     {"docs/HANDOFF.md": PROSE_CMD}, ["docs/HANDOFF.md"],
+     ["HANDOFF SHAPE", "only in prose"], ["asks for label"]),
+    ("a step that opens with Read the LAST section warns",
+     {"docs/HANDOFF.md": LAST_STEP}, ["docs/HANDOFF.md"],
+     ["HANDOFF SHAPE", "sends every session to the LAST section"], []),
+    ("lane list above a Start here at line 45 warns",
+     {"docs/HANDOFF.md": OUTSIDE}, ["docs/HANDOFF.md"],
+     ["HANDOFF SHAPE", "outside its `## Start here` section"], []),
+    ("lane list under the next heading is outside the block",
+     {"docs/HANDOFF.md": BELOW}, ["docs/HANDOFF.md"],
+     ["HANDOFF SHAPE", "outside its `## Start here` section"], []),
+    ("lane list at line 40 is inside the window",
+     {"docs/HANDOFF.md": AT[40]}, ["docs/HANDOFF.md"], [], ["HANDOFF SHAPE"]),
+    ("lane list at line 41 is past the window",
+     {"docs/HANDOFF.md": AT[41]}, ["docs/HANDOFF.md"],
+     ["HANDOFF SHAPE", "at line 41, past line 40"], []),
     ("missing block gets one warning, the lane one stays quiet",
      {"docs/HANDOFF.md": NO_BLOCK}, ["docs/HANDOFF.md"],
      ["## Start here"], ["--label lane"]),
@@ -181,7 +239,7 @@ REVERT_ADVICE = "git checkout $(git merge-base HEAD origin/main) -- docs/HANDOFF
 # a handoff pass lands on origin/main from elsewhere; cwd ends on branch up
 UPSTREAM_PASS = [("git", "checkout", "-q", "-b", "up", "origin/main"), PASS,
                  ("git", "push", "-q", "origin", "up:main")]
-STALE = ["HANDOFF STALE", "handoff pass"]
+STALE = ["HANDOFF STALE", "handoff pass", "`lane` issue"]
 
 # (name, first branch, steps, stderr must carry, stderr must not carry)
 BRANCH_CASES = [

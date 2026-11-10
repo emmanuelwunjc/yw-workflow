@@ -2,28 +2,41 @@
 
 ## Start here
 
-You are a fresh session and this file is your whole briefing. Nobody
-writes you a separate prompt. Do these in order, then work.
+You are a fresh session. This file and the open `lane` issues are your
+whole briefing. Nobody writes you a separate prompt. Do these in order.
 
 1. Load skills `ship-loop`, `git-lanes` and `fresh-eye` before touching
    anything. Read the repo `CLAUDE.md`.
-2. List the open lanes, each with its latest claim or release:
+2. Check that the repo has the label. This prints `lane` if it does:
+   `gh label list --search lane --json name --jq '.[] | select(.name == "lane") | .name'`
+   It prints nothing: this repo has no lane label yet. Read the LAST
+   section of this file for the first task, and go to step 6.
+3. List the open lanes, oldest claim or release first:
 
-   gh issue list --label lane --state open --json number,title,comments --jq '.[] | "#\(.number) \(.title) | \([.comments[].body | select(test("^(claimed|released) by "))] | last // "no claim yet")"'
+   gh issue list --label lane --state open --json number,title,comments --jq 'map({n: .number, t: .title, c: ([.comments[] | select(.body | test("^(claimed|released) by "; "i"))] | last)}) | sort_by(.c.createdAt // "") | .[] | "#\(.n) \(.t) | \(.c.createdAt // "never") | \((.c.body // "no claim yet") | split("\n")[0])"'
 
-3. Pick one lane. Take the lane the owner named. Else skip each lane
-   whose latest line is a claim by a session that ListAgents shows as
-   live. One free lane: take it. More than one: ask the owner with one
-   AskUserQuestion, one option per free lane, recommended first. No open
-   lane at all: read the LAST section of this file for the first task.
-4. Claim it, with your session name as ListAgents prints it:
-   `gh issue comment <N> --body "claimed by <session name>, <YYYY-MM-DD>"`
-5. Read the lane issue's `## Next`. Read the recent sections of this file
-   for traps. Run the recount commands before trusting any number.
-6. Start the first task `## Next` names. Ask the owner nothing it answers.
+   No lines: no lane is open. Read the LAST section of this file for the
+   first task, and go to step 6.
+4. Pick a lane. A lane is held when its line is a claim under 24 hours
+   old, or a claim whose session ListAgents shows live. Every other lane
+   is free. Take the lane the owner named. Else, one free lane: take it.
+   More than one: ask the owner with one AskUserQuestion, one option per
+   free lane in list order, the first recommended. No owner present (a
+   cloud routine, a headless run): take the first free lane. No free
+   lane: tell the owner every lane is held, and stop.
+5. Claim it: `gh issue comment <N> --body "claimed by <name>, <YYYY-MM-DD>"`.
+   <name> is your session name as ListAgents prints it. With no
+   ListAgents, name your harness and worktree, e.g. `cloud routine
+   nightly` or `laptop:04-handoff-lanes`. Then check who won:
+   `gh issue view <N> --json comments --jq '[.comments[] | .body | split("\n")[0] | select(test("^(claimed|released) by "; "i"))] | ((map(test("^released"; "i")) | rindex(true)) // -1) as $r | .[($r + 1):] | first // "no claim yet"'`
+   It prints another session's claim: that session won. Go back to step 4.
+6. Read the lane issue's `## Next`, or with no lane the LAST section.
+   Read the recent sections of this file for traps. Run the recount
+   commands before trusting any number. Start the first task it names.
+   Ask the owner nothing it already answers.
 
 When you stop on a lane, rewrite its `## Next` with `gh issue edit` and
-post `released by <session name>, <YYYY-MM-DD>` on it. Leave this block alone.
+post `released by <name>, <YYYY-MM-DD>` on it. Leave this block alone.
 
 Judgment and reasoning only. No counts, no SHAs, no issue tallies: those rot
 within hours. Derive them with `gh issue list` and the scripts in the repo.
