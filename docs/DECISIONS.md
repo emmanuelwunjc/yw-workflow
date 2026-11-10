@@ -552,7 +552,27 @@ routine or another machine must not read as free the moment it is posted.
 The holder is one `Held by:` line in the issue body. To claim, a session
 reads the body, writes its line if the lane is free, waits 30 seconds, and
 reads again. The line names it: it holds the lane. Otherwise it changes
-nothing and picks again.
+nothing and picks again. A loser must not write `Held by: nobody`, because
+that would free the winner's lane.
+
+Every write to a lane body reads the body just before it and keeps the
+`Held by:` line as read, unless the write is a claim, a refresh or a
+release. An edit replaces the whole body, so a `## Next` update built from
+an old read erased a claim made since (review round 4). The limit that is
+left: two writes inside the same few seconds still lose one, because
+GitHub offers no compare-and-set on an issue body. The 30-second wait and
+the read before the first push catch most of these, and a holder that
+finds its line gone stops and tells the owner.
+
+A body with no `Held by:` line, or a line with no time, counts as free.
+The choice keeps a lane opened by hand, without the line, from being
+locked forever. The risk: a holder whose line was deleted or mangled looks
+free, and another session can take its lane. The read before the first
+push is where the first holder finds out.
+
+Free lanes sort by issue number, oldest first, and held lanes follow by
+their time. Before that, every free lane tied in the sort, so a routine
+with no owner always took the newest lane (review round 4).
 
 Superseded 2026-11-10, twice, on this change:
 - First rule: claim and release comments, where the first claim since the

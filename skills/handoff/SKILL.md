@@ -3,7 +3,7 @@ name: handoff
 description: Keep a repo's docs/HANDOFF.md in the one shape that lets a fresh session start from the file and the open lane issues alone, with a Start here block on top that has the session claim one open `lane` issue, and dated sections added by a handoff pass after merges, from the Handoff notes each lane PR carries. Use when asked for "a handoff", "/handoff", "write the handoff", "update the handoff", at the close of a session, or when the handoff-freshness hook warns HANDOFF STALE or HANDOFF SHAPE.
 origin: authored
 tags: [handoff, docs, session, continuity]
-version: 1.5.0
+version: 1.6.0
 ---
 
 # Handoff
@@ -32,8 +32,8 @@ issue. On 2026-11-10 in EdSim, two lanes were open: a wage fix, run by a live
 session, and drafts of redesign tickets. The file named one first task, the
 wage fix, so a new session took the lane that was already taken. The drafts'
 next step lived only in the Handoff notes of a merged PR. A lane issue gives
-every session its own first task, and a claim comment shows which lane is
-taken. A `Held by:` line in the issue body shows which lane is taken.
+every session its own first task, and a `Held by:` line in the issue body
+shows which lane is taken.
 Issue edits cost no CI minutes, and every machine and cloud routine can
 read them.
 
@@ -56,24 +56,26 @@ whole briefing. Nobody writes you a separate prompt. Do these in order.
    `gh label list --search lane --json name --jq '.[] | select(.name == "lane") | .name'`
    It prints nothing: this repo has no lane label yet. Read the LAST
    section of this file for the first task, and go to step 6.
-3. List the open lanes with their `Held by:` lines, oldest first:
+3. List the open lanes. Lanes with no timed holder come first, lowest
+   issue number first. Lanes with a holder follow, oldest time first:
 
-   gh issue list --label lane --state open --limit 100 --json number,title,body --jq 'map({n: .number, t: .title, h: ((.body | split("\n") | map(rtrimstr("\r") | select(startswith("Held by: "))) | first) // "Held by: (no line)")}) | sort_by((.h | capture("since (?<s>[0-9T:-]+Z)$").s) // "") | .[] | "#\(.n) \(.t) | \(.h)"'
+   gh issue list --label lane --state open --limit 100 --json number,title,body --jq 'map({n: .number, t: .title, h: ([foreach (.body | split("\n")[] | rtrimstr("\r")) as $l ({f: false, x: false, o: null}; if .x then . elif ($l | startswith("## Next")) then .x = true elif ($l | test("^ *(`{3}|~{3})")) then .f = (.f | not) elif (.f or .o) then . elif ($l | startswith("Held by: ")) then .o = $l else . end; .o)] | last)}) | map(. + {s: (((.h // "") | capture("^Held by: .+, since (?<s>[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}Z)$").s) // null)}) | sort_by(if .s then [1, .s] else [0, .n] end) | .[] | "#\(.n) \(.t) | \(if .h == null then "Held by: (no line)" elif .h == "Held by: nobody" or .s then .h else "Held by: (malformed)" end)"'
 
    No lines: no lane is open. Read the LAST section of this file for the
    first task, and go to step 6. 100 lines: raise `--limit`, list again.
-4. Pick a lane. A lane is free when its line says nobody or has no
-   line, or its time is over 24 hours old and ListAgents does not show
-   that session live. Else it is held. Take the lane the owner named.
-   Else, one free lane: take it. More than one: ask the owner with one
-   AskUserQuestion, one option per free lane in list order, the first
-   recommended. No owner present (a cloud routine, a headless run): take
-   the first free lane. No free lane: tell the owner, and stop.
-5. Claim it, after any answer from the owner, so a lane taken while you
-   waited is caught. Run `gh issue view <N> --json body --jq .body >
-   lane.md`. Held, by step 4: go back to step 4. Free: set its line to
-   `Held by: <name>, since <time>`, where <time> is
-   `date -u +%Y-%m-%dT%H:%MZ`, keep the rest, and run
+4. Pick a lane. A lane is free when its `Held by:` line says nobody, is
+   missing or malformed, or its time is over 24 hours old and ListAgents
+   does not show that session live. Else it is held. Take the lane the
+   owner named. Else, one free lane: take it. More than one: ask the
+   owner with one AskUserQuestion, one option per free lane in list
+   order, the first recommended. No owner present (a cloud routine, a
+   headless run): take the first free lane. No free lane: tell the owner,
+   and stop.
+5. Claim it, after any answer from the owner. Read the body:
+   `gh issue view <N> --json body --jq .body > lane.md`. Held, by step 4:
+   go back to step 4. Free: set the first `Held by:` line above `## Next`
+   to `Held by: <name>, since <time>`, where <time> is
+   `date -u +%Y-%m-%dT%H:%MZ`. Keep the rest, and run
    `gh issue edit <N> --body-file lane.md`. Wait 30 seconds and read the
    body again. The line names you: you hold the lane. It names another
    session: change nothing, and go back to step 4. <name> is your
@@ -85,9 +87,13 @@ whole briefing. Nobody writes you a separate prompt. Do these in order.
    commands before trusting any number. Start the first task it names.
    Ask the owner nothing it already answers.
 
-When you update `## Next`, write a new time on your `Held by:` line. When
-you stop, rewrite `## Next`, and if the line still names you, set it to
-`Held by: nobody`. Leave this block alone.
+Read just before every write. Each later write to the lane body starts
+from a new read, and changes the `Held by:` line only to refresh your own
+time or to release. Before your first push, read the line again. It no
+longer names you: stop and tell the owner. When you update `## Next`,
+write a new time on your line. When you stop, rewrite `## Next`, and if
+the line still names you, set it to `Held by: nobody`. Leave this block
+alone.
 
 Judgment and reasoning only. No counts, no SHAs, no issue tallies: those rot
 within hours. Derive them with `gh issue list` and the scripts in the repo.
@@ -107,11 +113,14 @@ within hours. Derive them with `gh issue list` and the scripts in the repo.
   Open a lane with `gh issue create --label lane --title "<lane>" --body-file <file>`.
   The body opens with one holder line, then a `## Next` section in the
   shape below. A new lane's body starts `Held by: nobody`.
-- **The holder rule.** The holder line reads
-  `Held by: <session name>, since <YYYY-MM-DDTHH:MMZ>`, in UTC. A lane is
-  free when the line says `Held by: nobody`, when the body has no such
-  line, or when its time is over 24 hours old and ListAgents does not show
-  that session live. Otherwise it is held. ListAgents sees one machine and
+- **The holder rule.** The holder line is the first `Held by:` line above
+  `## Next`, outside any code fence. It reads
+  `Held by: <session name>, since <YYYY-MM-DDTHH:MMZ>`, in UTC. A
+  `Held by:` line under `## Next` or in a code fence never counts. A lane is
+  free when the line says `Held by: nobody`, when there is no such line,
+  when the line has no `since` time (the list prints it as malformed), or
+  when its time is over 24 hours old and ListAgents does not show that
+  session live. Otherwise it is held. ListAgents sees one machine and
   one harness only, so the 24 hours keep a claim by a cloud routine or
   another machine held for its first day.
 - **To claim, read, write, wait, read.** Read the body with
@@ -125,6 +134,15 @@ within hours. Derive them with `gh issue list` and the scripts in the repo.
   With no ListAgents, use the harness and worktree, e.g.
   `laptop:04-handoff-lanes`. A cloud routine adds its run start time, e.g.
   `cloud routine nightly 2026-11-10T06:17Z`.
+- **Read just before every write.** Every write to a lane body reads the
+  body again just before `gh issue edit --body-file`, and builds the new
+  body from that read. That covers the claim, the holder's `## Next`
+  update, the release, and step 5 of the handoff pass. The write keeps the
+  `Held by:` line as read, unless it is the claim, the holder refreshing its
+  own time, or the release. An edit replaces the whole body, so a write
+  built from an older read would erase a claim made since. Before its
+  first push, the holder reads its line again. If the line no longer
+  names it, it stops and tells the owner.
 - **Keep the holder line fresh, and release it.** A session that holds a
   lane longer than 24 hours writes a new time on its line each time it
   updates `## Next`. When it stops, it rewrites `## Next`, then sets the
@@ -185,7 +203,9 @@ PRs runs it before it stops. A lane session never closes one this way.
    the `## Next` section (or the closing section, in repos whose handoff uses one) last.
 4. Rewrite the `## Next` section (or the closing section, in repos whose handoff uses one) if the first task changed.
 5. Bring the lane issues up to date. A note that names a next step for work
-   still open goes into that lane's issue `## Next`, with `gh issue edit`.
+   still open goes into that lane's issue `## Next`, with `gh issue edit`,
+   read just before the write as the rules say, with its `Held by:` line
+   kept as read.
    No issue for that work yet: open one with label `lane`. Close a lane's
    issue only when a PR's notes have the exact line `Lane: #<N>. finished`
    with nothing after it, e.g. `Lane: #57. finished`, using
