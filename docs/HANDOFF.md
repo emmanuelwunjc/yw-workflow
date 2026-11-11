@@ -931,6 +931,8 @@ match. All of it is listed in the comment block above `merge_targets`.
 
 ### Next session
 
+Superseded 2026-11-11 by the closing section of the 2026-11-11 handoff pass.
+
 First task: unchanged from 2026-09-16. Migrate the other five repos'
 `docs/HANDOFF.md` to the block, one PR each. List them with
 `grep -L "## Start here" ~/code/*/docs/HANDOFF.md` (recount: that command).
@@ -954,3 +956,125 @@ rules on.
 Waits on the owner: whether the five migrated repos also get a
 `.github/workflows/guards.yml`, carried over from 2026-09-16.
 
+
+## 2026-09-18: fresh-eye pairs reviews with tdd and code-review (#19)
+
+The PR carried no Handoff notes. The decision is in the Decisions list above,
+dated 2026-09-18.
+
+## 2026-09-21: Handoff notes move to the PR body, and the ship-loop tightens (#21, #24)
+
+Lanes write a `## Handoff notes` section in the PR body, and a handoff pass on
+a `docs/handoff-*` branch folds them into this file. When every lane appended
+to the log directly, every lane hit a merge conflict in it.
+
+Four review rounds found three, three, two and one blocking defects in the
+hook. The trap that cost most: a stale trunk ref counted as a match. A lane
+that restored this file from a never-pulled local main went silent while it
+deleted origin's passes. The fix was one net diff against the closest base for
+real work, and every trunk ref for the edit check.
+
+Known and not fixed in the hook:
+- A stacked lane (`feat/b` on `feat/a`, where `feat/a` edited this file) is
+  told it edited it.
+- A lane already squash-merged but still checked out still gets the notes
+  reminder.
+- In a fork, `upstream/*` is not a trunk candidate.
+- The collector stops at any `## ` line, so use `###` inside the notes.
+- Whether a Stop hook's stderr on exit 0 reaches the model is open as #22.
+
+Considered and not done: reading `handoff.path` from `hooks/handrail_config.py`.
+The hook does not load that config, and wiring it is its own change.
+
+The ship-loop changes (#24): the coordinating session writes the `Rounds:`
+line, with no placeholders. "Two rounds fail on the same finding" means
+rediagnose, and the owner is asked only when the new diagnosis departs from a
+grilling. DECISIONS and ship-loop keep only numbers a named source recomputes.
+
+## 2026-09-30: the session winds down past the smart zone (#25)
+
+`hooks/context-handoff.py` tells the model to write the handoff and stop when
+the transcript passes 120k tokens. The unit is tokens: the owner said
+"percentage" loosely, and a percentage moves when the model's window changes.
+
+It rests on three observed, undocumented behaviors: a finished background
+Bash command re-invokes the model, the transcript line format, and
+PostToolBatch carrying `agent_id` inside a subagent. `docs/DECISIONS.md` says
+how each was seen. Five surviving mutations are ticketed in #28.
+
+Trap: `hooks/handrail-config-selftest.py` needs Python 3.11 or newer for
+`tomllib`. It fails under the macOS Python 3.9.
+
+## 2026-10-18: helpers are named by role (#29)
+
+Agent types `builder`, `reviewer`, `fixer` and `documenter` ship with the
+plugin. The tool allow-list is `ROLE_TOOLS` in `tools/check-repo.py`, and a
+new role fails that check until it has an entry. The reviewer type keeps
+`Bash`, so worktree isolation is what protects the code.
+
+## 2026-11-04: broken inputs become test cases (#31)
+
+Rounds 3 and 4 each blocked on one new overclaim in the decision prose.
+Writing the entry as a list of recountable facts ended it. EdSim's
+`tests/dcetep/requirements/test_va_waits_on.py` is the first use.
+
+## 2026-11-05: a long review loop files one housekeeping fix (#34)
+
+A guard the owner did not ask for cost four review rounds. Before adding a
+guard, ask whether the ask needs it. #32 is the first housekeeping ticket here.
+
+## 2026-11-10: one lane issue per open lane, claimed through one script (#52)
+
+Each open lane has a GitHub issue, label `lane`. Line one of the body names
+the holder. A session claims, updates and frees a lane only through
+`scripts/lane_claim.py` (in this repo a symlink to
+`skills/handoff/lane_claim.py`). Another repo copies the script to
+`scripts/`, and `handoff-freshness.py` warns when the copy is missing or
+untracked.
+
+Ten review rounds. Rounds 1 to 7 refined a prose protocol, and the blocking
+count did not fall (1, 3, 2 across rounds 5 to 7). The root fault: an agent
+read the issue body in one tool call and wrote it in a later one, so a stale
+read erased a newer claim. And the prose said "wait 30 seconds", which Claude
+Code refuses as a standalone `sleep`. Moving the claim into one process fixed
+both. The owner's decision of one holder line per issue stayed.
+
+Ticketed, not fixed: #48 (a repo's copy can drift from the plugin's), #49
+(the fallback holder name is not unique per run), #50 (an edit `gh` gave up
+on can still land), #51 (self-test nits).
+
+Trap: a session isolated in a `.claude/worktrees/` worktree cannot run git in
+a `.worktrees/` lane worktree, and neither can its subagents. The fixes were
+made on a new branch from the lane tip and pushed as the lane branch. The old
+local `feat/handoff-lane-issues` in `.worktrees/04-handoff-lanes` is behind.
+
+Trap: the CI review gate reads PR comments, and the workflow does not start on
+a new comment. Post the review verdict on the PR before the first push, or
+the guards job fails and needs one rerun.
+
+## 2026-11-11: handoff pass
+
+### Next
+
+This repo has lane issues. Step 3 of the Start here block lists them, and the
+first task lives in the lane's `## Next`. At this pass, lane #47 (the
+lane-claim follow-ups) is open and free (recount: step 3's command).
+
+Its first task: update the handoff sections of `/Users/yw1084/CLAUDE.md`, where
+five sentences contradict the lane rule. Lane #47 lists them, then the EdSim
+migration and the tickets.
+
+Tickets, in order after lane #47's own list: #35 to #46 (the mattpocock-skills
+integration set), then #48 to #51 (lane-claim follow-ups), then the older
+#13, #15, #16, #22, #23, #26, #27, #28, #30, #32, #33 (recount:
+`gh issue list --repo emmanuelwunjc/yw-workflow --state open --limit 100`).
+
+Still open from 2026-09-16: migrate the other repos' `docs/HANDOFF.md` to the
+Start here block (recount: `grep -L "## Start here" ~/code/*/docs/HANDOFF.md`).
+Each migrated repo also needs `scripts/lane_claim.py` and a `lane` label.
+
+Cleanup: remove `.worktrees/04-handoff-lanes` from the primary checkout with
+`git worktree remove .worktrees/04-handoff-lanes`.
+
+Waits on the owner: whether the migrated repos also get a
+`.github/workflows/guards.yml`, carried over from 2026-09-16.
