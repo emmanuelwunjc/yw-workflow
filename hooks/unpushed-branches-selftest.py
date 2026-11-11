@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Self-test for unpushed-branches.py. Run it after any edit to that hook.
 
-Builds a bare "origin" and a clone with four branches: one ahead with no
-upstream, one pushed, one ahead with an open PR, one pushed then ahead. A fake
+Builds a bare "origin" and a clone with five branches: one ahead with no
+upstream, one pushed, one ahead with an open PR, one pushed then ahead, and
+one ahead but 15 days old. A second clone holds 12 ahead branches, to check
+the 10-line cap. A fake
 `gh` first on PATH answers the PR lookup. Each case compares the hook's stdout
 line by line.
 
@@ -14,6 +16,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 
 HOOK = str(pathlib.Path(__file__).with_name("unpushed-branches.py"))
 HEADING = "Local branches with commits GitHub does not have and no open PR:"
@@ -25,8 +28,11 @@ def sh(cwd, *args):
     subprocess.run(args, cwd=cwd, check=True, capture_output=True)
 
 
-def commit(cwd, subject):
-    sh(cwd, "git", "commit", "-q", "--allow-empty", "-m", subject)
+def commit(cwd, subject, days_ago=0):
+    date = "@%d +0000" % (time.time() - days_ago * 86400)
+    subprocess.run(["git", "commit", "-q", "--allow-empty", "-m", subject], cwd=cwd,
+                   check=True, capture_output=True,
+                   env=dict(os.environ, GIT_COMMITTER_DATE=date))
 
 
 def run_hook(cwd, path):
@@ -68,25 +74,28 @@ def main():
         commit(clone, "main local work")  # the default branch is never listed
 
         sh(clone, "git", "switch", "-q", "-c", "feat/local")
-        commit(clone, "local one")
-        commit(clone, "local two")
+        commit(clone, "local one", days_ago=0.2)  # distinct dates fix the order
+        commit(clone, "local two", days_ago=0.2)
 
         sh(clone, "git", "switch", "-q", "-c", "feat/pushed", "main")
         commit(clone, "pushed work")
         sh(clone, "git", "push", "-q", "-u", "origin", "feat/pushed")
 
         sh(clone, "git", "switch", "-q", "-c", "feat/has-pr", "main")
-        commit(clone, "pr work")
+        commit(clone, "pr work", days_ago=0.1)
 
         sh(clone, "git", "switch", "-q", "-c", "feat/behind-pr", "main")
         commit(clone, "first")
         sh(clone, "git", "push", "-q", "-u", "origin", "feat/behind-pr")
         commit(clone, "after push")
+
+        sh(clone, "git", "switch", "-q", "-c", "feat/old", "main")
+        commit(clone, "old work", days_ago=15)  # past the 14-day window
         sh(clone, "git", "switch", "-q", "main")
 
         prs = 'echo \'[{"headRefName":"feat/has-pr"}]\'\n'
         code, out = run_hook(clone, bin_dir(root, prs))
-        expect("gh answers: only branches with no open PR, sorted", out, [
+        expect("gh answers: only branches with no open PR, newest first", out, [
             HEADING,
             "  feat/behind-pr: 1 ahead. after push",
             "  feat/local: 2 ahead, no upstream. local two",
@@ -114,6 +123,18 @@ def main():
                    '{"headRefName":"feat/behind-pr"}]\'\n')
         code, out = run_hook(clone, bin_dir(root, all_prs))
         expect("nothing qualifies: no output", out, [])
+
+        many = os.path.join(root, "many")
+        sh(root, "git", "clone", "-q", origin, many)
+        for k, v in (("user.name", "t"), ("user.email", "t@t")):
+            sh(many, "git", "config", k, v)
+        for i in range(1, 13):  # feat/b12 is newest
+            sh(many, "git", "switch", "-q", "-c", "feat/b%02d" % i, "main")
+            commit(many, "work %d" % i, days_ago=(13 - i) / 24)
+        code, out = run_hook(many, bin_dir(root, "echo '[]'\n"))
+        expect("12 qualify: newest 10, then the count and the command", out, [HEADING] + [
+            "  feat/b%02d: 1 ahead, no upstream. work %d" % (i, i) for i in range(12, 2, -1)
+        ] + ["  ... and 2 more: git for-each-ref --sort=-committerdate refs/heads"])
 
         outside = os.path.join(root, "not-a-repo")
         os.mkdir(outside)
