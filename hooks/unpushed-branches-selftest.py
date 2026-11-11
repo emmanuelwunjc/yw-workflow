@@ -2,7 +2,8 @@
 """Self-test for unpushed-branches.py. Run it after any edit to that hook.
 
 Builds a bare "origin" and a clone with these branches: one ahead with no
-upstream, one pushed, one ahead with an open PR, one pushed then ahead, one
+upstream, one pushed, one ahead with an open PR, one with a merged PR (left
+out), one with a closed unmerged PR (listed), one pushed then ahead, one
 ahead of its upstream whose commits sit on another remote branch, a chain of
 three review-round branches where only the tip shows, and one ahead but 15
 days old. A second clone holds 12 ahead branches, to check
@@ -21,7 +22,7 @@ import tempfile
 import time
 
 HOOK = str(pathlib.Path(__file__).with_name("unpushed-branches.py"))
-HEADING = "Local branches with commits GitHub does not have and no open PR:"
+HEADING = "Local branches with commits GitHub does not have and no open or merged PR:"
 GIT = shutil.which("git")
 failures = []
 
@@ -101,16 +102,24 @@ def main():
             sh(clone, "git", "switch", "-q", "-c", name, *["main"] * (i == 0))
             commit(clone, "round %d" % (i + 1), days_ago=0.05)
 
+        # PR closed unmerged / squash-merged. Distinct ages fix the order.
+        for name, age in (("feat/closed", 0.15), ("feat/merged", 0.16)):
+            sh(clone, "git", "switch", "-q", "-c", name, "main")
+            commit(clone, name[5:] + " work", days_ago=age)
+
         sh(clone, "git", "switch", "-q", "-c", "feat/old", "main")
         commit(clone, "old work", days_ago=15)  # past the 14-day window
         sh(clone, "git", "switch", "-q", "main")
 
-        prs = 'echo \'[{"headRefName":"feat/has-pr"}]\'\n'
+        prs = ('echo \'[{"headRefName":"feat/has-pr","state":"OPEN"},'
+               '{"headRefName":"feat/closed","state":"CLOSED"},'
+               '{"headRefName":"feat/merged","state":"MERGED"}]\'\n')
         code, out = run_hook(clone, bin_dir(root, prs))
-        expect("gh answers: only branches with no open PR, newest first", out, [
+        expect("gh answers: only branches with no open or merged PR, newest first", out, [
             HEADING,
             "  feat/behind-pr: 1 ahead. after push",
             "  feat/tip: 3 ahead, no upstream. round 3",
+            "  feat/closed: 1 ahead, no upstream. closed work",
             "  feat/local: 2 ahead, no upstream. local two",
         ])
         expect("gh answers: exit 0", code, 0)
@@ -120,6 +129,8 @@ def main():
             "  feat/behind-pr: 1 ahead, PR unknown. after push",
             "  feat/tip: 3 ahead, no upstream, PR unknown. round 3",
             "  feat/has-pr: 1 ahead, no upstream, PR unknown. pr work",
+            "  feat/closed: 1 ahead, no upstream, PR unknown. closed work",
+            "  feat/merged: 1 ahead, no upstream, PR unknown. merged work",
             "  feat/local: 2 ahead, no upstream, PR unknown. local two",
         ]
         code, out = run_hook(clone, bin_dir(root, None))
@@ -133,8 +144,10 @@ def main():
                                          % sys.executable))
         expect("gh slow: times out, marked PR unknown", out, unknown)
 
-        all_prs = ('echo \'[{"headRefName":"feat/has-pr"},{"headRefName":"feat/local"},'
-                   '{"headRefName":"feat/behind-pr"},{"headRefName":"feat/tip"}]\'\n')
+        all_prs = "echo '[%s]'\n" % ",".join(
+            '{"headRefName":"%s","state":"%s"}' % (b, st) for b, st in (
+                ("feat/has-pr", "OPEN"), ("feat/local", "MERGED"), ("feat/behind-pr", "OPEN"),
+                ("feat/tip", "MERGED"), ("feat/closed", "OPEN"), ("feat/merged", "MERGED")))
         code, out = run_hook(clone, bin_dir(root, all_prs))
         expect("nothing qualifies: no output", out, [])
 
@@ -148,7 +161,7 @@ def main():
         code, out = run_hook(many, bin_dir(root, "echo '[]'\n"))
         expect("12 qualify: newest 10, then the count and the command", out, [HEADING] + [
             "  feat/b%02d: 1 ahead, no upstream. work %d" % (i, i) for i in range(12, 2, -1)
-        ] + ["  ... and 2 more: git for-each-ref --sort=-committerdate refs/heads"])
+        ] + ["  ... and 2 more"])
 
         outside = os.path.join(root, "not-a-repo")
         os.mkdir(outside)
