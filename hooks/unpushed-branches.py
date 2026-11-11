@@ -3,15 +3,16 @@
 
 On 2026-11-11 reviewed work sat on two local branches for a day, and nobody saw
 it (issue #58). handoff-freshness.py looks at the current branch only. This
-prints one line per local branch that is ahead of its upstream, or has no
-upstream and holds commits no remote has, and has no open PR. SessionStart
+prints one line per local branch that holds commits no remote ref has (pushed
+under another branch name counts as pushed), and has no open PR. SessionStart
 stdout reaches the model.
 
 Shows branches whose last commit is at most MAX_AGE_DAYS old, newest first,
 at most MAX_LINES of them, then one line with the count of the rest.
 
-Left out: main, master, the branch origin/HEAD names, a branch equal to its
-upstream, and a branch with an open PR. The PR lookup is one `gh pr list`
+Left out: main, master, the branch origin/HEAD names, a branch whose commits
+a remote has, a branch with an open PR, and a branch whose tip another ahead
+branch contains (e.g. an earlier review round of the same lane). The PR lookup is one `gh pr list`
 call. When gh is missing, fails, or takes over 3 seconds, every ahead branch
 is listed, marked "PR unknown". Prints nothing when no branch qualifies.
 Always exits 0, also outside a git repo.
@@ -20,7 +21,6 @@ Self-test: ./hooks/unpushed-branches-selftest.py
 """
 import json
 import os
-import re
 import subprocess
 import sys
 import time
@@ -55,52 +55,54 @@ def open_pr_heads():
         return None
 
 
-def unpushed_counter():
-    """count(sha): commits reachable from sha that no remote has. One git call
-    for every branch, since one call per branch took 4.7s on 229 branches."""
+def unpushed_reach():
+    """reach(sha): the set of commits reachable from sha that no remote ref
+    has. One git call for every branch, since one call per branch took 4.7s
+    on 229 branches."""
     parents = {}
     for line in git("rev-list", "--parents", "--branches", "--not", "--remotes").splitlines():
         sha, *ps = line.split()
         parents[sha] = ps
 
-    def count(tip):
+    def reach(tip):
         seen, stack = set(), [tip]
         while stack:
             c = stack.pop()
             if c in parents and c not in seen:
                 seen.add(c)
                 stack.extend(parents[c])
-        return len(seen)
-    return count
+        return seen
+    return reach
 
 
 def main():
     trunks = TRUNKS | {git("symbolic-ref", "--short",
                            "refs/remotes/origin/HEAD").strip().partition("/")[2]}
-    count = None
-    ahead = []
+    reach = unpushed_reach()
     oldest = time.time() - MAX_AGE_DAYS * 86400
+    ahead = []
     for line in git("for-each-ref", "--sort=refname", "--sort=-committerdate",
                     "--format=" + FORMAT, "refs/heads").splitlines():
         name, sha, upstream, track, date, subject = line.split("\t", 5)
         if name in trunks or int(date) < oldest:
             continue
-        if upstream and "gone" not in track:
-            n = int((re.search(r"ahead (\d+)", track) or [0, 0])[1])
-        else:  # no upstream, or it was deleted: count commits no remote has
-            upstream = ""
-            count = count or unpushed_counter()
-            n = count(sha)
-        if n:
-            ahead.append((name, n, upstream, subject))
+        commits = reach(sha)  # commits no remote ref has, wherever they were pushed
+        if commits:
+            ahead.append((name, sha, commits, upstream and "gone" not in track, subject))
     if not ahead:
         return
     heads = open_pr_heads()
     lines = []
-    for name, n, upstream, subject in ahead:
-        if heads is not None and name in heads:
+    for i, (name, sha, commits, upstream, subject) in enumerate(ahead):
+        # A review round whose tip another ahead branch contains adds nothing,
+        # also when that branch has an open PR. Two branches on one tip: the
+        # first one stays.
+        if (heads is not None and name in heads) or any(
+                sha in other[2] and (sha != other[1] or j < i)
+                for j, other in enumerate(ahead) if j != i):
             continue
-        marks = [f"{n} ahead"] + ["no upstream"] * (not upstream) + ["PR unknown"] * (heads is None)
+        marks = ([f"{len(commits)} ahead"] + ["no upstream"] * (not upstream)
+                 + ["PR unknown"] * (heads is None))
         lines.append(f"  {name}: {', '.join(marks)}. {subject}")
     if lines:
         more = [MORE % (len(lines) - MAX_LINES)] * (len(lines) > MAX_LINES)

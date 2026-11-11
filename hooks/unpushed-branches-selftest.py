@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Self-test for unpushed-branches.py. Run it after any edit to that hook.
 
-Builds a bare "origin" and a clone with five branches: one ahead with no
-upstream, one pushed, one ahead with an open PR, one pushed then ahead, and
-one ahead but 15 days old. A second clone holds 12 ahead branches, to check
+Builds a bare "origin" and a clone with these branches: one ahead with no
+upstream, one pushed, one ahead with an open PR, one pushed then ahead, one
+ahead of its upstream whose commits sit on another remote branch, a chain of
+three review-round branches where only the tip shows, and one ahead but 15
+days old. A second clone holds 12 ahead branches, to check
 the 10-line cap. A fake
 `gh` first on PATH answers the PR lookup. Each case compares the hook's stdout
 line by line.
@@ -89,6 +91,16 @@ def main():
         sh(clone, "git", "push", "-q", "-u", "origin", "feat/behind-pr")
         commit(clone, "after push")
 
+        sh(clone, "git", "switch", "-q", "-c", "feat/elsewhere", "main")
+        commit(clone, "elsewhere base")
+        sh(clone, "git", "push", "-q", "-u", "origin", "feat/elsewhere")
+        commit(clone, "elsewhere work")  # ahead of its upstream, but on origin/feat/other
+        sh(clone, "git", "push", "-q", "origin", "feat/elsewhere:feat/other")
+
+        for i, name in enumerate(("feat/r1", "feat/r2", "feat/tip")):  # a review-round chain
+            sh(clone, "git", "switch", "-q", "-c", name, *["main"] * (i == 0))
+            commit(clone, "round %d" % (i + 1), days_ago=0.05)
+
         sh(clone, "git", "switch", "-q", "-c", "feat/old", "main")
         commit(clone, "old work", days_ago=15)  # past the 14-day window
         sh(clone, "git", "switch", "-q", "main")
@@ -98,6 +110,7 @@ def main():
         expect("gh answers: only branches with no open PR, newest first", out, [
             HEADING,
             "  feat/behind-pr: 1 ahead. after push",
+            "  feat/tip: 3 ahead, no upstream. round 3",
             "  feat/local: 2 ahead, no upstream. local two",
         ])
         expect("gh answers: exit 0", code, 0)
@@ -105,6 +118,7 @@ def main():
         unknown = [
             HEADING,
             "  feat/behind-pr: 1 ahead, PR unknown. after push",
+            "  feat/tip: 3 ahead, no upstream, PR unknown. round 3",
             "  feat/has-pr: 1 ahead, no upstream, PR unknown. pr work",
             "  feat/local: 2 ahead, no upstream, PR unknown. local two",
         ]
@@ -120,7 +134,7 @@ def main():
         expect("gh slow: times out, marked PR unknown", out, unknown)
 
         all_prs = ('echo \'[{"headRefName":"feat/has-pr"},{"headRefName":"feat/local"},'
-                   '{"headRefName":"feat/behind-pr"}]\'\n')
+                   '{"headRefName":"feat/behind-pr"},{"headRefName":"feat/tip"}]\'\n')
         code, out = run_hook(clone, bin_dir(root, all_prs))
         expect("nothing qualifies: no output", out, [])
 
