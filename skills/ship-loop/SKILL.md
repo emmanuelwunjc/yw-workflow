@@ -3,7 +3,7 @@ name: ship-loop
 description: Run work as a closing loop instead of a trailing-off one. Ticket, branch, implement test-first, dispatch an independent review, fix what blocks, file what does not, and repeat until a review round comes back clean. Use when asked to "run the loop", "keep going until it's right", "loop until the feedback is perfect", "babysit this to done", or when handed a backlog of tickets to work through. Also use to decide what happens to review findings.
 origin: authored
 tags: [workflow, review, tdd, subagents, loop, tickets]
-version: 1.2.0
+version: 1.3.0
 ---
 
 # Ship loop
@@ -70,6 +70,11 @@ Fixes after a review go to `yw-workflow:fixer`. Docs, READMEs and handoff notes
 go to `yw-workflow:documenter`. If the install predates these types, the Agent
 tool errors on them: start a `general-purpose` helper and put the role first in
 its description (e.g. "Build: ticket 41").
+
+**End the brief with the commit line.** Every builder or fixer brief ends
+with "commit your work on your own branch before you return (on a detached
+HEAD, `git switch -c wip/<folder>` first), as a WIP commit if it is
+unfinished, and report the branch and SHA". `/yw-workflow:git-lanes` says why.
 
 **UI or on-screen copy: get the owner's calls before you build.** An owner's
 call is one of three things: a claim the sources do not settle, a design or
