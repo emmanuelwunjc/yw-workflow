@@ -3,7 +3,7 @@ name: git-lanes
 description: Run concurrent agents in isolated git worktrees without them colliding. Use before starting multi-file work in a repo where another agent may be active, when asked to "run these in parallel", "spin up lanes", "use worktrees", when dispatching a reviewer, or when about to git checkout/pull/stash in a repo you did not just create. Also covers where built deliverables live and how lanes merge back to trunk.
 origin: authored
 tags: [git, worktree, concurrency, multi-agent, merge]
-version: 1.2.1
+version: 1.3.0
 ---
 
 # Git lanes
@@ -55,6 +55,22 @@ Two to four concurrent lanes is the practical ceiling before coordination costs
 more than the parallelism gains. The numbering makes exceeding it visible.
 
 Never rename or move a worktree while an agent is working in it.
+
+## Every builder or fixer brief ends with the commit line
+
+End every brief you give a builder or fixer lane with this line:
+
+```
+commit your work on your own branch before you return (on a detached HEAD, `git switch -c wip/<folder>` first), as a WIP commit if it is unfinished, and report the branch and SHA
+```
+
+A reviewer brief ends with fresh-eye's "Do not fix anything. Do not commit." instead.
+
+An EdSim session once closed while a lane worktree held a real build.
+The next session, isolated to its own worktree, could not
+run git in that lane. The WIP commit is local, and the stopping session names
+its branch, so a session on the same machine can read it. `/yw-workflow:handoff`
+covers a lane that returned without a commit.
 
 ## Cwd drift is the recurring accident
 

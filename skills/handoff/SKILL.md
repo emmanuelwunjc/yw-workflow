@@ -3,7 +3,7 @@ name: handoff
 description: Keep a repo's docs/HANDOFF.md in the one shape that lets a fresh session start from the file and the open lane issues alone, with a Start here block on top that has the session claim one open `lane` issue, and dated sections added by a handoff pass after merges, from the Handoff notes each lane PR carries. Use when asked for "a handoff", "/handoff", "write the handoff", "update the handoff", at the close of a session, or when the handoff-freshness hook warns HANDOFF STALE or HANDOFF SHAPE.
 origin: authored
 tags: [handoff, docs, session, continuity]
-version: 1.2.0
+version: 1.3.0
 ---
 
 # Handoff
@@ -148,6 +148,19 @@ within hours. Derive them with `gh issue list` and the scripts in the repo.
 - **Write it down as you go, in the PR body.** Every decision, defect and
   trap that cost time gets a few lines when it happens. A handoff written at
   close comes from a compacted memory, and the reasoning drops out first.
+- **Before any session stops, the builder and fixer worktrees it started
+  hold no uncommitted work.** That is each Agent-tool worktree it dispatched
+  and each worktree it made. For each one with uncommitted work, message its
+  agent to commit it as WIP on its own branch. On a detached HEAD, that
+  means `git switch -c wip/<folder>` first, with the worktree's folder name.
+  If no agent can take the message, commit it yourself the same way. Name
+  the branch, with `git log -1 <branch>` as its recount command. Put the
+  name in the `lane` issue's `## Next` with `lane_claim.py write`, if this
+  session holds that issue. Else put it in the open PR's `## Handoff notes`.
+  Else put it in the final reply to the owner. If no commit is possible,
+  name the worktree path, its branch and "uncommitted work" in the same
+  place. Leave other worktrees as they are. Do not write any of this into
+  `docs/HANDOFF.md`: only a handoff pass edits it.
 - **Lanes do not edit `docs/HANDOFF.md`.** A lane (any branch that is not a
   handoff branch) writes its notes in a `## Handoff notes` section of its PR
   body. The owner decided this on 2026-09-21: when every concurrent lane
