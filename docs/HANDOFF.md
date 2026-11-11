@@ -971,15 +971,18 @@ to the log directly, every lane hit a merge conflict in it.
 Four review rounds found three, three, two and one blocking defects in the
 hook. The trap that cost most: a stale trunk ref counted as a match. A lane
 that restored this file from a never-pulled local main went silent while it
-deleted origin's passes. The fix was one net diff against the closest base for
-real work, and every trunk ref for the edit check.
+deleted origin's passes. The fix: real work is measured by one net diff
+against the closest base, and the edit check compares against every trunk ref.
 
 Known and not fixed in the hook:
 - A stacked lane (`feat/b` on `feat/a`, where `feat/a` edited this file) is
   told it edited it.
 - A lane already squash-merged but still checked out still gets the notes
   reminder.
-- In a fork, `upstream/*` is not a trunk candidate.
+- In a fork, a lane that merged `upstream`'s pass while `origin/main` is
+  stale is told it edited the handoff. `upstream/*` is not a trunk candidate.
+- A lane's handoff edit cherry-picked onto an unpushed local main makes the
+  lane match that trunk, so the lane is not warned.
 - The collector stops at any `## ` line, so use `###` inside the notes.
 - Whether a Stop hook's stderr on exit 0 reaches the model is open as #22.
 
@@ -1002,6 +1005,19 @@ Bash command re-invokes the model, the transcript line format, and
 PostToolBatch carrying `agent_id` inside a subagent. `docs/DECISIONS.md` says
 how each was seen. Five surviving mutations are ticketed in #28.
 
+At the merge, the hook had never run in a live session. All evidence was the
+self-test and one headless probe. Watch the first real session that crosses
+120k.
+
+Known limit: the detector sees only `docs/HANDOFF.md` in a git repo. On a
+lane, whose notes are in the PR body, and in a folder that is not a git repo,
+the notice and the one Stop block always arrive, even after the handoff is
+written. The text asks the model to say where the handoff is and stop again.
+The risk is a model that learns to answer "done, stop again" by habit.
+
+The hook stops nothing itself except one Stop per notice. Using Stop reverses
+the 2026-09-21 decision against it, because the hook now requires a handoff.
+
 Trap: `hooks/handrail-config-selftest.py` needs Python 3.11 or newer for
 `tomllib`. It fails under the macOS Python 3.9.
 
@@ -1011,6 +1027,9 @@ Agent types `builder`, `reviewer`, `fixer` and `documenter` ship with the
 plugin. The tool allow-list is `ROLE_TOOLS` in `tools/check-repo.py`, and a
 new role fails that check until it has an entry. The reviewer type keeps
 `Bash`, so worktree isolation is what protects the code.
+
+Known limit: the check matches text, so a type named only in a comment counts
+as dispatched.
 
 ## 2026-11-04: broken inputs become test cases (#31)
 
@@ -1032,8 +1051,9 @@ the holder. A session claims, updates and frees a lane only through
 `scripts/`, and `handoff-freshness.py` warns when the copy is missing or
 untracked.
 
-Ten review rounds. Rounds 1 to 7 refined a prose protocol, and the blocking
-count did not fall (1, 3, 2 across rounds 5 to 7). The root fault: an agent
+Ten review rounds. Rounds 1 to 6 refined a prose protocol, and the blocking
+count did not fall (1, 3, 2 across rounds 5 to 7), so round 7 changed
+direction. The root fault: an agent
 read the issue body in one tool call and wrote it in a later one, so a stale
 read erased a newer claim. And the prose said "wait 30 seconds", which Claude
 Code refuses as a standalone `sleep`. Moving the claim into one process fixed
@@ -1041,40 +1061,39 @@ both. The owner's decision of one holder line per issue stayed.
 
 Ticketed, not fixed: #48 (a repo's copy can drift from the plugin's), #49
 (the fallback holder name is not unique per run), #50 (an edit `gh` gave up
-on can still land), #51 (self-test nits).
+on can still land, and a timed-out second read leaves the line written), #51
+(self-test nits).
 
 Trap: a session isolated in a `.claude/worktrees/` worktree cannot run git in
-a `.worktrees/` lane worktree, and neither can its subagents. The fixes were
+a `.worktrees/` lane worktree. Seen 2026-11-10: the harness refused it for the
+session and for its fixer subagent. The fixes were
 made on a new branch from the lane tip and pushed as the lane branch. The old
 local `feat/handoff-lane-issues` in `.worktrees/04-handoff-lanes` is behind.
 
-Trap: the CI review gate reads PR comments, and the workflow does not start on
-a new comment. Post the review verdict on the PR before the first push, or
-the guards job fails and needs one rerun.
+Trap: the review check in CI (`require-code-review.py check-pr`, run by the
+guards job) reads PR comments, and `ci.yml` starts only on `push` and
+`pull_request`, never on a new comment. Seen on #52: the verdict was posted
+after the push, so the guards job failed and needed one rerun. Post the
+review verdict on the PR before the first push.
 
 ## 2026-11-11: handoff pass
 
 ### Next
 
-This repo has lane issues. Step 3 of the Start here block lists them, and the
-first task lives in the lane's `## Next`. At this pass, lane #47 (the
-lane-claim follow-ups) is open and free (recount: step 3's command).
+All open work is in lane #47 (the lane-claim follow-ups and the rest of this
+repo's backlog). Step 3 of the Start here block lists it (recount: step 3's
+command). Its `## Next` holds, in order:
 
-Its first task: update the handoff sections of `/Users/yw1084/CLAUDE.md`, where
-five sentences contradict the lane rule. Lane #47 lists them, then the EdSim
-migration and the tickets.
-
-Tickets, in order after lane #47's own list: #35 to #46 (the mattpocock-skills
-integration set), then #48 to #51 (lane-claim follow-ups), then the older
-#13, #15, #16, #22, #23, #26, #27, #28, #30, #32, #33 (recount:
-`gh issue list --repo emmanuelwunjc/yw-workflow --state open --limit 100`).
-
-Still open from 2026-09-16: migrate the other repos' `docs/HANDOFF.md` to the
-Start here block (recount: `grep -L "## Start here" ~/code/*/docs/HANDOFF.md`).
-Each migrated repo also needs `scripts/lane_claim.py` and a `lane` label.
-
-Cleanup: remove `.worktrees/04-handoff-lanes` from the primary checkout with
-`git worktree remove .worktrees/04-handoff-lanes`.
+1. First task: update the handoff sections of `/Users/yw1084/CLAUDE.md`, where
+   five sentences contradict the lane rule.
+2. Move EdSim to the new Start here block and lane issues.
+3. Move the other repos' `docs/HANDOFF.md` to the block, still open from
+   2026-09-16 (recount: `grep -L "## Start here" ~/code/*/docs/HANDOFF.md`).
+4. Tickets #35 to #46 (the mattpocock-skills set), then #48 to #51 (lane-claim
+   follow-ups).
+5. The older tickets, #15 first because it is rated high (a commit onto main
+   through a quoted `cd`), then #13 and #16, then the rest (recount:
+   `gh issue list --repo emmanuelwunjc/yw-workflow --state open --limit 100`).
 
 Waits on the owner: whether the migrated repos also get a
 `.github/workflows/guards.yml`, carried over from 2026-09-16.
