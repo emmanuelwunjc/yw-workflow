@@ -52,6 +52,9 @@ whole briefing. Nobody writes you a separate prompt. Do these in order.
 
 1. Load skills `ship-loop`, `git-lanes` and `fresh-eye` before touching
    anything. Read the repo `CLAUDE.md`.
+   If a handoff PR is still open, its branch holds the newest handoff.
+   Read `docs/HANDOFF.md` from that branch, not from trunk:
+   `gh pr list --state open --search "docs(handoff) in:title" --json number,headRefName --jq '.[] | "#\(.number) \(.headRefName)"'`
 2. Check that the repo has the label. This prints `lane` if it does:
    `gh label list --search lane --json name --jq '.[] | select(.name == "lane") | .name'`
    It prints nothing: this repo has no lane label yet. Read the LAST
@@ -231,7 +234,9 @@ PRs runs it before it stops. A lane session never closes one this way.
    gh issue list --label lane --state open --limit 100 --json number,title,body,updatedAt
    ```
 
-6. Open the PR. It goes through review like any other.
+6. Open the PR. It goes through review like any other. Get the review and
+   merge it before the session stops, so trunk holds the newest handoff
+   and every new worktree reads it. It is docs only, so its CI is short.
 7. End the session in the folder that holds the new handoff, so the owner
    can clear and start the next session there with nothing to type. Do the
    pass in the session's own working directory when its tree is clean
