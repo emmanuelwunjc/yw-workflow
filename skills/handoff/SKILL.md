@@ -200,18 +200,19 @@ After PRs merge, one pass on a `docs/handoff-*` branch folds their notes into
 the log and brings the lane issues up to date. The session that merges the
 PRs runs it before it stops. A lane session never closes one this way.
 
-1. Branch `docs/handoff-<date>` from trunk. Do it in the session's own
-   working directory when its tree is clean. A shell `cd` into another
-   worktree does not last past one command, so this folder is the one the
-   owner gets at the end. A second pass on the same day adds `-2`.
+1. Branch `docs/handoff-<date>` from trunk, in the session's own working
+   directory. A shell `cd` into another worktree lasts for one command
+   only. So this folder is the one the owner gets at the end. Use it only
+   when `git status --short` prints nothing and no other session works in
+   it (`git-lanes`). A second pass on the same day adds `-2`, a third `-3`.
 
    ```sh
    git fetch origin
    git switch --no-track -c docs/handoff-<date> origin/<trunk>
    ```
 
-   The tree is not clean: make a new worktree for the pass (`git-lanes`),
-   and name that folder in step 7.
+   Else make a new worktree for the pass (`git-lanes`), and name that
+   folder in step 7.
 2. Print the notes of every PR merged since the last pass. Change the date
    to the day of that pass. The heading must start its own line, so a body
    that mentions the section in prose still yields the section itself:
@@ -242,16 +243,26 @@ PRs runs it before it stops. A lane session never closes one this way.
    gh issue list --label lane --state open --limit 100 --json number,title,body,updatedAt
    ```
 
-6. Open the PR. It goes through review like any other. Get the review and
-   merge it before the session stops, so trunk holds the newest handoff
-   and every new worktree reads it.
-7. End the session in the pass's folder, back on trunk, so the owner can
-   clear and start the next session there with nothing to type. Run
-   `git fetch origin`, then `git switch <trunk> && git pull --ff-only`.
-   Git refuses when trunk is checked out in another worktree. Then run
-   `git switch --detach origin/<trunk>`. The last line of the reply names
-   the folder as an absolute path, and the branch, e.g.
-   `Next session: start in /Users/me/code/repo (on main)`.
+6. Open the PR. It goes through review like any other. Get the review
+   and merge it before the session stops. Then trunk holds the newest
+   handoff, and every new worktree reads it.
+7. Leave the pass's folder where the newest handoff is. The owner then
+   starts the next session there with nothing to type.
+   - The PR merged: run `git fetch origin`, then
+     `git switch <trunk> && git pull --ff-only`. If git refuses because
+     trunk is checked out in another worktree, run
+     `git switch --detach origin/<trunk>`. If the pull refuses, local trunk
+     has diverged: use the detach command, and tell the owner.
+   - The PR did not merge: stay on the pass branch, and tell the owner why.
+
+   The last line of the reply names the folder as an absolute path, and
+   where it is, e.g. one of:
+
+   ```text
+   Next session: start in /Users/me/code/repo (on main)
+   Next session: start in /Users/me/code/repo-wt (detached at origin/main)
+   Next session: start in /Users/me/code/repo (on docs/handoff-2026-11-12, PR #61 not merged)
+   ```
 
 **Reviewer rule for a handoff pass.** The reviewer checks these four, and a
 miss is blocking:
