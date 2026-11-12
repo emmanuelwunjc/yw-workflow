@@ -3,7 +3,7 @@ name: handoff
 description: Keep a repo's docs/HANDOFF.md in the one shape that lets a fresh session start from the file and the open lane issues alone, with a Start here block on top that has the session claim one open `lane` issue, and dated sections added by a handoff pass after merges, from the Handoff notes each lane PR carries. Use when asked for "a handoff", "/handoff", "write the handoff", "update the handoff", at the close of a session, or when the handoff-freshness hook warns HANDOFF STALE or HANDOFF SHAPE.
 origin: authored
 tags: [handoff, docs, session, continuity]
-version: 1.3.0
+version: 1.4.0
 ---
 
 # Handoff
@@ -200,7 +200,21 @@ After PRs merge, one pass on a `docs/handoff-*` branch folds their notes into
 the log and brings the lane issues up to date. The session that merges the
 PRs runs it before it stops. A lane session never closes one this way.
 
-1. Branch `docs/handoff-<date>` from trunk.
+1. Branch `docs/handoff-<date>` from trunk, in the session's own working
+   directory. A shell `cd` into another worktree lasts for one command
+   only. So this folder is the one the owner gets at the end. Use it when
+   `git status --short` prints nothing. The `git-lanes` branch test does
+   not apply here: trunk, or the branch this session started on, is yours.
+   A second pass on the same day adds `-2`, a third `-3`. To see the names
+   in use, run `git fetch origin` and `git branch -a --list '*handoff-<date>*'`.
+
+   ```sh
+   git fetch origin
+   git switch --no-track -c docs/handoff-<date> origin/<trunk>
+   ```
+
+   Else make a new worktree for the pass (`git-lanes`), and name that
+   folder in step 7.
 2. Print the notes of every PR merged since the last pass. Change the date
    to the day of that pass. The heading must start its own line, so a body
    that mentions the section in prose still yields the section itself:
@@ -231,7 +245,26 @@ PRs runs it before it stops. A lane session never closes one this way.
    gh issue list --label lane --state open --limit 100 --json number,title,body,updatedAt
    ```
 
-6. Open the PR. It goes through review like any other.
+6. Open the PR. It goes through review like any other. Have the PR
+   reviewed, and merge it before the session stops. Then trunk holds the newest
+   handoff, and every new worktree reads it.
+7. Leave the pass's folder where the newest handoff is. If the pass ran
+   in the session's own folder, the owner then has nothing to type.
+   - The PR merged: run `git fetch origin`, then
+     `git switch <trunk> && git pull --ff-only`. If git refuses because
+     trunk is checked out in another worktree, run
+     `git switch --detach origin/<trunk>`. If the pull refuses, local trunk
+     has diverged: use the detach command, and tell the owner.
+   - The PR did not merge: stay on the pass branch, and tell the owner why.
+
+   The last line of the reply, after any TL;DR, names the folder as an
+   absolute path, and where it is, e.g. one of:
+
+   ```text
+   Next session: start in /Users/me/code/repo (on main)
+   Next session: start in /Users/me/code/repo-wt (detached at origin/main)
+   Next session: start in /Users/me/code/repo (on docs/handoff-2026-11-12, PR #61 not merged)
+   ```
 
 **Reviewer rule for a handoff pass.** The reviewer checks these four, and a
 miss is blocking:
