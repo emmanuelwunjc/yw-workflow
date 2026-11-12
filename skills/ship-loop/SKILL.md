@@ -3,7 +3,7 @@ name: ship-loop
 description: Run work as a closing loop instead of a trailing-off one. Ticket, branch, implement test-first, dispatch an independent review, fix what blocks, file what does not, and repeat until a review round comes back clean. Use when asked to "run the loop", "keep going until it's right", "loop until the feedback is perfect", "babysit this to done", or when handed a backlog of tickets to work through. Also use to decide what happens to review findings.
 origin: authored
 tags: [workflow, review, tdd, subagents, loop, tickets]
-version: 1.3.0
+version: 1.3.1
 ---
 
 # Ship loop
@@ -174,7 +174,9 @@ steady, so the approach is wrong.
 Record every round in the PR body on one line: its verdict, its blocking count,
 and the reviewer's token count (the Agent tool's `subagent_tokens` for that
 review). Take the count from the usage block of the task notification that
-says the review finished, and post the round only after it arrives. Never
+says the review finished, and post the round only after it arrives. An Orca
+worker reports no token count, so its round carries the verdict and the
+blocking count alone (skill `pm`). Never
 estimate it, and never ask the reviewer for it. The coordinating session
 writes the line after round 1 and updates it after each round. The line
 starts exactly `Rounds:`, with no bullet, bold, backticks, placeholders or
