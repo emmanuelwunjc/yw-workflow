@@ -57,29 +57,32 @@ workers, answers them, merges and reports. Every change to a file is a
 worker's commit, the handoff included. A PM that edits is a builder that
 nobody reviews.
 
-Find the primary checkout first, with the `MAIN` line of status mode. Batch
-mode writes its path out in full, written below as `<primary checkout>`.
+Batch mode runs from the repo's primary checkout. Every path below is
+relative to it.
 
 ### 1. Pick the path, and say it
 
 ```bash
-[ -n "$ORCA_WORKSPACE_ID" ] && command -v orca >/dev/null \
-  && orca status | grep -qx "runtimeReachable: true" \
+[ -n "$ORCA_WORKSPACE_ID" ] \
+  && [ "${ORCA_WORKSPACE_ID#*::}" = "$(git worktree list --porcelain | sed -n '1s/^worktree //p')" ] \
+  && command -v orca >/dev/null && orca status | grep -qx "runtimeReachable: true" \
   && orca skills list | grep -q "^orchestration:" && echo orca || echo fallback
 ```
 
-`ORCA_WORKSPACE_ID` is set only in a chat that runs in an Orca terminal, and the
-Orca path starts workers in that chat's workspace. It prints `orca`: use the Orca path. It prints `fallback`: say this one line to
-the owner before anything else, then use the fallback path:
+Orca sets `ORCA_WORKSPACE_ID` in a chat that runs in an Orca terminal. Its
+part after `::` is the chat's folder. The Orca path starts workers in that
+folder, so it must be the repo's primary checkout. It prints `orca`: use the
+Orca path. It prints `fallback`: say this one line to the owner before
+anything else, then use the fallback path:
 
-    Orca is missing or not reachable, so this batch runs on subagents. They skip your SessionStart and Stop hooks.
+    Orca is missing, or this chat is not in an Orca terminal at the primary checkout, so this batch runs on subagents. They skip your SessionStart and Stop hooks.
 
 ### 2. Write one spec per ticket
 
 A spec stands alone. The worker sees nothing else. It holds:
 
 - the ticket number and its acceptance boxes, copied in.
-- the lane issue the PM claimed for it, if the repo uses lanes. Say "the PM holds lane #N for you, so skip the lane menu".
+- "The PM assigns your work, so skip the lane menu." Add "The PM holds lane #N for you" when the PM claimed one.
 - the branch name, `type/short-description`.
 - what the worker may edit, and what it must not touch.
 - the evidence that proves it is done: the literal commands and their expected result.
@@ -98,7 +101,7 @@ releases the lane when the ticket merges. A ticket with no lane issue needs
 no claim.
 
 `.worktrees/` must be in the repo's `.gitignore`, per `git-lanes`. When
-`git -C <primary checkout> check-ignore -q .worktrees/` exits 1, the first
+`git check-ignore -q .worktrees/` exits 1, the first
 builder spec adds it.
 
 Builder, then a reviewer that did not write the change, then fixes, then a
@@ -110,7 +113,7 @@ Who does what at the end:
 
 | Step | Who |
 |---|---|
-| Push the branch and open the PR | the builder, once the PM tells it the review is clean. If the owner's `CLAUDE.md` asks for one PR for several small reviewed lanes, the PM tells the last builder to open it |
+| Push the branch and open the PR | the builder, once the PM tells it the review is clean. |
 | The `Rounds:` line in the PR body | the PM, with `gh pr edit`. On the fallback path each round carries `subagent_tokens`. Orca reports no token count, so an Orca round is its verdict and count alone, e.g. `Rounds: BLOCK 2 · PASS` |
 | Merge | the PM, with `gh pr merge`, under the owner's standing authorization: a clean review and CI clean at the same commit |
 | The handoff pass after the merges | a documenter worker, in its own worktree like every worker, on a `docs/handoff-*` branch per `/yw-workflow:handoff`. It is reviewed like any other change |
@@ -136,11 +139,9 @@ hooks.
 
 1. Load Orca's own guide once: `orca skills get orchestration`. Follow it for
    the commands. It changes with each Orca release, so it is not copied here.
-2. Start each worker in the PM's own Orca workspace, then end the turn. Orca
-   wakes the PM. A worker is a new session, so a shell variable never reaches
-   it. Write each path into the spec in full, e.g.
-   `/Users/me/code/app/.worktrees/03-login`. The quoted `'SPEC'` keeps every
-   `$`, backtick and backslash of the spec as written:
+2. Start each worker in the PM's folder, then end the turn. Orca wakes the
+   PM. The quoted `'SPEC'` keeps every `$`, backtick and backslash of the
+   spec as written:
 
    ```bash
    orca orchestration worker-start --agent claude --worktree current \
@@ -149,35 +150,53 @@ hooks.
    SPEC
    ```
 
-3. The worker starts in the PM's folder. The spec's first two steps move it
-   into its own worktree, per `git-lanes`. Run them as two separate commands.
-   The worktree is inside the start folder, so the `cd` lasts, and every
-   later command runs on the worker's branch:
+3. The worker starts in the primary checkout. The spec's first step makes
+   its own worktree there, per `git-lanes`. The spec then runs every git
+   command with `-C` and the full worktree path, without quotes. The PM writes
+   that path into the spec:
 
    ```bash
-   git worktree add <primary checkout>/.worktrees/<NN>-<slug> -b <branch> <base>
-   cd <primary checkout>/.worktrees/<NN>-<slug>
+   git worktree add .worktrees/<NN>-<slug> -b <branch> <base>
+   git -C /full/path/.worktrees/<NN>-<slug> add <files>
+   git -C /full/path/.worktrees/<NN>-<slug> commit -m "<message>"
    ```
 
-   The spec also says: edit only files under that worktree path. A reviewer
-   makes a detached worktree at the SHA the builder reported, so a later
-   builder commit cannot change what it reviews:
-   `git worktree add --detach <primary checkout>/.worktrees/<NN>-review-<slug> <sha>`.
-   The git safety hook reads a quoted `cd` or `-C` path wrongly (#15, #27), so
-   the spec runs git from the worktree folder and never through those forms.
-4. Send fixes to the builder that wrote the code:
-   `orca orchestration send --to dispatch:<dispatch_id> --subject fix --body "<findings>"`.
-   Orca reopens a closed worker for it.
-5. Answer a worker `question` with `orca orchestration reply --id <message_id> --body "<answer>"`.
-6. Clean up every worktree the batch made with git, from the primary
-   checkout. A reviewer worktree can still hold a mutation test, so it takes
-   `--force`:
+   The git safety hook judges a commit by the session's start folder, unless
+   the same command names a folder with `-C` or a leading `cd` (#16). It
+   misreads a quoted path (#27). With a space in the repo path, the hook
+   refuses the commit, so use the fallback path for that repo.
+
+   The spec also says: edit only files under the worktree path. A reviewer
+   makes a detached worktree at the SHA the builder reported:
+   `git worktree add --detach .worktrees/<NN>-review-<slug> <sha>`.
+4. Send fixes to the builder that wrote the code. Orca reopens a closed
+   worker for it. Findings hold backticks and `$`, so pass them through a
+   quoted heredoc:
 
    ```bash
-   git worktree remove <primary checkout>/.worktrees/<NN>-<slug>
-   git worktree remove --force <primary checkout>/.worktrees/<NN>-review-<slug>
+   orca orchestration send --to dispatch:<dispatch_id> --subject fix --body "$(cat <<'BODY'
+   <findings>
+   BODY
+   )"
+   ```
+
+5. Answer a worker `question` the same way, with
+   `orca orchestration reply --id <message_id> --body "$(cat <<'BODY' ... )"`.
+6. Clean up every worktree the batch made, from the primary checkout. A
+   reviewer worktree can still hold a mutation test, so it takes `--force`:
+
+   ```bash
+   git worktree remove .worktrees/<NN>-<slug>
+   git worktree remove --force .worktrees/<NN>-review-<slug>
    git branch -D <branch>      # after its PR merged, or for a throwaway branch
    ```
+
+Orca's guide says to let `worker-start` make each worker's workspace. This
+skill knowingly differs. A new Orca workspace needs `orca repo add`, and
+`orca` 1.4.250 has no command that removes a repo. On the first smoke run
+that left a record only `orca project setup-delete --force` could clear.
+Workers that use git worktrees in the PM's folder leave nothing in Orca
+that git cannot remove.
 
 A worker started with `--worktree current` closes on its own when it reports.
 A batch adds a Run and its Tasks to Orca's log, which `orca orchestration
@@ -187,8 +206,8 @@ removes all that the batch made.
 **Known gap, on both paths.** A reviewer keeps Bash, and an Orca worker has
 every tool, so the spec's "Do not fix anything. Do not commit." is a sentence
 that nothing enforces. A reviewer also changes files in place for its
-mutation tests, inside its own worktree. Note the branch tip, local and on
-`origin`, before the review. When the review ends, both tips must be the same and
+mutation tests, inside its own worktree. Note the local branch tip before the
+review. When the review ends, the tip must be the same and
 `git -C <builder worktree> status --short` must print nothing. Else throw that
 round away and start a new reviewer.
 
