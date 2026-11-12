@@ -202,9 +202,11 @@ PRs runs it before it stops. A lane session never closes one this way.
 
 1. Branch `docs/handoff-<date>` from trunk, in the session's own working
    directory. A shell `cd` into another worktree lasts for one command
-   only. So this folder is the one the owner gets at the end. Use it only
-   when `git status --short` prints nothing and no other session works in
-   it (`git-lanes`). A second pass on the same day adds `-2`, a third `-3`.
+   only. So this folder is the one the owner gets at the end. Use it when
+   `git status --short` prints nothing. The `git-lanes` branch test does
+   not apply here: trunk, or the branch this session started on, is yours.
+   A second pass on the same day adds `-2`, a third `-3`. To see the names
+   in use, run `git fetch origin` and `git branch -a --list '*handoff-<date>*'`.
 
    ```sh
    git fetch origin
@@ -243,11 +245,11 @@ PRs runs it before it stops. A lane session never closes one this way.
    gh issue list --label lane --state open --limit 100 --json number,title,body,updatedAt
    ```
 
-6. Open the PR. It goes through review like any other. Get the review
-   and merge it before the session stops. Then trunk holds the newest
+6. Open the PR. It goes through review like any other. Have the PR
+   reviewed, and merge it before the session stops. Then trunk holds the newest
    handoff, and every new worktree reads it.
-7. Leave the pass's folder where the newest handoff is. The owner then
-   starts the next session there with nothing to type.
+7. Leave the pass's folder where the newest handoff is. If the pass ran
+   in the session's own folder, the owner then has nothing to type.
    - The PR merged: run `git fetch origin`, then
      `git switch <trunk> && git pull --ff-only`. If git refuses because
      trunk is checked out in another worktree, run
@@ -255,8 +257,8 @@ PRs runs it before it stops. A lane session never closes one this way.
      has diverged: use the detach command, and tell the owner.
    - The PR did not merge: stay on the pass branch, and tell the owner why.
 
-   The last line of the reply names the folder as an absolute path, and
-   where it is, e.g. one of:
+   The last line of the reply, after any TL;DR, names the folder as an
+   absolute path, and where it is, e.g. one of:
 
    ```text
    Next session: start in /Users/me/code/repo (on main)
