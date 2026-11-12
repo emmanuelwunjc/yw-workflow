@@ -53,7 +53,7 @@ load `/yw-workflow:handoff`. Status mode does not write it.
 ## Batch mode
 
 **Rule 1: the PM edits no files in the repo.** It writes specs, starts
-workers, answers them, merges and reports. Every change to the repo is a
+workers, answers them, pushes, opens and merges PRs, and reports. Every change to the repo is a
 worker's commit, the handoff included. A PM that edits is a builder that
 nobody reviews. The PM tells each worker where to work and what proves it
 done. The worker does its own git work, with `git-lanes`.
@@ -68,7 +68,7 @@ done. The worker does its own git work, with `git-lanes`.
 ```
 
 Orca sets `ORCA_WORKSPACE_ID` in a chat that runs in an Orca terminal. Its
-part after `::` is the chat's folder. The Orca path starts workers in that
+part after `::` is the Orca workspace that terminal opened in. The Orca path starts workers in that
 folder, so it must be the repo's primary checkout. It prints `orca`: use the
 Orca path. It prints `fallback`: say this one line to the owner before
 anything else, then use the fallback path:
@@ -111,7 +111,8 @@ Who does what at the end:
 
 | Step | Who |
 |---|---|
-| Push the branch and open the PR | the builder, from its worktree, once the PM tells it the review is clean. When the owner's `CLAUDE.md` asks for one PR for several small reviewed lanes, the PM says which builder opens it |
+| Push the branch and open the PR | the PM, once a review round is clean: `git -C "$MAIN" push -u origin <branch>`, then `gh pr create --head <branch>`. Orca's brief tells each worker not to post to GitHub, so the PM does every GitHub step. When the owner's `CLAUDE.md` asks for one PR for several small reviewed lanes, the PM opens one PR for them |
+| Each review verdict | the PM posts it on the PR with `gh pr comment`, as `fresh-eye` says. The repo's review hook looks for it before a merge |
 | The `Rounds:` line in the PR body | the PM, with `gh pr edit`. On the fallback path each round carries `subagent_tokens`. Orca reports no token count, so an Orca round is its verdict and count alone, e.g. `Rounds: BLOCK 2 · PASS` |
 | Merge | the PM, with `gh pr merge`, under the owner's standing authorization: a clean review and CI clean at the same commit |
 | The handoff pass after the merges | a documenter worker, in its own worktree like every worker, on a `docs/handoff-*` branch per `/yw-workflow:handoff`. It is reviewed like any other change |
@@ -148,6 +149,9 @@ hooks.
    SPEC
    ```
 
+   The heredoc ends at the first line that is exactly `SPEC`, so no line of
+   the spec may be only that word.
+
 3. The spec's first line tells the worker where to work: "Load
    `/yw-workflow:git-lanes`. Make your own worktree in `.worktrees/` of the
    primary checkout, on branch `<branch>`. Do all your work and every git
@@ -182,10 +186,12 @@ that left a record only `orca project setup-delete --force` could clear.
 Workers that use git worktrees in the PM's folder leave nothing in Orca
 that git cannot remove.
 
-**Seen in the smoke runs.** The git safety hook refused a worker's plain
-`git commit` in its worktree, because the hook judged the primary checkout
-on `main` (#16). The worker then committed with `git -C` and its worktree
-path, which the hook judged right.
+**Seen in the smoke runs.** Two of two smoke builders had a commit refused
+by the git safety hook. Each time, the same Bash call also ran a git command
+on the primary checkout, e.g. `git -C <primary> status --short`. The hook
+judges a whole call by its last `-C` path, so it judged `main`. Put this in
+each builder spec: "Run a commit in a Bash call of its own, from your
+worktree."
 
 A worker started with `--worktree current` closes on its own when it reports.
 A batch adds a Run and its Tasks to Orca's log, which `orca orchestration
@@ -199,6 +205,11 @@ mutation tests, inside its own worktree. Note the local branch tip before the
 review. When the review ends, the tip must be the same and
 `git -C <builder worktree> status --short` must print nothing. Else throw that
 round away and start a new reviewer.
+
+Every Orca worker starts in the primary checkout, which the PM and the other
+workers share, and leaves it for its own worktree in its first step. Until it
+leaves, the shared-folder risk of `git-lanes` applies. The spec's first line
+is the only guard.
 
 Rule 1 has the same gap. The PM keeps its Write and Edit tools, so "the PM
 edits no files" holds only as long as the PM keeps it. The check is the same:
