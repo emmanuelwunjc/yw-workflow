@@ -53,10 +53,10 @@ load `/yw-workflow:handoff`. Status mode does not write it.
 ## Batch mode
 
 **Rule 1: the PM edits no files in the repo.** It writes specs, starts
-workers, answers them, pushes, opens and merges PRs, and reports. Every change to the repo is a
-worker's commit, the handoff included. A PM that edits is a builder that
-nobody reviews. The PM tells each worker where to work and what proves it
-done. The worker does its own git work, with `git-lanes`.
+workers, answers them, pushes branches, opens and merges PRs, and reports.
+Every change to the repo is a worker's commit, the handoff included. A PM that
+edits is a builder that nobody reviews. The PM tells each worker where to work
+and what proves it done. The worker does its own git work, with `git-lanes`.
 
 ### 1. Pick the path, and say it
 
@@ -68,10 +68,10 @@ done. The worker does its own git work, with `git-lanes`.
 ```
 
 Orca sets `ORCA_WORKSPACE_ID` in a chat that runs in an Orca terminal. Its
-part after `::` is the Orca workspace that terminal opened in. The Orca path starts workers in that
-folder, so it must be the repo's primary checkout. It prints `orca`: use the
-Orca path. It prints `fallback`: say this one line to the owner before
-anything else, then use the fallback path:
+part after `::` is the Orca workspace that terminal opened in. The Orca path
+starts workers in that folder, so it must be the repo's primary checkout. It
+prints `orca`: use the Orca path. It prints `fallback`: say this one line to
+the owner before anything else, then use the fallback path:
 
     Orca is missing, or this chat is not in an Orca terminal at the primary checkout, so this batch runs on subagents. They skip your SessionStart and Stop hooks.
 
@@ -85,6 +85,7 @@ A spec stands alone. The worker sees nothing else. It holds:
 - what the worker may edit, and what it must not touch.
 - the evidence that proves it is done: the literal commands and their expected result.
 - the rules a worker must keep that no hook will check for it (see the fallback cost below).
+- for a builder, the line "End your report with a `## Handoff notes` section for the PR body, per `/yw-workflow:handoff`."
 - the last line, for a builder or fixer: "commit your work on your own branch before you return (on a detached HEAD, `git switch -c wip/<folder>` first), as a WIP commit if it is unfinished, and report the branch and SHA".
 
 A reviewer spec is the `fresh-eye` prompt skeleton, filled in for this branch.
@@ -111,10 +112,11 @@ Who does what at the end:
 
 | Step | Who |
 |---|---|
-| Push the branch and open the PR | the PM, once a review round is clean: `git -C "$MAIN" push -u origin <branch>`, then `gh pr create --head <branch>`. Orca's brief tells each worker not to post to GitHub, so the PM does every GitHub step. When the owner's `CLAUDE.md` asks for one PR for several small reviewed lanes, the PM opens one PR for them |
+| Push the branch and open the PR | the PM, once a review round is clean. Orca's brief tells each worker not to post to GitHub, so the PM does every GitHub step. It writes the PR body to a file outside the repo: the ticket link, the builder's `## Handoff notes`, and the `Rounds:` line. Then it runs `git -C "$MAIN" push -u origin <branch>` and `gh pr create --head <branch> --title "<title>" --body-file <file>` |
+| One PR for several lanes | when the owner's `CLAUDE.md` asks for one PR for several small reviewed lanes, a builder worker puts their commits on one branch, one commit each, and the PM opens one PR for it |
 | Each review verdict | the PM posts it on the PR with `gh pr comment`, as `fresh-eye` says. The repo's review hook looks for it before a merge |
 | The `Rounds:` line in the PR body | the PM, with `gh pr edit`. On the fallback path each round carries `subagent_tokens`. Orca reports no token count, so an Orca round is its verdict and count alone, e.g. `Rounds: BLOCK 2 · PASS` |
-| Merge | the PM, with `gh pr merge`, under the owner's standing authorization: a clean review and CI clean at the same commit |
+| Merge | the PM, with `gh pr merge <number> --squash --match-head-commit <reviewed SHA>`, under the owner's standing authorization: a clean review and CI clean at the same commit. The SHA flag makes GitHub refuse a merge of any other commit |
 | The handoff pass after the merges | a documenter worker, in its own worktree like every worker, on a `docs/handoff-*` branch per `/yw-workflow:handoff`. It is reviewed like any other change |
 
 ### 4. Answer the workers
@@ -186,12 +188,14 @@ that left a record only `orca project setup-delete --force` could clear.
 Workers that use git worktrees in the PM's folder leave nothing in Orca
 that git cannot remove.
 
-**Seen in the smoke runs.** Two of two smoke builders had a commit refused
-by the git safety hook. Each time, the same Bash call also ran a git command
-on the primary checkout, e.g. `git -C <primary> status --short`. The hook
-judges a whole call by its last `-C` path, so it judged `main`. Put this in
-each builder spec: "Run a commit in a Bash call of its own, from your
-worktree."
+**Seen in the smoke runs.** Three of five smoke builders (runs 2, 3 and 4)
+had a commit refused by the git safety hook. Each time, the same Bash call
+also ran a git command on the primary checkout, e.g.
+`git -C <primary> status --short`. The hook takes any `-C` path in a call
+over any `cd`, so it judged `main`. Put this in each builder spec: "Run each
+commit in a Bash call of its own, as `git -C <worktree path> commit`, with
+the path unquoted, or as a plain `git commit` with your worktree as the
+shell folder."
 
 A worker started with `--worktree current` closes on its own when it reports.
 A batch adds a Run and its Tasks to Orca's log, which `orca orchestration
@@ -209,7 +213,7 @@ round away and start a new reviewer.
 Every Orca worker starts in the primary checkout, which the PM and the other
 workers share, and leaves it for its own worktree in its first step. Until it
 leaves, the shared-folder risk of `git-lanes` applies. The spec's first line
-is the only guard.
+is the primary guard. The git safety hook still refuses a commit on `main`.
 
 Rule 1 has the same gap. The PM keeps its Write and Edit tools, so "the PM
 edits no files" holds only as long as the PM keeps it. The check is the same:
