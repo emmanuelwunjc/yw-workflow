@@ -232,6 +232,13 @@ PRs runs it before it stops. A lane session never closes one this way.
    ```
 
 6. Open the PR. It goes through review like any other.
+7. End the session in the folder that holds the new handoff, so the owner
+   can clear and start the next session there with nothing to type. Do the
+   pass in the session's own working directory when its tree is clean
+   (`git switch -c docs/handoff-<date> origin/<trunk>`), because a shell `cd`
+   into another worktree does not last past the command. The last line of
+   the reply names that folder as an absolute path, e.g.
+   `Next session: start in /Users/me/code/repo (branch docs/handoff-2026-11-12)`.
 
 **Reviewer rule for a handoff pass.** The reviewer checks these four, and a
 miss is blocking:
