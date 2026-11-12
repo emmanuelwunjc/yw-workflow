@@ -52,13 +52,11 @@ load `/yw-workflow:handoff`. Status mode does not write it.
 
 ## Batch mode
 
-**Rule 1: the PM edits no files.** It writes specs into commands, starts
-workers, answers them, merges and reports. Every change to a file is a
+**Rule 1: the PM edits no files in the repo.** It writes specs, starts
+workers, answers them, merges and reports. Every change to the repo is a
 worker's commit, the handoff included. A PM that edits is a builder that
-nobody reviews.
-
-Batch mode runs from the repo's primary checkout. Every path below is
-relative to it.
+nobody reviews. The PM tells each worker where to work and what proves it
+done. The worker does its own git work, with `git-lanes`.
 
 ### 1. Pick the path, and say it
 
@@ -101,8 +99,8 @@ releases the lane when the ticket merges. A ticket with no lane issue needs
 no claim.
 
 `.worktrees/` must be in the repo's `.gitignore`, per `git-lanes`. When
-`git check-ignore -q .worktrees/` exits 1, the first
-builder spec adds it.
+`git -C "$MAIN" check-ignore -q .worktrees/` exits 1, the first builder spec
+adds it. Set `MAIN` with the line from status mode, in the same command.
 
 Builder, then a reviewer that did not write the change, then fixes, then a
 new reviewer at the fixed commit. Stop on a clean round, as `ship-loop` step 6
@@ -113,7 +111,7 @@ Who does what at the end:
 
 | Step | Who |
 |---|---|
-| Push the branch and open the PR | the builder, once the PM tells it the review is clean. |
+| Push the branch and open the PR | the builder, from its worktree, once the PM tells it the review is clean. When the owner's `CLAUDE.md` asks for one PR for several small reviewed lanes, the PM says which builder opens it |
 | The `Rounds:` line in the PR body | the PM, with `gh pr edit`. On the fallback path each round carries `subagent_tokens`. Orca reports no token count, so an Orca round is its verdict and count alone, e.g. `Rounds: BLOCK 2 · PASS` |
 | Merge | the PM, with `gh pr merge`, under the owner's standing authorization: a clean review and CI clean at the same commit |
 | The handoff pass after the merges | a documenter worker, in its own worktree like every worker, on a `docs/handoff-*` branch per `/yw-workflow:handoff`. It is reviewed like any other change |
@@ -150,46 +148,32 @@ hooks.
    SPEC
    ```
 
-3. The worker starts in the primary checkout. The spec's first step makes
-   its own worktree there, per `git-lanes`. The spec then runs every git
-   command with `-C` and the full worktree path, without quotes. The PM writes
-   that path into the spec:
-
-   ```bash
-   git worktree add .worktrees/<NN>-<slug> -b <branch> <base>
-   git -C /full/path/.worktrees/<NN>-<slug> add <files>
-   git -C /full/path/.worktrees/<NN>-<slug> commit -m "<message>"
-   ```
-
-   The git safety hook judges a commit by the session's start folder, unless
-   the same command names a folder with `-C` or a leading `cd` (#16). It
-   misreads a quoted path (#27). With a space in the repo path, the hook
-   refuses the commit, so use the fallback path for that repo.
-
-   The spec also says: edit only files under the worktree path. A reviewer
-   makes a detached worktree at the SHA the builder reported:
-   `git worktree add --detach .worktrees/<NN>-review-<slug> <sha>`.
+3. The spec's first line tells the worker where to work: "Load
+   `/yw-workflow:git-lanes`. Make your own worktree in `.worktrees/` of the
+   primary checkout, on branch `<branch>`. Do all your work and every git
+   command there." A reviewer's first line names a detached worktree at the
+   SHA the builder reported. The worker is a full session with the
+   `git-lanes` rules and the hooks, so the git commands are its job.
 4. Send fixes to the builder that wrote the code. Orca reopens a closed
-   worker for it. Findings hold backticks and `$`, so pass them through a
-   quoted heredoc:
+   worker for it. `send` and `reply` take the text only as `--body`, and
+   findings hold backticks and `$`. So write the text to a file outside the
+   repo first, e.g. in the scratchpad, and pass it whole:
 
    ```bash
-   orca orchestration send --to dispatch:<dispatch_id> --subject fix --body "$(cat <<'BODY'
-   <findings>
-   BODY
-   )"
+   orca orchestration send --to dispatch:<dispatch_id> --subject fix --body "$(cat <file>)"
    ```
 
-5. Answer a worker `question` the same way, with
-   `orca orchestration reply --id <message_id> --body "$(cat <<'BODY' ... )"`.
-6. Clean up every worktree the batch made, from the primary checkout. A
-   reviewer worktree can still hold a mutation test, so it takes `--force`:
+5. Answer a worker `question` the same way:
 
    ```bash
-   git worktree remove .worktrees/<NN>-<slug>
-   git worktree remove --force .worktrees/<NN>-review-<slug>
-   git branch -D <branch>      # after its PR merged, or for a throwaway branch
+   orca orchestration reply --id <message_id> --body "$(cat <file>)"
    ```
+
+6. Clean up every worktree the batch made. `git -C "$MAIN" worktree list`
+   names them. Remove each one with `git -C "$MAIN" worktree remove <path>`.
+   A reviewer worktree can still hold a mutation test, so it takes `--force`.
+   Delete a branch with `git -C "$MAIN" branch -D <branch>` after its PR
+   merged, or when it was a throwaway.
 
 Orca's guide says to let `worker-start` make each worker's workspace. This
 skill knowingly differs. A new Orca workspace needs `orca repo add`, and
@@ -197,6 +181,11 @@ skill knowingly differs. A new Orca workspace needs `orca repo add`, and
 that left a record only `orca project setup-delete --force` could clear.
 Workers that use git worktrees in the PM's folder leave nothing in Orca
 that git cannot remove.
+
+**Seen in the smoke runs.** The git safety hook refused a worker's plain
+`git commit` in its worktree, because the hook judged the primary checkout
+on `main` (#16). The worker then committed with `git -C` and its worktree
+path, which the hook judged right.
 
 A worker started with `--worktree current` closes on its own when it reports.
 A batch adds a Run and its Tasks to Orca's log, which `orca orchestration
