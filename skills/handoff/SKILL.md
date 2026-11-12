@@ -3,7 +3,7 @@ name: handoff
 description: Keep a repo's docs/HANDOFF.md in the one shape that lets a fresh session start from the file and the open lane issues alone, with a Start here block on top that has the session claim one open `lane` issue, and dated sections added by a handoff pass after merges, from the Handoff notes each lane PR carries. Use when asked for "a handoff", "/handoff", "write the handoff", "update the handoff", at the close of a session, or when the handoff-freshness hook warns HANDOFF STALE or HANDOFF SHAPE.
 origin: authored
 tags: [handoff, docs, session, continuity]
-version: 1.3.0
+version: 1.4.0
 ---
 
 # Handoff
@@ -52,9 +52,6 @@ whole briefing. Nobody writes you a separate prompt. Do these in order.
 
 1. Load skills `ship-loop`, `git-lanes` and `fresh-eye` before touching
    anything. Read the repo `CLAUDE.md`.
-   If a handoff PR is still open, its branch holds the newest handoff.
-   Read `docs/HANDOFF.md` from that branch, not from trunk:
-   `gh pr list --state open --search "docs(handoff) in:title" --json number,headRefName --jq '.[] | "#\(.number) \(.headRefName)"'`
 2. Check that the repo has the label. This prints `lane` if it does:
    `gh label list --search lane --json name --jq '.[] | select(.name == "lane") | .name'`
    It prints nothing: this repo has no lane label yet. Read the LAST
@@ -203,7 +200,18 @@ After PRs merge, one pass on a `docs/handoff-*` branch folds their notes into
 the log and brings the lane issues up to date. The session that merges the
 PRs runs it before it stops. A lane session never closes one this way.
 
-1. Branch `docs/handoff-<date>` from trunk.
+1. Branch `docs/handoff-<date>` from trunk. Do it in the session's own
+   working directory when its tree is clean. A shell `cd` into another
+   worktree does not last past one command, so this folder is the one the
+   owner gets at the end. A second pass on the same day adds `-2`.
+
+   ```sh
+   git fetch origin
+   git switch --no-track -c docs/handoff-<date> origin/<trunk>
+   ```
+
+   The tree is not clean: make a new worktree for the pass (`git-lanes`),
+   and name that folder in step 7.
 2. Print the notes of every PR merged since the last pass. Change the date
    to the day of that pass. The heading must start its own line, so a body
    that mentions the section in prose still yields the section itself:
@@ -236,14 +244,14 @@ PRs runs it before it stops. A lane session never closes one this way.
 
 6. Open the PR. It goes through review like any other. Get the review and
    merge it before the session stops, so trunk holds the newest handoff
-   and every new worktree reads it. It is docs only, so its CI is short.
-7. End the session in the folder that holds the new handoff, so the owner
-   can clear and start the next session there with nothing to type. Do the
-   pass in the session's own working directory when its tree is clean
-   (`git switch -c docs/handoff-<date> origin/<trunk>`), because a shell `cd`
-   into another worktree does not last past the command. The last line of
-   the reply names that folder as an absolute path, e.g.
-   `Next session: start in /Users/me/code/repo (branch docs/handoff-2026-11-12)`.
+   and every new worktree reads it.
+7. End the session in the pass's folder, back on trunk, so the owner can
+   clear and start the next session there with nothing to type. Run
+   `git fetch origin`, then `git switch <trunk> && git pull --ff-only`.
+   Git refuses when trunk is checked out in another worktree. Then run
+   `git switch --detach origin/<trunk>`. The last line of the reply names
+   the folder as an absolute path, and the branch, e.g.
+   `Next session: start in /Users/me/code/repo (on main)`.
 
 **Reviewer rule for a handoff pass.** The reviewer checks these four, and a
 miss is blocking:
