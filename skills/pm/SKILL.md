@@ -67,7 +67,7 @@ command -v orca >/dev/null && orca status | grep -qx "runtimeReachable: true" \
 It prints `orca`: use the Orca path. It prints `fallback`: say this one line to
 the owner before anything else, then use the fallback path:
 
-    Orca is absent or not reachable, so this batch runs on subagents. They skip your SessionStart and Stop hooks.
+    Orca is missing or not reachable, so this batch runs on subagents. They skip your SessionStart and Stop hooks.
 
 ### 2. Write one spec per ticket
 
@@ -126,7 +126,9 @@ skills and every hook, including the SessionStart and Stop hooks.
    ```
 
 4. On the builder's `worker_done`, start the reviewer the same way, with
-   `--base-branch <the builder's branch>`, so it reviews in its own worktree.
+   `--base-branch <the branch the builder's report names>`, so it reviews in its
+   own worktree. Orca gives each new worktree its own branch, so take the
+   branch from the report, never from the worktree name.
 5. Send fixes to the builder that wrote the code:
    `orca orchestration send --to dispatch:<id> --subject fix --body "<findings>"`.
 6. Answer a worker `question` with `orca orchestration reply --id <message_id> --body "<answer>"`.
