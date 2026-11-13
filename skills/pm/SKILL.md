@@ -103,18 +103,21 @@ no claim.
 `git -C "$MAIN" check-ignore -q .worktrees/` exits 1, the first builder spec
 adds it. Set `MAIN` with the line from status mode, in the same command.
 
-Each ticket gets its own branch, its own review and its own PR, so each
-merge is one reviewed commit. Builder, then a reviewer that did not write the
-change, then fixes, then a new reviewer at the fixed commit. Stop on a clean round, as `ship-loop` step 6
-defines it. Tickets that touch different files run in parallel. Two to four
-at once, per `git-lanes`.
+Each ticket gets its own branch, its own review and its own PR, so each merge
+is one reviewed commit. This knowingly differs from the owner's rule of one
+combined PR for several small lanes, decided by the owner on 2026-11-13: a
+combined head needs its own review, and CI minutes are no longer a limit.
+Builder, then a reviewer that did not write the change, then fixes, then a new
+reviewer at the fixed commit. Stop on a clean round, as `ship-loop` step 6
+defines it. Tickets that touch different files run in parallel. Two to four at
+once, per `git-lanes`.
 
 Who does what at the end:
 
 | Step | Who |
 |---|---|
 | Push the branch and open the PR | the PM, once a review round is clean. Orca's brief tells each worker not to post to GitHub, so the PM does every GitHub step. It writes the PR body to a file outside the repo: the ticket link, the builder's `## Handoff notes`, and the `Rounds:` line. Then it runs `git -C "$MAIN" push -u origin <branch>` and `gh pr create --head <branch> --title "<title>" --body-file <file>` |
-| Each review verdict | the PM posts it on the PR with `gh pr comment`, as `fresh-eye` says. The repo's review hook looks for it before a merge |
+| Each review verdict | rounds before the PR opens are in its `Rounds:` line. The PM posts the clean verdict, and each later one, on the PR with `gh pr comment`, as `fresh-eye` says. The repo's review hook looks for it before a merge |
 | The `Rounds:` line in the PR body | the PM. It goes into the body file when the PR opens. A round after that goes in with `gh pr edit`. On the fallback path each round carries `subagent_tokens`. Orca reports no token count, so an Orca round is its verdict and count alone, e.g. `Rounds: BLOCK 2 · PASS` |
 | Merge | the PM, with `gh pr merge <number> --squash --match-head-commit <reviewed SHA>`, under the owner's standing authorization: a clean review and CI clean at the same commit. The SHA flag makes GitHub refuse a merge of any other commit |
 | The handoff pass after the merges | a documenter worker, in its own worktree like every worker, on a `docs/handoff-*` branch per `/yw-workflow:handoff`. It is reviewed like any other change |
@@ -210,10 +213,11 @@ review. When the review ends, the tip must be the same and
 `git -C <builder worktree> status --short` must print nothing. Else throw that
 round away and start a new reviewer.
 
-Every Orca worker starts in the primary checkout. The PM and the other
-workers share that folder. The worker leaves it for its own worktree in its
-first step. Until it leaves, the shared-folder risk of `git-lanes` applies. The spec's first line
-is the primary guard. The git safety hook still refuses a commit on `main`.
+Every Orca worker starts in the primary checkout. The PM and the other workers
+share that folder. The worker leaves it for its own worktree in its first
+step. Until it leaves, the shared-folder risk of `git-lanes` applies. The
+spec's first line is the primary guard. The git safety hook still refuses a
+commit on `main`.
 
 Rule 1 has the same gap. The PM keeps its Write and Edit tools, so "the PM
 edits no files" holds only as long as the PM keeps it. The check is the same:
