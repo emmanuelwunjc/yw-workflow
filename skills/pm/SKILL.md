@@ -104,19 +104,20 @@ no claim.
 adds it. Set `MAIN` with the line from status mode, in the same command.
 
 Each ticket gets its own branch, its own review and its own PR, so each merge
-is one reviewed commit. The owner chose this on 2026-11-13. It knowingly
-differs from two older rules: the combined PR for several small lanes in the
-owner's `CLAUDE.md`, and the one review per related group in `ship-loop` step
-6. A combined head would need a review of its own. Builder, then a reviewer
-that did not write the change, then fixes, then a new reviewer at the fixed
-commit. Stop on a clean round, as `ship-loop` step 6 defines it. Tickets that
-touch different files run in parallel. Two to four at once, per `git-lanes`.
+is one reviewed commit. The owner chose this on 2026-11-13, over the combined
+PR for several small lanes in the owner's `CLAUDE.md`. A combined head would
+need a review of its own. This also replaces the one review per related group
+in `ship-loop` step 6. Builder, then a reviewer that did not write the change,
+then fixes, then a new reviewer at the fixed commit. Stop on a clean round, as
+`ship-loop` step 6 defines it. Tickets that touch different files run in
+parallel. Two to four at once, per `git-lanes`.
 
 Who does what at the end:
 
 | Step | Who |
 |---|---|
 | Push the branch and open the PR | the PM, once a review round is clean. Orca's brief tells each worker not to post to GitHub, so the PM does every GitHub step. It writes the PR body to a file outside the repo: the ticket link, the builder's `## Handoff notes`, the `Rounds:` line, and each finding left unfixed, with its reason. Then it runs `git -C "$MAIN" push -u origin <branch>` and `gh pr create --head <branch> --title "<title>" --body-file <file>` |
+| Each finding that is real but out of scope | the PM files it as a ticket with `gh issue create` before the merge, per `ship-loop` step 5, and names the ticket in the PR body |
 | Each review verdict | rounds before the PR opens are in its `Rounds:` line. The PM posts the clean verdict, and each later one, on the PR with `gh pr comment`, as `fresh-eye` says. The repo's review hook looks for it before a merge |
 | The `Rounds:` line in the PR body | the PM. It goes into the body file when the PR opens. A round after that goes in with `gh pr edit`. On the fallback path each round carries `subagent_tokens`. Orca reports no token count, so an Orca round is its verdict and count alone, e.g. `Rounds: BLOCK 2 · PASS` |
 | Merge | the PM, with `gh pr merge <number> --squash --match-head-commit <reviewed SHA>`, under the owner's standing authorization: a clean review and CI clean at the same commit. The SHA flag makes GitHub refuse a merge of any other commit |
