@@ -65,13 +65,15 @@ DEFAULTS = {
     "require_review": True,
     "git_safety": True,
     "context_handoff": True,
+    "zsh_traps": True,
 }
 
-# What the CI action enforces no matter what a repo's config says. Three rules are
+# What the CI action enforces no matter what a repo's config says. Four rules are
 # absent because they cannot run server-side rather than by choice:
 # ask_user_question needs a live turn to inspect, git_safety blocks a git
-# command as it is typed, which branch protection covers in CI, and
-# context_handoff reads a live session's transcript, which CI has none of.
+# command as it is typed, which branch protection covers in CI,
+# context_handoff reads a live session's transcript, which CI has none of, and
+# zsh_traps blocks a shell command as it is typed.
 CI_FLOOR = ("em_dash", "ai_attribution", "require_review", "handoff_freshness")
 
 # Rules a repo may add to the CI floor. Enabling is one-way: CI ignores a later

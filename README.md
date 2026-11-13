@@ -1,6 +1,6 @@
 # yw-workflow
 
-Twelve skills and six hooks that make an engineering workflow mechanical
+Twelve skills and seven hooks that make an engineering workflow mechanical
 instead of remembered.
 
 ## Install
@@ -12,7 +12,7 @@ duplicates that drift apart.
 # skills only
 npx skills add emmanuelwunjc/yw-workflow -g --skill '*' -y
 
-# skills and the six hooks. Use this on your own machine.
+# skills and the seven hooks. Use this on your own machine.
 claude plugin marketplace add emmanuelwunjc/yw-workflow
 claude plugin install yw-workflow@yw-workflow
 ```
@@ -88,6 +88,7 @@ plugin path only.
 | **git-safety-guard.sh** | PreToolUse, `git *` | Blocks commits straight to `main` and tree moves that collide with another agent. |
 | **require-code-review.py** | PreToolUse | Blocks `gh pr merge <number>` on a 25+ line PR with no review, looked up in the repo the command targets (`cd`, `-R`, a PR URL, `GH_REPO`) rather than the folder the session started in. A merge it finds and cannot tie to a literal PR and repo is blocked with a request for `-R owner/repo`. It reads the merge from the command text, so a command that only mentions one with a number is judged as a merge, and a merge with no number is invisible to it (#17). Override: `export SKIP_REVIEW_GATE=1;` in front of the command, announced on stderr when honored. |
 | **no-ai-attribution.py** | PreToolUse | Keeps AI-generation footers out of anything people read. Commit trailers stay. |
+| **zsh-trap-guard.py** | PreToolUse | The Bash tool runs commands under zsh. Blocks an unbraced `$name:` before a letter zsh reads as a modifier (`$s:refs` applies `:r`, so write `${s}:refs`), and `for v in $VAR`, which zsh does not split into words. Ignores single-quoted text and quoted heredocs. Switch: `[rules] zsh_traps`. |
 | **claude-md-guard.py** | UserPromptSubmit, Stop | Blocks em-dashes, negation-then-correction, and prose questions where checkboxes are required. |
 | **handoff-freshness.py** | Stop | On a lane whose net diff from trunk changes real files, reminds it to write the PR body's `## Handoff notes` section, and warns any lane (a detached HEAD included) whose net diff changes `docs/HANDOFF.md`. On trunk (`main`, `master`, or what `origin/HEAD` names) or a `docs/handoff-*` branch, catches work piling up against an untouched `docs/HANDOFF.md`. Also catches a `docs/HANDOFF.md` that lacks the `## Start here` block, has a block that never lists the open `lane` issues, still opens with an "end of a session" preamble, has a block that runs `scripts/lane_claim.py` in a repo without that file, or has a handoff-named `.md` tracked outside `docs/` (the shape in skill `handoff`). Override: `SKIP_HANDOFF_CHECK=1`. |
 | **context-handoff.py** | PostToolBatch, UserPromptSubmit, Stop | Winds a session down when its context passes about 120k tokens, the end of the "smart zone", and again at every 100k past that. The notice tells the model to start no new work, spawn no subagents, let running ones finish for at most 15 minutes, then write the handoff and tell the user to start a fresh session. After the 15 minutes, with no handoff written, a second notice says to save what each running subagent has, stop it, and write the handoff now. Blocks one Stop per notice while `docs/HANDOFF.md` is untouched since the notice, on any branch or worktree. Known limits: it cannot see a lane's notes in a PR body, or anything in a folder that is not a git repo, so there the deadline notice and the one block always arrive. The hook instructs and the model acts: it stops no subagent itself. Reads the size from the last assistant message's usage in the transcript. Main thread only. Settings: `[rules] context_handoff` and `[context_handoff] first`, `step`, `grace_minutes` in `.handrail.toml`. |
@@ -168,10 +169,11 @@ branch-protection decision, and it belongs with the people who own the branch.
 
 ## Config
 
-**Read this first: only `claude-md-guard.py`, `no-ai-attribution.py` and
-`context-handoff.py` consult the config today.** The `[rules]` switches and
-`policy_doc` work for the first two, and `context-handoff.py` reads its switch
-and its `[context_handoff]` values.
+**Read this first: only `claude-md-guard.py`, `no-ai-attribution.py`,
+`context-handoff.py` and `zsh-trap-guard.py` consult the config today.** The
+`[rules]` switches and `policy_doc` work for the first two,
+`context-handoff.py` reads its switch and its `[context_handoff]` values, and
+`zsh-trap-guard.py` reads only its switch.
 The other value keys below are parsed and are not yet read by any guard, so
 `trivial_lines` and `protected` change nothing until the unit that wires them
 lands. `git-safety-guard.sh` still hardcodes `main` and `master`, and
