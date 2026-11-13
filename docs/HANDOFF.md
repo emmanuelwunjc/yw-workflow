@@ -1181,9 +1181,9 @@ Waits on the owner: whether the migrated repos also get a
 All open work is in lane #47 (the lane-claim follow-ups and the rest of this
 repo's backlog). Step 3 of the Start here block lists it (recount: step 3's
 command). First task, from its `## Next`: update the handoff sections of
-`/Users/yw1084/CLAUDE.md`. Its `## Next` holds the rest. Its items carry no `parallel` or `after`
-marks, so step 6 reads them all as `parallel`. Items 5 and 6 both edit
-`hooks/git-safety-guard.sh`, so run them one after the other. Two tickets gained
+`/Users/yw1084/CLAUDE.md`. Its `## Next` holds the rest. Only item 6 is marked `after` (item 5),
+because both edit `hooks/git-safety-guard.sh`. Step 6 reads every other
+item as `parallel`. Item 8 pastes the new step 6 into the other repos. Two tickets gained
 evidence from #65: #27 (the quoted `-C` repro) and #62 (skill prose commands
 nobody ran).
 
