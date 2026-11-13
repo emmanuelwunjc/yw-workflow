@@ -154,6 +154,10 @@ Then post the verdict where the change lives, including what you did not fix.
 Go back to step 4 with the new state. If a round changes code, the next round
 is mandatory: you have just changed the code, and the change is unreviewed.
 
+While a review round runs, the coordinator keeps the other `parallel` tasks
+running, each in its own worktree. `parallel` is a mark on a `## Next` item
+(see skill `handoff`). A review wait is the most common idle time.
+
 Stop on a clean round. A round is clean when it returns `PASS`. A `REVIEW`
 counts as clean only when the owner's answer needs no code change. If the
 answer changes code, that change gets another round. A clean round ends the

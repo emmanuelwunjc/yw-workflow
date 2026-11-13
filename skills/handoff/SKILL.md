@@ -18,7 +18,7 @@ A handoff exists so the next session starts working without anyone composing
 an opening prompt. The owner decided on 2026-09-16 that pointing a fresh agent
 at `docs/HANDOFF.md` is the whole prompt. Since 2026-11-10 the file's Start
 here block sends the session on to one open `lane` issue, and that issue's
-`## Next` names its first task. That holds only if every handoff has the same
+`## Next` names the tasks to start. That holds only if every handoff has the same
 shape, so this skill is the shape, and `hooks/handoff-freshness.py` warns when
 a repo drifts from it.
 
@@ -32,7 +32,7 @@ issue. On 2026-11-10 in EdSim, two lanes were open: a wage fix, run by a live
 session, and drafts of redesign tickets. The file named one first task, the
 wage fix, so a new session took the lane that was already taken. The drafts'
 next step lived only in the Handoff notes of a merged PR. A lane issue gives
-every session its own first task, and a `Held by:` line in the issue body
+every session its own tasks, and a `Held by:` line in the issue body
 shows which lane is taken.
 Issue edits cost no CI minutes unless a workflow runs `on: issues`, and
 every machine and cloud routine can read them.
@@ -55,14 +55,14 @@ whole briefing. Nobody writes you a separate prompt. Do these in order.
 2. Check that the repo has the label. This prints `lane` if it does:
    `gh label list --search lane --json name --jq '.[] | select(.name == "lane") | .name'`
    It prints nothing: this repo has no lane label yet. Read the LAST
-   section of this file for the first task, and go to step 6.
+   section of this file for the tasks, and go to step 6.
 3. List the open lanes. Free lanes come first, lowest issue number
    first. Held lanes follow, oldest time first:
 
    gh issue list --label lane --state open --limit 100 --json number,title,body --jq '(now | strftime("%Y-%m-%dT%H:%MZ")) as $now | map(((.body // "") | split("\n") | first // "" | rtrimstr("\r")) as $h | {n: .number, t: .title, h: $h, s: (($h | capture("^Held by: (?<name>.+), since (?<time>[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}Z)$") | select(.name != "nobody" and .time <= $now) | .time) // null)}) | sort_by(if .s then [1, .s, .n] else [0, .n] end) | .[] | "#\(.n) \(.t) | \(if .s or .h == "Held by: nobody" then .h else "Held by: (malformed)" end)"'
 
    No lines: no lane is open. Read the LAST section of this file for the
-   first task, and go to step 6. 100 lines: raise `--limit`, list again.
+   tasks, and go to step 6. 100 lines: raise `--limit`, list again.
 4. Pick a lane. A lane is free when its `Held by:` line says nobody or
    is malformed, or its time is over 24 hours old and ListAgents does
    not show that session live. Else it is held. The owner named a lane:
@@ -83,8 +83,13 @@ whole briefing. Nobody writes you a separate prompt. Do these in order.
    adds its run start, e.g. `cloud routine nightly 2026-11-10T06:17Z`.
 6. Read the lane issue's `## Next`, or with no lane the LAST section.
    Read the recent sections of this file for traps. Run the recount
-   commands before trusting any number. Start the first task it names.
-   Ask the owner nothing it already answers.
+   commands before trusting any number. A task with no mark is `parallel`
+   unless it names another task it waits for. Start every `parallel`
+   task it names in the same turn, each in its own worktree (`git-lanes`), two
+   to four at once. Start any more as earlier tasks merge or stop. Start an
+   `after` task when its dependency merges. If you stop before that,
+   leave it in `## Next` with its `after` mark for the next session. Ask
+   the owner nothing it already answers.
 
 Write a lane body only with `scripts/lane_claim.py write` or `release`,
 and if it refuses, change nothing, stop, and tell the owner. Update
@@ -177,11 +182,20 @@ within hours. Derive them with `gh issue list` and the scripts in the repo.
 - **A lane issue's `## Next` is that lane's briefing.** The file's closing
   section keeps the same shape, for the case with no open lane. Each names,
   in this order:
-  1. The one task to start first.
-  2. The tickets to work, in order, e.g. `#186 (the mutation list is data)`.
-  3. What waits on the owner, so the next session asks nothing already
+  1. The tasks to work, each marked `parallel` or `after <item>`, e.g.
+     `#186 (the mutation list is data), parallel` and
+     `#187 (the writer reads the list), after #186`. An item marked
+     `after <item>` waits for that item to merge. An item with no mark
+     waits only when it names another item it depends on, e.g. "after
+     #186" or "once #186 merges". Order words inside one item, e.g.
+     "first", "then" or "in their stated order", order the work in that
+     item and set no dependency on other items. Any other item with no
+     mark is `parallel`, also in a plain numbered list. Step 6 of the block
+     starts every `parallel` item at once, so a session does not run
+     independent work one item at a time.
+  2. What waits on the owner, so the next session asks nothing already
      answered and does not wait on something it could do.
-  4. A recount command beside every number, e.g. `4 open (gh issue list
+  3. A recount command beside every number, e.g. `4 open (gh issue list
      --label handoff | wc -l)`. A bare number is a claim nobody can check.
 - **Judgment, never derivable state.** Why a decision went the way it did,
   what was deliberately not done, which alternative lost and on what
@@ -225,7 +239,7 @@ PRs runs it before it stops. A lane session never closes one this way.
 
 3. Fold each into the log under its own dated heading, keeping
    the `## Next` section (or the closing section, in repos whose handoff uses one) last.
-4. Rewrite the `## Next` section (or the closing section, in repos whose handoff uses one) if the first task changed.
+4. Rewrite the `## Next` section (or the closing section, in repos whose handoff uses one) if its tasks changed.
 5. Bring the lane issues up to date. A note that names a next step for work
    still open goes into that lane's issue `## Next`. The pass writes a lane
    body only as its holder: it claims the lane with `lane_claim.py claim`,
@@ -271,7 +285,7 @@ miss is blocking:
 
 - Every merged PR in the pass whose Handoff notes name a next step for work
   still open has an open `lane` issue that carries that step.
-- No two open `lane` issues name the same first task.
+- No two open `lane` issues name the same task.
 - Every `lane` issue the pass closed cites a PR, in its closing comment,
   whose notes say `Lane: #<N>. finished` for that issue.
 - A `lane` issue whose `updatedAt` and `Held by:` time are both over 7 days

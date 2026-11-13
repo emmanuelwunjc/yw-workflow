@@ -359,7 +359,7 @@ def main() -> None:
         what = (f"run the handoff pass now, on a {HANDOFF_BRANCH_PREFIX}* "
                 f"branch: copy the `{NOTES_HEADING}` of each PR merged since "
                 f"the last pass into {HANDOFF}, and rewrite `## Next` (or the closing section) "
-                f"if the first task changed")
+                f"if its tasks changed")
     else:
         what = (f"{HANDOFF} does not exist yet. Create it in a handoff pass "
                 f"on a {HANDOFF_BRANCH_PREFIX}* branch")
