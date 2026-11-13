@@ -64,8 +64,8 @@ script: a repo copies `skills/mutation-gate/mutation_gate.py` verbatim and adds
 a data file, and `fresh-eye` findings are where its entries come from.
 
 `handoff` closes a session: the Start here block of `docs/HANDOFF.md` has the
-next session claim one open `lane` issue, whose `## Next` names its first
-task. `handoff` ships a script too: a repo copies
+next session claim one open `lane` issue, whose `## Next` names its
+tasks. `handoff` ships a script too: a repo copies
 `skills/handoff/lane_claim.py` to `scripts/lane_claim.py`, and the block claims,
 writes and releases a lane only through it. `handoff-freshness.py` warns when
 the file lacks the shape that makes that true. Lanes never edit that file. Each writes a

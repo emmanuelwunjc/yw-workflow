@@ -10,14 +10,14 @@ whole briefing. Nobody writes you a separate prompt. Do these in order.
 2. Check that the repo has the label. This prints `lane` if it does:
    `gh label list --search lane --json name --jq '.[] | select(.name == "lane") | .name'`
    It prints nothing: this repo has no lane label yet. Read the LAST
-   section of this file for the first task, and go to step 6.
+   section of this file for the tasks, and go to step 6.
 3. List the open lanes. Free lanes come first, lowest issue number
    first. Held lanes follow, oldest time first:
 
    gh issue list --label lane --state open --limit 100 --json number,title,body --jq '(now | strftime("%Y-%m-%dT%H:%MZ")) as $now | map(((.body // "") | split("\n") | first // "" | rtrimstr("\r")) as $h | {n: .number, t: .title, h: $h, s: (($h | capture("^Held by: (?<name>.+), since (?<time>[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}Z)$") | select(.name != "nobody" and .time <= $now) | .time) // null)}) | sort_by(if .s then [1, .s, .n] else [0, .n] end) | .[] | "#\(.n) \(.t) | \(if .s or .h == "Held by: nobody" then .h else "Held by: (malformed)" end)"'
 
    No lines: no lane is open. Read the LAST section of this file for the
-   first task, and go to step 6. 100 lines: raise `--limit`, list again.
+   tasks, and go to step 6. 100 lines: raise `--limit`, list again.
 4. Pick a lane. A lane is free when its `Held by:` line says nobody or
    is malformed, or its time is over 24 hours old and ListAgents does
    not show that session live. Else it is held. The owner named a lane:
@@ -38,8 +38,13 @@ whole briefing. Nobody writes you a separate prompt. Do these in order.
    adds its run start, e.g. `cloud routine nightly 2026-11-10T06:17Z`.
 6. Read the lane issue's `## Next`, or with no lane the LAST section.
    Read the recent sections of this file for traps. Run the recount
-   commands before trusting any number. Start the first task it names.
-   Ask the owner nothing it already answers.
+   commands before trusting any number. A task with no mark is `parallel`
+   unless it names another task it waits for. Start every `parallel`
+   task it names in the same turn, each in its own worktree (`git-lanes`), two
+   to four at once. Start any more as earlier tasks merge or stop. Start an
+   `after` task when its dependency merges. If you stop before that,
+   leave it in `## Next` with its `after` mark for the next session. Ask
+   the owner nothing it already answers.
 
 Write a lane body only with `scripts/lane_claim.py write` or `release`,
 and if it refuses, change nothing, stop, and tell the owner. Update
