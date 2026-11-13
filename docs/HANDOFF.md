@@ -1109,11 +1109,13 @@ Waits on the owner: whether the migrated repos also get a
 ## 2026-11-12: the handoff pass ends in the session's folder (#63)
 
 - The pass branches in the session's own folder and ends there: on trunk
-  after a merge, on the pass branch if not merged.
+  after a merge, on the pass branch if not merged. The reply's last line names
+  the folder.
 - Trap: renaming a PR's head branch through GitHub's rename API closes the
   PR. GitHub retargets PRs whose base is renamed, and closes PRs whose head
   is renamed. Seen on #60.
-- Repos that copied the handoff skill text get this only at their next pass.
+- Repos that copied the handoff skill text do not get this until their next
+  pass reads the plugin skill.
 
 ## 2026-11-13: a pm skill runs agents through Orca, with a subagent fallback (#65)
 
@@ -1123,7 +1125,8 @@ Waits on the owner: whether the migrated repos also get a
 - Why workers use git worktrees in the PM's folder, against Orca's own guide:
   a new Orca workspace needs `orca repo add`, and `orca` 1.4.250 cannot remove
   a repo. Only `orca project setup-delete --force` cleared the record. A batch
-  now leaves only a Run and its Tasks in Orca's log.
+  now leaves only a Run and its Tasks in Orca's log. Never `orca repo add` a
+  throwaway repo.
 - Why the skill does not script the workers' git commands: rounds 1 to 8 of
   review kept finding shell-quoting and git-safety-hook cases in those
   commands. Each worker is a full session with `git-lanes`, so it runs its
@@ -1136,7 +1139,8 @@ Waits on the owner: whether the migrated repos also get a
 - Trap: the git safety hook judges a whole Bash call by its last `-C` path.
   A worker that runs `git -C <primary> status` in the same call as its commit
   is refused. Commit in a call of its own. A quoted `-C` path is misread too
-  (#27, #15).
+  (#27). #15 has the reverse case, a quoted `cd` path that lets a commit onto
+  `main`.
 
 ## 2026-11-13: handoff pass
 
@@ -1144,7 +1148,8 @@ Waits on the owner: whether the migrated repos also get a
 
 All open work is in lane #47 (the lane-claim follow-ups and the rest of this
 repo's backlog). Step 3 of the Start here block lists it (recount: step 3's
-command). Its `## Next` still holds the task order. Two tickets gained
+command). First task, from its `## Next`: update the handoff sections of
+`/Users/yw1084/CLAUDE.md`. Its `## Next` holds the order after that. Two tickets gained
 evidence from #65: #27 (the quoted `-C` repro) and #62 (skill prose commands
 nobody ran).
 
