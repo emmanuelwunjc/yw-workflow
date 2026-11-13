@@ -1097,3 +1097,60 @@ command). Its `## Next` holds, in order:
 
 Waits on the owner: whether the migrated repos also get a
 `.github/workflows/guards.yml`, carried over from 2026-09-16.
+
+## 2026-11-11: every lane commits before it returns (#56)
+
+- A builder or fixer lane commits its work before it returns, as a WIP commit
+  if unfinished. A stopping session names any leftover branch.
+- The SessionStart move named in #22 was dropped. The sessions it reached ran
+  isolated and could not run git in another worktree, so the rule lives in
+  skill text. #22 carries that comment.
+
+## 2026-11-12: the handoff pass ends in the session's folder (#63)
+
+- The pass branches in the session's own folder and ends there: on trunk
+  after a merge, on the pass branch if not merged.
+- Trap: renaming a PR's head branch through GitHub's rename API closes the
+  PR. GitHub retargets PRs whose base is renamed, and closes PRs whose head
+  is renamed. Seen on #60.
+- Repos that copied the handoff skill text get this only at their next pass.
+
+## 2026-11-13: a pm skill runs agents through Orca, with a subagent fallback (#65)
+
+- `/yw-workflow:pm` has a status mode and a batch mode. Batch mode runs Orca
+  workers only from an Orca terminal at the primary checkout. Else it says so
+  in one line and uses the `yw-workflow` subagents.
+- Why workers use git worktrees in the PM's folder, against Orca's own guide:
+  a new Orca workspace needs `orca repo add`, and `orca` 1.4.250 cannot remove
+  a repo. Only `orca project setup-delete --force` cleared the record. A batch
+  now leaves only a Run and its Tasks in Orca's log.
+- Why the skill does not script the workers' git commands: rounds 1 to 8 of
+  review kept finding shell-quoting and git-safety-hook cases in those
+  commands. Each worker is a full session with `git-lanes`, so it runs its
+  own git. The skill keeps only commands the PM runs, each one run.
+- One PR per ticket: the owner chose this on 2026-11-13, over the combined PR
+  in `~/CLAUDE.md` section 3.
+- Trap: in an Orca terminal, `orca` is on PATH from two folders. A test that
+  hides it must drop `/usr/local/bin` and
+  `/Applications/Orca.app/Contents/Resources/bin`.
+- Trap: the git safety hook judges a whole Bash call by its last `-C` path.
+  A worker that runs `git -C <primary> status` in the same call as its commit
+  is refused. Commit in a call of its own. A quoted `-C` path is misread too
+  (#27, #15).
+
+## 2026-11-13: handoff pass
+
+### Next
+
+All open work is in lane #47 (the lane-claim follow-ups and the rest of this
+repo's backlog). Step 3 of the Start here block lists it (recount: step 3's
+command). Its `## Next` still holds the task order. Two tickets gained
+evidence from #65: #27 (the quoted `-C` repro) and #62 (skill prose commands
+nobody ran).
+
+Waits on the owner:
+- Remove the global `~/.claude/skills/pm` symlink, which shadows the new
+  `pm` skill.
+- Add a `pm` row to the "Where things live" table in `~/CLAUDE.md`.
+- Whether the migrated repos also get a `.github/workflows/guards.yml`,
+  carried over from 2026-09-16.
