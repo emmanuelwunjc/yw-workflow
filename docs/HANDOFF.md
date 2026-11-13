@@ -1155,6 +1155,9 @@ Waits on the owner: whether the migrated repos also get a
   ("first", "then") order that item's work and set no dependency. Found in
   edsim-paper (#82): a session ran only review loops for an hour while the
   paper sections, which needed none of that tooling, waited.
+- A lane may edit the Start here block. Change the pinned copy in
+  `hooks/handoff-freshness-selftest.py` first. The self-test then fails
+  until all three copies match.
 - Every other repo keeps its pasted old step 6, so its sessions stay serial
   until someone pastes the new block. #85 adds a warning for this.
 - Why the default rule took four fix rounds: each fix put the rule where the
