@@ -17,8 +17,8 @@ A prose rule holds while it sits in the reader's recent context. It fails
 once the session moves on, a skill body loads later, or the work goes to a
 subagent that never saw it. The failure is silent: the owner finds it by
 reading the output. Issue #94 (prose rules fail silently), collected on
-2026-11-13, lists thirteen such cases. This skill moves a rule from text into something that
-runs.
+2026-11-13, lists thirteen cases. This skill moves a rule from text into
+something that runs.
 
 Three ways in:
 
@@ -32,20 +32,16 @@ Three ways in:
 
 1. **Quote the rule and its source.** Copy the rule word for word with its
    file and line, e.g. `~/CLAUDE.md` section 7, or a memory file, or a lane
-   issue's `## Next`. Name one real time it broke, if one is known.
-   Then look for a mechanism that already covers it: grep the plugin's
-   `hooks/`, the repo's `.claude/hooks/` and CI for the rule's key words.
-   Found, and it blocks the case: report the file and the proof command, and
-   stop. Found, and a case gets through: add that case to the hook's
-   self-test and fix the hook that exists. Steps 2 to 8 then apply to that
-   hook.
-2. **Find the event where the violation shows.** A script can only see what
-   an event hands it. Pick each event that carries the violation, e.g. a
-   rule about all prose needs Stop for replies and PreToolUse on Write for
+   issue's `## Next`. Name one real time it broke, if one is known. Each
+   break is a broken input for step 7.
+2. **Find every event where the violation shows.** A script can only see
+   what an event hands it. List each event that carries the violation, e.g.
+   a rule about all prose needs Stop for replies and PreToolUse on Write for
    files:
    - a tool call, before it runs (PreToolUse: the Bash command text, the
      Write content),
    - the end of a turn (Stop: the reply text and the transcript),
+   - the end of a subagent's turn (SubagentStop: the subagent's reply),
    - a tool call, after it ran (PostToolUse: e.g. a `gh pr merge` that
      finished),
    - a pushed branch (CI: the diff, the built files, the PR body),
@@ -60,12 +56,27 @@ Three ways in:
    judgment rule ends here: say it cannot be enforced, say which word in it
    needs a reader, and change nothing. A rule with a mechanical part and a
    judgment part: enforce the mechanical part and name the part left as
-   prose.
-4. **Put it where the rule's scope is.**
+   prose. A check on the mechanical part may also stop some correct work,
+   e.g. blocking every `gh pr create --draft` for "never park work in a
+   draft PR". Take it only when its override is cheap, and name the correct
+   work it stops in the report.
+4. **Find what already covers it.** Search every place a mechanism can live,
+   for the rule's key words and for each event from step 2:
+   - the plugin's `hooks/` and `hooks/hooks.json`,
+   - `~/.claude/hooks/` and the `hooks` block of `~/.claude/settings.json`,
+   - the repo's `.claude/hooks/`, `.claude/settings.json` and
+     `.claude/settings.local.json`,
+   - the repo's CI files and its branch protection.
+
+   For each event, a mechanism covers it when its self-test passes and it
+   blocks the step 1 breaks. Every event covered: report the files and the
+   proof commands, and stop. Some events not covered: go on with only those
+   events, and extend the mechanism that exists before you add a new one.
+5. **Put it where the rule's scope is.**
    - A rule from `~/CLAUDE.md` holds in every repo. Its hook goes in this
-     plugin: a new rule in the hook that already reads that event (e.g.
-     `hooks/claude-md-guard.py` for a reply rule), or a new
-     `hooks/<name>.py` wired in `hooks/hooks.json`.
+     plugin. Extend the plugin hook whose subject is closest, e.g.
+     `hooks/claude-md-guard.py` for a rule about reply prose. No hook has
+     that subject: add `hooks/<name>.py`, wired in `hooks/hooks.json`.
    - A rule for one repo (its `CLAUDE.md`, its memory, a lane issue) goes in
      that repo: a hook in `.claude/hooks/` wired in `.claude/settings.json`.
    - Add a CI check when the violation leaves a trace in the repo (a file, a
@@ -73,9 +84,10 @@ Three ways in:
      laptop's hooks. A rule about replies or tool calls leaves no trace, so it
      gets a hook only. No CI yet: run *Repo setup* first.
    - A rule from `~/CLAUDE.md` that leaves a trace gets both homes: the plugin
-     hook, and a CI check in each repo that needs it. Code the plugin ships
-     for repos to copy (e.g. `skills/handoff/lane_claim.py`) is changed in the
-     plugin, then copied.
+     hook, and a CI check in each repo where the owner names the trace as a
+     problem. Ask the owner which repos when the rule does not say. Code the
+     plugin ships for repos to copy (e.g. `skills/handoff/lane_claim.py`) is
+     changed in the plugin, then copied.
    - A rule a subagent must follow needs a hook. A subagent never reads the
      parent's memory, and hooks from settings files and plugins run inside
      subagents too ("When a subagent calls a tool, tool events such as
@@ -83,9 +95,11 @@ Three ways in:
      main conversation", https://code.claude.com/docs/en/hooks.md). That
      covers tool events. A rule about a subagent's final reply needs
      `SubagentStop`, because `Stop` fires only for the main session.
+     `SubagentStop` also fires for Claude Code's own internal agents, so the
+     self-test holds one internal-agent reply that must pass.
 
    Say the choice in one line before you build.
-5. **Take the cheapest mechanism that blocks**, in this order: a hook that
+6. **Take the cheapest mechanism that blocks**, in this order: a hook that
    blocks, CI that fails, a config setting that forbids. A hook blocks: it
    exits 2 with the reason on stderr. A warning that only prints is the last
    choice, used only where a block would stop correct work, and the report
@@ -93,26 +107,29 @@ Three ways in:
    again after each merge", gets a mechanism that does the step: a
    PostToolUse hook or a CI job on push to `main`. Doing the step beats
    blocking the next one.
-6. **Build it test first.** Write the self-test before the hook, beside it as
+7. **Build it test first.** Write the self-test before the hook, beside it as
    `<name>-selftest.py`, in the shape of `hooks/no-ai-attribution-selftest.py`.
-   It holds each broken input from step 1 with the result it must give, and
-   one valid input that must pass. Run it and see it fail. Then write the
-   hook. Give the hook an override that shows in the command, e.g.
-   `SKIP_<NAME>=1`, and say it in the block message. Add a `mutation-gate`
-   entry when the repo has the gate.
-7. **Point the prose at the mechanism, after it is live.** Keep the rule's
+   An extended hook gets new cases in its own self-test. The self-test holds
+   each broken input from step 1 with the result it must give, and one valid
+   input that must pass. Run it and see it fail. Then write the hook. Give
+   the hook an override that shows in the command, e.g. `SKIP_<NAME>=1`, and
+   say it in the block message. Add a `mutation-gate` entry when the repo has
+   the gate.
+8. **Point the prose at the mechanism, after it is live.** Keep the rule's
    text, and add one line after it, e.g. `Enforced by <file> (<event>,
    blocks the call).` Write what it does: blocks the call, blocks the turn,
-   fails CI, or does the step. Add the line only after the PR merges and,
-   for a plugin hook, after `claude plugin update yw-workflow@yw-workflow`
-   installs it. A line in `~/CLAUDE.md` that names a mechanism not yet
-   installed sends every session to something that is not there.
-8. **Ship it** through `/yw-workflow:ship-loop`: one PR for each repo it
-   touches, the plugin first. The reviewer gets
-   the broken inputs to try, and asks for three more.
+   fails CI, or does the step. Add the line only when the mechanism runs.
+   For a repo hook or CI check, that is the merge. For a plugin hook, it is
+   the merge, then `claude plugin marketplace update yw-workflow`, then
+   `claude plugin update yw-workflow@yw-workflow`, then a restart of Claude
+   Code. A line in `~/CLAUDE.md` that names a mechanism not yet installed
+   sends every session to something that is not there.
+9. **Ship it** through `/yw-workflow:ship-loop`. Each repo the rule touches
+   gets its own PR, the plugin first. The reviewer gets the broken inputs to
+   try, and asks for three more.
 
-Report back: the rule, the event, the file, the command that proves it fails
-on a violation, and any part left as prose.
+Report back: the rule, each event, the file, the command that proves it fails
+on a violation, any part left as prose, and any correct work the check stops.
 
 ## Audit
 
@@ -123,7 +140,7 @@ on a violation, and any part left as prose.
 2. **Set aside the ones already enforced.** A rule with an `Enforced by`
    line, or one a hook already blocks, goes in an *Already enforced* list
    with its file and proof command. Check the hook exists first.
-3. **Run steps 2 to 5 of *One rule* on each one left**, without building.
+3. **Run steps 2 to 6 of *One rule* on each one left**, without building.
 4. **Write the table**, one row per rule:
 
    | Rule (quoted) | Source | Class | Event | Mechanism and home | Proof command |
@@ -137,8 +154,8 @@ on a violation, and any part left as prose.
    the broken inputs, acceptance criteria as boxes, and the proof command.
    When the owner asked for the table only, print the `gh issue create`
    commands and file nothing.
-6. **Build the tickets** through `/yw-workflow:ship-loop`, one PR each, one
-   *One rule* run each. Keep at most four built branches waiting for review.
+6. **Build the tickets** through `/yw-workflow:ship-loop`, one *One
+   rule* run each. Keep at most four built branches waiting for review.
 
 ## Repo setup: CI and branch protection
 
@@ -319,7 +336,7 @@ actually run there.
 ## Hands off to
 
 - Each mechanism ships through `/yw-workflow:ship-loop`, one PR for each
-  ticket, and the reviewer from `/yw-workflow:fresh-eye` tries the broken
+  repo a ticket touches, and the reviewer from `/yw-workflow:fresh-eye` tries the broken
   inputs.
 - A new self-check in a repo with the gate: `/yw-workflow:mutation-gate` proves
   it can fail.
