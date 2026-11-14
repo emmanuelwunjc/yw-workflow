@@ -26,6 +26,95 @@ project level and would write into whatever directory you are standing in.
 A few skills mention "your CLAUDE.md". They read fine without one, and better
 with the rules in it.
 
+
+## Workflow
+
+yw-workflow is made to sit beside [Matt Pocock's
+skills](https://github.com/mattpocock/skills). yw-workflow's skills plan the work,
+isolate it, review it, merge it, and carry it to the next session. Blue boxes
+are yw-workflow skills. Brown boxes are mattpocock-skills, called as
+`/mattpocock-skills:<name>`. The green box uses one skill from each set. Grey
+boxes are inputs, steps and agents. Every arrow is a hand-off that a skill
+names today.
+
+```mermaid
+flowchart LR
+    subgraph S1 [1 Start]
+        direction TB
+        idea([idea]):::start
+        bug([bug]):::start
+    end
+    subgraph S2 [2 Plan]
+        direction TB
+        grill[grill]:::yw
+        way[wayfinder]:::yw
+    end
+    subgraph S3 [3 Ship one ticket: ship-loop]
+        direction TB
+        ticket([ticket]):::start
+        lanes[git-lanes]:::yw
+        build[tdd<br/>diagnosing-bugs for a bug]:::matt
+        review[fresh-eye<br/>+ code-review]:::both
+        fixer([fixer agent]):::start
+        merge([PR and merge]):::start
+        ticket -->|repo shared| lanes --> build --> review
+        ticket --> build
+        review -->|blocking| fixer --> review
+        review -->|clean| merge
+    end
+    subgraph S4 [4 After merge]
+        direction TB
+        handoff[handoff]:::yw
+    end
+    idea --> grill
+    grill -->|too big for one session| way
+    grill -->|one session| ticket
+    way -->|map done| ticket
+    bug --> ticket
+    merge --> handoff
+    handoff -->|next session| lanes
+
+    classDef yw fill:#1f4e79,stroke:#1f4e79,color:#ffffff
+    classDef matt fill:#8a4500,stroke:#8a4500,color:#ffffff
+    classDef both fill:#3d5c3d,stroke:#3d5c3d,color:#ffffff
+    classDef start fill:#e8e8e8,stroke:#888888,color:#111111
+```
+
+How to read it, one stage at a time:
+
+1. **Start.** Work arrives as an idea or a bug.
+2. **Plan.** An idea goes to `grill`, one decision at a time. Work sized for
+   one session goes straight to `ship-loop`. Work too big for one session goes
+   to `wayfinder`, which maps it as decision tickets and hands the finished map
+   to `ship-loop`. The model cannot call the yw `wayfinder`, so type
+   `/yw-workflow:wayfinder`. Open ticket
+   [#45](https://github.com/emmanuelwunjc/yw-workflow/issues/45) will replace
+   it with Matt's copy.
+3. **Ship one ticket.** `ship-loop` runs each ticket around one loop.
+   `git-lanes` gives the agent its own worktree when others may share the repo.
+   A change to behavior is written test first with `tdd`. A bug starts with
+   `diagnosing-bugs`, which finds one command that fails first. `fresh-eye`
+   sends a reviewer who did not write the change. For a change that assembles or
+   corrects code, the reviewer also runs `code-review` when it is installed.
+   Blocking findings go to a `fixer` agent, and the fix gets a new review.
+   After a clean review, the lane merges (`git-lanes`). Its PR body records
+   each review (`ship-loop` step 6).
+4. **After merge.** `handoff` writes what the next session needs, and the next
+   session starts from it.
+
+Skills for any stage:
+
+| Skill | Set | Use it when |
+|---|---|---|
+| `harden` | yw | A repo has no CI or branch protection yet. |
+| `need-me` | yw | You want only what waits on you. |
+| `pm` | yw | You want status, or one chat that runs the agents. |
+| `mutation-gate` | yw | A check must prove it can fail. |
+| `eli5`, `eli5-text` | yw | A topic needs the plain version. |
+| `wait-what` | matt | The last message did not land. |
+| `domain-modeling` | matt | A term needs one meaning in `GLOSSARY.md`. |
+| `prototype` | matt | A question needs code to answer it. |
+
 ## Skills
 
 Each one carries a one-line summary at the top.
@@ -47,199 +136,24 @@ Each one carries a one-line summary at the top.
 
 Invoke them namespaced: `/yw-workflow:grill`.
 
-They chain, and each one's "Hands off to" section names the next, so loading
-any of them reaches the rest.
-
-```
-grill -> wayfinder -> git-lanes -> ship-loop -> fresh-eye
-              |                         |            |
-              +--------> need-me <------+------------+
-```
-
-`ship-loop` and `fresh-eye` share one review procedure. `ship-loop` step 6
-has when the loop stops and the `Rounds:` line each PR body carries.
-
-`harden` runs once per repo, before any of it merges. `mutation-gate` ships a
-script: a repo copies `skills/mutation-gate/mutation_gate.py` verbatim and adds
-a data file, and `fresh-eye` findings are where its entries come from.
-
-`handoff` closes a session: the Start here block of `docs/HANDOFF.md` has the
-next session claim one open `lane` issue, whose `## Next` names its
-tasks. `handoff` ships a script too: a repo copies
-`skills/handoff/lane_claim.py` to `scripts/lane_claim.py`, and the block claims,
-writes and releases a lane only through it. `handoff-freshness.py` warns when
-the file lacks the shape that makes that true. Lanes never edit that file. Each writes a
-`## Handoff notes` section in its PR body, and one handoff pass on a
-`docs/handoff-*` branch folds the notes in after the merges.
-
-`eli5` and `eli5-text` are off the diagram because they explain a thing rather
-than ship one. They are still in the graph: `grill` and `need-me` reach
-`eli5-text` when a decision is blocked on understanding, and `ship-loop` and
-`harden` reach `eli5` when a change needs explaining to someone who will not
-read the diff.
-
 ## Hooks
 
 Each exists because a rule broke and prose was not enough. They come with the
-plugin path only.
+plugin path only. The full rules, the CI gate and the config are in
+[`docs/HOOKS.md`](docs/HOOKS.md).
 
 | | | |
 |---|---|---|
 | **git-safety-guard.sh** | PreToolUse, `git *` | Blocks commits straight to `main` and tree moves that collide with another agent. |
-| **require-code-review.py** | PreToolUse | Blocks `gh pr merge <number>` on a 25+ line PR with no review, looked up in the repo the command targets (`cd`, `-R`, a PR URL, `GH_REPO`) rather than the folder the session started in. A merge it finds and cannot tie to a literal PR and repo is blocked with a request for `-R owner/repo`. It reads the merge from the command text, so a command that only mentions one with a number is judged as a merge, and a merge with no number is invisible to it (#17). Override: `export SKIP_REVIEW_GATE=1;` in front of the command, announced on stderr when honored. |
+| **require-code-review.py** | PreToolUse | Blocks `gh pr merge <number>` when a PR changes 25+ lines of code files (e.g. `.py`, `.sh`, `.yml`) and has no review. Override: `export SKIP_REVIEW_GATE=1;` in front of the command. |
 | **no-ai-attribution.py** | PreToolUse | Keeps AI-generation footers out of anything people read. Commit trailers stay. |
-| **zsh-trap-guard.py** | PreToolUse | The Bash tool runs commands under zsh. Blocks an unbraced `$name:` before a letter zsh reads as a modifier (`$s:refs` applies `:r`, so write `${s}:refs`), and `for v in $VAR`, which zsh does not split into words. Ignores single-quoted text and quoted heredocs. Switch: `[rules] zsh_traps`. |
+| **zsh-trap-guard.py** | PreToolUse | Blocks two zsh traps in Bash commands, e.g. `$s:refs` (write `${s}:refs`). |
 | **claude-md-guard.py** | UserPromptSubmit, Stop | Blocks em-dashes, negation-then-correction, and prose questions where checkboxes are required. |
-| **handoff-freshness.py** | Stop | On a lane whose net diff from trunk changes real files, reminds it to write the PR body's `## Handoff notes` section, and warns any lane (a detached HEAD included) whose net diff changes `docs/HANDOFF.md`. On trunk (`main`, `master`, or what `origin/HEAD` names) or a `docs/handoff-*` branch, catches work piling up against an untouched `docs/HANDOFF.md`. Also catches a `docs/HANDOFF.md` that lacks the `## Start here` block, has a block that never lists the open `lane` issues, still opens with an "end of a session" preamble, has a block that runs `scripts/lane_claim.py` in a repo without that file, or has a handoff-named `.md` tracked outside `docs/` (the shape in skill `handoff`). Override: `SKIP_HANDOFF_CHECK=1`. |
-| **context-handoff.py** | PostToolBatch, UserPromptSubmit, Stop | Winds a session down when its context passes about 120k tokens, the end of the "smart zone", and again at every 100k past that. The notice tells the model to start no new work, spawn no subagents, let running ones finish for at most 15 minutes, then write the handoff and tell the user to start a fresh session. After the 15 minutes, with no handoff written, a second notice says to save what each running subagent has, stop it, and write the handoff now. Blocks one Stop per notice while `docs/HANDOFF.md` is untouched since the notice, on any branch or worktree. Known limits: it cannot see a lane's notes in a PR body, or anything in a folder that is not a git repo, so there the deadline notice and the one block always arrive. The hook instructs and the model acts: it stops no subagent itself. Reads the size from the last assistant message's usage in the transcript. Main thread only. Settings: `[rules] context_handoff` and `[context_handoff] first`, `step`, `grace_minutes` in `.handrail.toml`. |
+| **handoff-freshness.py** | Stop | On a lane that changes real files, reminds it to write the PR body's `## Handoff notes`, and warns if the lane changes `docs/HANDOFF.md`. On trunk or a `docs/handoff-*` branch, warns when work piles up against an untouched `docs/HANDOFF.md`. Override: `SKIP_HANDOFF_CHECK=1`. |
+| **context-handoff.py** | PostToolBatch, UserPromptSubmit, Stop | Winds a session down past about 120k tokens of context, and has it write the handoff. |
 
-Wire them in one place only. Wiring the same hook here and in
-`~/.claude/settings.json` fires it twice and halves its block budget.
-
-`git-safety-guard.sh` matches the literal string `git `. A wrapper (`wt`,
-lazygit, a Makefile target) runs git as a subprocess and every rule stops
-applying, so adding one means adding its command names to the hook in the same
-commit.
-
-## CI gate
-
-A hook protects one machine. Anyone who skips the install, sets
-`TEAMAI_HOOKS_DISABLED=1`, or clones on a fresh laptop is unguarded, and nothing
-says so. The same rules run server-side as a composite action, so a team gets
-them as a required status check:
-
-```yaml
-# .github/workflows/guards.yml in any repo
-on: pull_request
-permissions:
-  contents: read
-  pull-requests: read
-jobs:
-  guards:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: emmanuelwunjc/yw-workflow/.github/actions/guards@main
-```
-
-Pin a release tag in place of `@main` so a change here cannot alter what a
-consumer's required check enforces.
-
-Then name `guards` as a required context in branch protection, or the check is
-advisory and a red run merges anyway.
-
-The action takes no inputs, so no rule can be switched off. A selector gated on
-a substring match turns one typo into a job that skips every step and reports
-success, which is what the first two versions of this action did. Each rule
-still scopes itself to what it reads, so a PR touching only `.py` files scans no
-prose and the review gate carries the run.
-
-The action assumes a Linux runner. `xargs -a`, `xargs -d` and process
-substitution are what the steps are built on. Its scratch files go in
-`$RUNNER_TEMP`, which is job-scoped, so two jobs on one self-hosted runner do
-not overwrite each other's file lists.
-
-| Rule | What it reads | What fails the job |
-|---|---|---|
-| `claude-md` | changed `.md` and `.txt` files | an em-dash or a negation-then-correction in prose, with code fences exempt |
-| `no-ai-attribution` | the PR body and changed prose files | a generation footer or a session URL, and in the PR body a `Claude-Session:` line too. That trailer still passes inside changed files |
-| `review-gate` | the PR's files, reviews, and comments | a 25+ line code diff with no approval and no verdict comment, including a verdict the author posted themselves |
-
-Three differences from the hook path, each deliberate:
-
-- **It fails closed.** A guard that crashes, or an API lookup that comes back
-  empty, fails the job. The hooks do the opposite, because a broken guard must
-  never wedge a live session. A required check that passes when it could not run
-  is a rubber stamp.
-- **`review-gate` skips the all-checks-green gate the hook runs first.** In CI
-  this check is one of those checks, so asking whether every check is green
-  would always find this one in progress.
-- **Attribution scanning stops at prose.** A guard, a test, or a script that
-  quotes the banned footer on purpose is source. This repo's own hooks are that
-  case, and scanning every changed file reports the rule's documentation as a
-  violation of itself.
-
-There is no author filter on that verdict comment, which is how this repo's own
-flow satisfies the gate: a review runs, its verdict is posted, the gate opens.
-Requiring a second GitHub account would make it unsatisfiable for a solo
-maintainer. Branch protection is where "somebody else must approve" belongs.
-
-`SKIP_REVIEW_GATE=1` has no effect here. Bypassing a server-side gate is a
-branch-protection decision, and it belongs with the people who own the branch.
-
-## Config
-
-**Read this first: only `claude-md-guard.py`, `no-ai-attribution.py`,
-`context-handoff.py` and `zsh-trap-guard.py` consult the config today.** The
-`[rules]` switches and `policy_doc` work for the first two,
-`context-handoff.py` reads its switch and its `[context_handoff]` values, and
-`zsh-trap-guard.py` reads only its switch.
-The other value keys below are parsed and are not yet read by any guard, so
-`trivial_lines` and `protected` change nothing until the unit that wires them
-lands. `git-safety-guard.sh` still hardcodes `main` and `master`, and
-`require-code-review.py` still hardcodes 25 lines. The CI half is not wired
-either: the action runs the guards' `scan` entry points, which never read a
-config.
-
-Every rule is on by default except negation-then-correction, which is the one
-heuristic with known false positives. To change that, write `.handrail.toml` in
-a repo, or `~/.handrail.toml` for your machine.
-
-```toml
-policy_doc = "ENGINEERING.md"     # cited in block messages when the file exists
-
-[rules]
-negation = true                   # off by default
-em_dash = false                   # only your user config may switch one off
-
-[git_safety]
-protected = ["main", "trunk"]
-
-[require_review]
-trivial_lines = 10
-
-[context_handoff]
-first = 120000                    # tokens; the first wind-down notice
-step = 100000                     # tokens; the notice repeats per step past it
-grace_minutes = 15                # how long running subagents may finish
-```
-
-A repo config may switch a rule **on**. Only your user config may switch one
-**off**, so a repo you clone can make you stricter and never laxer. One
-exception, and it is inherent: if your home directory is itself a git checkout,
-as the dotfiles-in-a-bare-repo pattern does, then that repo's `.handrail.toml`
-is your user config and can switch rules off.
-
-The repo config is looked for between the current directory and the repository
-root, and the root comes from `git rev-parse --show-toplevel`. A root that is
-neither the current directory nor one of its parents is refused, because
-`GIT_DIR` and `GIT_WORK_TREE` can point git at a tree the current directory has
-nothing to do with. A
-config above that boundary is ignored, so a `.handrail.toml` in a shared parent,
-a world-writable one included, cannot govern a checkout below it. Outside a
-repository only the current directory is trusted. Linked worktrees, submodules and bare
-checkouts behave the way git says they do, subject to that ancestry rule.
-Thresholds
-sit outside that ratchet: a repo sets them freely, because a monorepo full of
-generated files has a real reason to move the review threshold. So the guarantee
-is that a repo cannot switch a guard off, rather than that a repo cannot weaken
-your guards.
-
-Block messages explain their rule on their own terms and append `See
-<policy_doc>.` only when that file is configured and present. A citation
-pointing at a file the reader does not have is worse than none.
-
-Where tomllib is missing (Python before 3.11), `.handrail.json` is read instead.
-With both files present a session reads the TOML and warns. The CI half of that
-rule, which fails the job instead, is written and not yet wired.
-
-Repo-controlled text is kept out of block messages, because a guard's stderr is
-handed to the model as the reason it was blocked and anything in it reads as an
-instruction. A `policy_doc` is refused unless it is a plain relative path of
-letters, digits, dots, dashes, underscores and slashes, under 100 characters. A
-path printed in a warning has every other character replaced with `?`. A
-parser's error contributes its type and never its message, since a TOML key is
-arbitrary text and quoting the file back is how the file gets to speak.
+Wire them in one place only. Wiring a hook here and in
+`~/.claude/settings.json` fires it twice.
 
 ## Checks
 
@@ -255,14 +169,6 @@ protected, so a red check blocks the merge for the repo owner too.
 when it is sure, and its known misses and known false positives are both listed
 in its self-test.
 
-## Credit
-
-`grill` and `wayfinder` are adapted from
-[Matt Pocock's skills](https://github.com/mattpocock/skills) (MIT). `wayfinder`
-in particular is his design: the map issue, decision tickets sized to one
-session, the fog of war, one ticket per session. Each skill's own Credit
-section says what changed and why, and `NOTICE` reproduces his copyright and
-permission notice in full, which is what MIT actually requires.
 
 ## Role agents
 
@@ -284,6 +190,17 @@ when an agent lists a tool its role does not allow, and when a skill names a
 type with no file. It matches text, so it cannot tell a real dispatch from a
 mention in a comment.
 
+
+## Credit
+
+`grill` and `wayfinder` are adapted from
+[Matt Pocock's skills](https://github.com/mattpocock/skills) (MIT). `wayfinder`
+in particular is his design: the map issue, decision tickets sized to one
+session, the fog of war, one ticket per session. Each skill's own Credit
+section says what changed and why, and `NOTICE` reproduces his copyright and
+permission notice in full, which is what MIT actually requires.
+
+
 ## Layout
 
 - `agents/` one file per role agent.
@@ -291,6 +208,7 @@ mention in a comment.
 - `hooks/` the guards, their self-tests, and `hooks.json`.
 - `.github/actions/guards/` the composite action that runs the guards in CI.
 - `tools/check-repo.py` what the self-tests do not cover.
+- `docs/HOOKS.md` each hook's full rules, the CI gate, and the config.
 - `docs/HANDOFF.md` why decisions went the way they did, and the traps.
 - `docs/DECISIONS.md` the dated measurements behind the skills.
 
