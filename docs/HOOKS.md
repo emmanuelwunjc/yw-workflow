@@ -1,8 +1,8 @@
 # Hooks, CI gate and config
 
-The detail behind the short tables in `README.md`.
+The detail behind the hooks table in [`README.md`](../README.md).
 
-### Hooks
+## Hooks
 
 Each exists because a rule broke and prose was not enough. They come with the
 plugin path only.
@@ -26,7 +26,7 @@ applying, so adding one means adding its command names to the hook in the same
 commit.
 
 
-### CI gate
+## CI gate
 
 A hook protects one machine. Anyone who skips the install, sets
 `TEAMAI_HOOKS_DISABLED=1`, or clones on a fresh laptop is unguarded, and nothing
@@ -93,7 +93,7 @@ maintainer. Branch protection is where "somebody else must approve" belongs.
 branch-protection decision, and it belongs with the people who own the branch.
 
 
-### Config
+## Config
 
 **Read this first: only `claude-md-guard.py`, `no-ai-attribution.py`,
 `context-handoff.py` and `zsh-trap-guard.py` consult the config today.** The
