@@ -71,17 +71,21 @@ Three ways in:
    config key, and a self-test can test a function the hook never calls. So
    list candidates, and do not judge them. A candidate is a hook wired for an
    event from step 2 whose name, docstring or self-tests mention the rule's
-   violation, or a `permissions.deny` entry that names the exact tool. Hooks
+   violation, a `permissions.deny` entry that names the exact tool, or a CI
+   check whose file or script mentions the violation. Hooks
    are wired in the plugin's `hooks/hooks.json`, the `hooks` block of
    `~/.claude/settings.json`, the repo's `.claude/settings.json` and
    `.claude/settings.local.json`, and other enabled plugins. For each
    candidate, give:
-   - the file, the event, and the `matcher`,
-   - each config key that can switch it off, with its value on this machine,
-     e.g. `negation = false` in `hooks/handrail_config.py`, not set in
-     `~/.handrail.toml`,
-   - each self-test case that mentions the violation, and whether that case
-     expects a block or an allow.
+   - the file, the event, the `matcher` and the `if`,
+   - each thing that can switch it off, with its state on this machine: a
+     config key (e.g. `"negation": False` in `hooks/handrail_config.py`, not
+     set in `~/.handrail.toml`), an off-switch file (e.g.
+     `~/.claude/.ste-off`), a block limit for each session (e.g.
+     `MAX_BLOCKS_PER_SESSION = 2`),
+   - each self-test case that mentions the violation, whether that case
+     expects a block or an allow, and whether it runs the command the wiring
+     calls or only calls a function inside the hook.
 
    No candidate: go on. Candidates: ask the owner with one AskUserQuestion.
    Its options are "covered, stop", "build a new one", and "extend
@@ -96,9 +100,11 @@ Three ways in:
    where step 5 says, and the report names the outside file beside it.
 5. **Put it where the rule's scope is.**
    - A rule from `~/CLAUDE.md` holds in every repo. Its hook goes in this
-     plugin. Extend the plugin hook whose subject is closest, e.g.
-     `hooks/claude-md-guard.py` for a rule about reply prose. No hook has
-     that subject: add `hooks/<name>.py`, wired in `hooks/hooks.json`.
+     plugin, as the owner chose in step 4: extend the hook the owner named,
+     or add `hooks/<name>.py`, wired in `hooks/hooks.json`. With no step 4
+     question, extend the plugin hook whose subject is closest, e.g.
+     `hooks/claude-md-guard.py` for a rule about reply prose, or add a new
+     one when no hook has that subject.
    - A rule for one repo (its `CLAUDE.md`, its memory, a lane issue) goes in
      that repo: a hook in `.claude/hooks/` wired in `.claude/settings.json`.
    - Add a CI check when the violation leaves a trace in the repo (a file, a
@@ -136,14 +142,15 @@ Three ways in:
    feeds the hook's entry point, the command the wiring calls, with that
    event's JSON and a new `session_id`. The case's tool name must match the
    wiring's `matcher` and `if`, or the hook never runs in a session.
-   `hooks/no-ai-attribution-selftest.py` does this for PreToolUse, and
-   `hooks/handrail-config-selftest.py` for Stop. A case that only calls a
-   function inside the hook does not prove the wired hook blocks. Run the
-   self-test and see each new case fail. A new case that passes before you
-   change the hook: stop, and show the owner that case. Then write the hook.
-   Give the hook an override that shows in the command, e.g. `SKIP_<NAME>=1`,
-   and say it in the block message. A rule that says it has no override gets
-   none. Add a `mutation-gate` entry when the repo has the gate.
+   `hooks/no-ai-attribution-selftest.py` feeds its hook this way for
+   PreToolUse, and `hooks/handrail-config-selftest.py` for Stop. A case that
+   only calls a function inside the hook does not prove the wired hook blocks.
+   Run the self-test and see each new case fail. A new case that passes before
+   you change the hook: stop, and show the owner that case. Then write the
+   hook. Give the hook an override that shows in the command, e.g.
+   `SKIP_<NAME>=1`, and say it in the block message. A rule that says it has
+   no override gets none. Add a `mutation-gate` entry when the repo has the
+   gate.
 8. **Point the prose at the mechanism, after it is live.** Keep the rule's
    text. Add one line after it, or extend the `Enforced by` line it has, e.g.
    `Enforced by <file> (<event>, blocks the call).` Write what it does: blocks
