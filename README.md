@@ -30,10 +30,11 @@ with the rules in it.
 ## Workflow
 
 yw-workflow is made to sit beside [Matt Pocock's skills](https://github.com/mattpocock/skills).
-His `tdd`, `diagnosing-bugs` and `code-review` test the work inside the loop.
+His `tdd`, `diagnosing-bugs` and `code-review` check the work inside the loop.
 These skills plan it, isolate it, review it, merge it, and carry it to the
 next session. Blue boxes are yw-workflow. Brown boxes are mattpocock-skills,
-called as `/mattpocock-skills:<name>`. The green box uses one skill from each
+called as `/mattpocock-skills:<name>`. Call the blue ones as
+`/yw-workflow:<name>`, because Matt has his own `handoff` and `wayfinder`. The green box uses one skill from each
 set. Every arrow is a hand-off that a skill names today.
 
 ```mermaid
@@ -85,10 +86,11 @@ How to read it, one stage at a time:
    one session goes straight to `ship-loop`. Work too big for one session goes
    to `wayfinder`, which maps it as decision tickets and hands the finished
    map to `ship-loop`. The model cannot call the yw `wayfinder`, so type
-   `/yw-workflow:wayfinder`. #45 replaces it with Matt's copy.
+   `/yw-workflow:wayfinder`. Open ticket [#45](https://github.com/emmanuelwunjc/yw-workflow/issues/45) will replace it with
+   Matt's copy.
 3. **Ship one ticket.** `ship-loop` runs each ticket around one loop.
    `git-lanes` gives the agent its own worktree when others may share the
-   repo. The code is written test first with `tdd`. A bug starts with
+   repo. A change to behavior is written test first with `tdd`. A bug starts with
    `diagnosing-bugs`, which finds one command that fails first. `fresh-eye`
    sends a reviewer who did not write it, and that reviewer runs
    `code-review`. Blocking findings go to a `fixer` agent, and the fix gets a
@@ -97,9 +99,10 @@ How to read it, one stage at a time:
 4. **After merge.** `handoff` writes what the next session needs, and the
    next session starts from it.
 
-Matt's `to-spec`, `to-tickets`, `triage` and `retro` have no hand-off from
-these skills yet. #42 (hand-off lines to `triage` and others) and #43 (rules
-for `to-tickets` and `retro`) start to join them.
+Matt's `implement`, `implement-spec`, `to-tickets`, `triage` and `retro` have
+no hand-off from these skills yet. Open tickets [#42](https://github.com/emmanuelwunjc/yw-workflow/issues/42) (`triage`) and
+[#43](https://github.com/emmanuelwunjc/yw-workflow/issues/43) (the other four) add hand-off lines or
+rules for them.
 
 Skills for any stage:
 
@@ -144,11 +147,11 @@ plugin path only. The full rules, the CI gate and the config are in
 | | | |
 |---|---|---|
 | **git-safety-guard.sh** | PreToolUse, `git *` | Blocks commits straight to `main` and tree moves that collide with another agent. |
-| **require-code-review.py** | PreToolUse | Blocks `gh pr merge <number>` on a 25+ line PR with no review. Override: `export SKIP_REVIEW_GATE=1;` in front of the command. |
+| **require-code-review.py** | PreToolUse | Blocks `gh pr merge <number>` when a PR changes 25+ lines of code files (e.g. `.py`, `.sh`, `.yml`) and has no review. Override: `export SKIP_REVIEW_GATE=1;` in front of the command. |
 | **no-ai-attribution.py** | PreToolUse | Keeps AI-generation footers out of anything people read. |
 | **zsh-trap-guard.py** | PreToolUse | Blocks zsh traps in Bash commands, e.g. `$s:refs` (write `${s}:refs`). |
 | **claude-md-guard.py** | UserPromptSubmit, Stop | Blocks em-dashes, negation-then-correction, and prose questions where checkboxes are required. |
-| **handoff-freshness.py** | Stop | Warns when `docs/HANDOFF.md` or a lane's `## Handoff notes` falls behind the work. Override: `SKIP_HANDOFF_CHECK=1`. |
+| **handoff-freshness.py** | Stop | Warns when a session commits real work and never touches `docs/HANDOFF.md`. On a lane, it reminds you to write `## Handoff notes` in the PR body. Override: `SKIP_HANDOFF_CHECK=1`. |
 | **context-handoff.py** | PostToolBatch, UserPromptSubmit, Stop | Winds a session down past about 120k tokens of context, and has it write the handoff. |
 
 Wire them in one place only. Wiring a hook here and in
