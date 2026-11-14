@@ -30,7 +30,7 @@ with the rules in it.
 ## Workflow
 
 yw-workflow is made to sit beside [Matt Pocock's
-skills](https://github.com/mattpocock/skills). These skills plan the work,
+skills](https://github.com/mattpocock/skills). yw-workflow's skills plan the work,
 isolate it, review it, merge it, and carry it to the next session. Blue boxes
 are yw-workflow skills. Brown boxes are mattpocock-skills, called as
 `/mattpocock-skills:<name>`. The green box uses one skill from each set. Grey
@@ -94,7 +94,7 @@ How to read it, one stage at a time:
    `git-lanes` gives the agent its own worktree when others may share the repo.
    A change to behavior is written test first with `tdd`. A bug starts with
    `diagnosing-bugs`, which finds one command that fails first. `fresh-eye`
-   sends a reviewer who did not write it. For a change that assembles or
+   sends a reviewer who did not write the change. For a change that assembles or
    corrects code, the reviewer also runs `code-review` when it is installed.
    Blocking findings go to a `fixer` agent, and the fix gets a new review.
    After a clean review, the lane merges (`git-lanes`). Its PR body records
@@ -146,8 +146,8 @@ plugin path only. The full rules, the CI gate and the config are in
 |---|---|---|
 | **git-safety-guard.sh** | PreToolUse, `git *` | Blocks commits straight to `main` and tree moves that collide with another agent. |
 | **require-code-review.py** | PreToolUse | Blocks `gh pr merge <number>` when a PR changes 25+ lines of code files (e.g. `.py`, `.sh`, `.yml`) and has no review. Override: `export SKIP_REVIEW_GATE=1;` in front of the command. |
-| **no-ai-attribution.py** | PreToolUse | Keeps AI-generation footers out of anything people read. |
-| **zsh-trap-guard.py** | PreToolUse | Blocks zsh traps in Bash commands, e.g. `$s:refs` (write `${s}:refs`). |
+| **no-ai-attribution.py** | PreToolUse | Keeps AI-generation footers out of anything people read. Commit trailers stay. |
+| **zsh-trap-guard.py** | PreToolUse | Blocks two zsh traps in Bash commands, e.g. `$s:refs` (write `${s}:refs`). |
 | **claude-md-guard.py** | UserPromptSubmit, Stop | Blocks em-dashes, negation-then-correction, and prose questions where checkboxes are required. |
 | **handoff-freshness.py** | Stop | On a lane that changes real files, reminds it to write the PR body's `## Handoff notes`, and warns if the lane changes `docs/HANDOFF.md`. On trunk or a `docs/handoff-*` branch, warns when work piles up against an untouched `docs/HANDOFF.md`. Override: `SKIP_HANDOFF_CHECK=1`. |
 | **context-handoff.py** | PostToolBatch, UserPromptSubmit, Stop | Winds a session down past about 120k tokens of context, and has it write the handoff. |
