@@ -77,12 +77,23 @@ Three ways in:
    Then feed each broken input from step 1 to each of those hooks, as that
    event's JSON on stdin, with a new `session_id` for each input. Run only a
    hook whose file you have read. Skip one that sends data out of the
-   machine, and name it in the report. An input is blocked when a hook
-   exits 2 with a reason on stderr, or exits 0 and prints JSON with
-   `"decision": "block"` or `"permissionDecision": "deny"`. Any other
-   non-zero exit is a broken run, so fix the input and run it again. A Stop
-   payload carries both `transcript_path` and `last_assistant_message`.
-   `hooks/handrail-config-selftest.py` shows how to make a transcript.
+   machine, and name it in the report. A hook blocks when it exits 2 with a
+   reason on stderr, or exits 0 and prints JSON with `"decision": "block"`,
+   `"permissionDecision": "deny"` or `"continue": false`. A hook whose entry
+   sets `"onFailure": "block"` also blocks on any other non-zero exit. For
+   any other hook, another non-zero exit is a broken run, so fix the input
+   and run it again. A Stop payload carries both `transcript_path` and
+   `last_assistant_message`. `hooks/handrail-config-selftest.py` shows how
+   to make a transcript.
+
+   A block counts as cover only when it is for this rule. Its reason must
+   name the violation, and a control input must pass that same hook. The
+   control input is the broken input with only the violation removed, e.g.
+   the same reply with the em-dash replaced by a period. Another rule's hook
+   blocks broken inputs often, e.g. `ste-guard.py` on one unapproved word.
+   Hooks write state files under the `session_id`, e.g.
+   `~/.claude/state/claude-md-guard/<id>.blocks`. Delete the ones your
+   runs made.
 
    A setting cannot take an input, so read it: a `permissions.deny` entry
    that names the exact tool covers that tool. Every input blocked: report
@@ -103,9 +114,9 @@ Three ways in:
    - Add a CI check when the violation leaves a trace in the repo (a file, a
      diff, a PR body), because a cloud routine or a teammate never loads this
      laptop's hooks. A check counts only when it fires before the cost the
-     rule protects, e.g. CI on a draft PR runs after the CI minutes are
-     spent, so a draft-PR rule gets a hook. A rule about replies or tool
-     calls leaves no trace, so it gets a hook only. No CI yet: run *Repo setup* first.
+     rule protects, e.g. CI on a draft PR runs after the CI minutes are spent,
+     so a draft-PR rule gets a hook. A rule about replies or tool calls leaves
+     no trace, so it gets a hook only. No CI yet: run *Repo setup* first.
    - A rule from `~/CLAUDE.md` that leaves a trace gets both homes: the plugin
      hook, and a CI check in each repo where the owner names the trace as a
      problem. Ask the owner which repos when the rule does not say. Code the
@@ -119,14 +130,14 @@ Three ways in:
 
    Say the choice in one line before you build.
 6. **Take the cheapest mechanism that blocks**, in this order: a hook that
-   blocks, CI that fails, a config setting that forbids. A new hook blocks
-   by exiting 2 with the reason on stderr. An extended hook keeps the way it
-   blocks already, e.g. the JSON decision of `hooks/claude-md-guard.py`.
-   A warning that only prints is the last choice, used only where a block would stop correct work, and the report
-   says so. A rule that says to do a step after an event, e.g. "render the PDF
-   again after each merge", gets a mechanism that does the step: a
-   PostToolUse hook or a CI job on push to `main`. Doing the step beats
-   blocking the next one.
+   blocks, CI that fails, a config setting that forbids. A new hook blocks by
+   exiting 2 with the reason on stderr. An extended hook keeps the way it
+   blocks already, e.g. the JSON decision of `hooks/claude-md-guard.py`. A
+   warning that only prints is the last choice, used only where a block would
+   stop correct work, and the report says so. A rule that says to do a step
+   after an event, e.g. "render the PDF again after each merge", gets a
+   mechanism that does the step: a PostToolUse hook or a CI job on push to
+   `main`. Doing the step beats blocking the next one.
 7. **Build it test first.** Write the self-test before the hook, beside it as
    `<name>-selftest.py`, in the shape of `hooks/no-ai-attribution-selftest.py`.
    An extended hook gets new cases in its own self-test. The self-test holds
@@ -136,14 +147,14 @@ Three ways in:
    say it in the block message. A rule that says it has no override gets
    none. Add a `mutation-gate` entry when the repo has the gate.
 8. **Point the prose at the mechanism, after it is live.** Keep the rule's
-   text. Add one line after it, or extend the `Enforced by` line it has,
-   e.g. `Enforced by <file> (<event>, blocks the call).` Write what it
-   does: blocks the call, blocks the turn, fails CI, or does the step. Add the line only when the mechanism runs.
-   For a repo hook or CI check, that is the merge. For a plugin hook, it is
-   the merge, then `claude plugin marketplace update yw-workflow`, then
-   `claude plugin update yw-workflow@yw-workflow`, then a restart of Claude
-   Code. A line in `~/CLAUDE.md` that names a mechanism not yet installed
-   sends every session to something that is not there.
+   text. Add one line after it, or extend the `Enforced by` line it has, e.g.
+   `Enforced by <file> (<event>, blocks the call).` Write what it does: blocks
+   the call, blocks the turn, fails CI, or does the step. Add the line only
+   when the mechanism runs. For a repo hook or CI check, that is the merge.
+   For a plugin hook, it is the merge, then `claude plugin marketplace update
+   yw-workflow`, then `claude plugin update yw-workflow@yw-workflow`, then a
+   restart of Claude Code. A line in `~/CLAUDE.md` that names a mechanism not
+   yet installed sends every session to something that is not there.
 9. **Ship it** through `/yw-workflow:ship-loop`. Each repo the rule touches
    gets its own PR, the plugin first. The reviewer gets the broken inputs to
    try, and asks for three more.
