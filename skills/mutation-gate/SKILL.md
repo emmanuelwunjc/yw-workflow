@@ -109,7 +109,7 @@ run in parallel; a hang counts as killed, bounded by `DEMO_TIMEOUT_SECONDS`.
   code breakage that a script's self-check misses names it, and the fix adds
   the entry with the PR as its `source`. A surviving bad input becomes a
   broken-input case instead.
-- `/yw-workflow:harden` wires the CI step so the gate holds where the work
+- `/yw-workflow:hardcore` wires the CI step so the gate holds where the work
   runs, rather than only on one laptop.
 - `/yw-workflow:ship-loop` runs the gate as part of "run what CI runs" before
   a PR opens.

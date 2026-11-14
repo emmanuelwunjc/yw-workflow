@@ -183,7 +183,7 @@ complement server-side protection rather than replace it.
   back clean. A lane that merges unreviewed is the failure this whole set exists
   to prevent.
 - Setting up a repo that has no CI or branch protection to merge into:
-  `/yw-workflow:harden` first.
+  `/yw-workflow:hardcore` first.
 - The measured findings behind this skill (the venv benchmark, the worktrunk
   evaluation) live in `docs/DECISIONS.md` in this plugin, dated, because they
   age and this procedure does not.

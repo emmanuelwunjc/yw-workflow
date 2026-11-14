@@ -38,7 +38,7 @@ Each one carries a one-line summary at the top.
 | **ship-loop** | Runs work as a loop that closes: ticket, branch, test first, review, fix, repeat. |
 | **fresh-eye** | Sends someone who did not write the code to try to break it. |
 | **need-me** | Shows only what is waiting on you, answerable in one word. |
-| **harden** | Gives a repo the CI and branch protection that make its review gate real. |
+| **hardcore** | Turns a rule written as prose into a hook or CI check that blocks the violation. |
 | **mutation-gate** | Proves each self-check can fail, by breaking the code it covers and requiring it to notice. |
 | **handoff** | Keeps `docs/HANDOFF.md` and the `lane` issues in the shape that lets a fresh session start from them alone. |
 | **eli5** | Explains a topic to someone with zero background, as a page of big pictures and few words. |
@@ -59,7 +59,7 @@ grill -> wayfinder -> git-lanes -> ship-loop -> fresh-eye
 `ship-loop` and `fresh-eye` share one review procedure. `ship-loop` step 6
 has when the loop stops and the `Rounds:` line each PR body carries.
 
-`harden` runs once per repo, before any of it merges. `mutation-gate` ships a
+`hardcore` turns a rule you name into a hook or CI check, and sets up a repo's CI and branch protection once, before any of it merges. `mutation-gate` ships a
 script: a repo copies `skills/mutation-gate/mutation_gate.py` verbatim and adds
 a data file, and `fresh-eye` findings are where its entries come from.
 
@@ -75,7 +75,7 @@ the file lacks the shape that makes that true. Lanes never edit that file. Each 
 `eli5` and `eli5-text` are off the diagram because they explain a thing rather
 than ship one. They are still in the graph: `grill` and `need-me` reach
 `eli5-text` when a decision is blocked on understanding, and `ship-loop` and
-`harden` reach `eli5` when a change needs explaining to someone who will not
+`hardcore` reach `eli5` when a change needs explaining to someone who will not
 read the diff.
 
 ## Hooks

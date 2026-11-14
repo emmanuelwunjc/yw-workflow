@@ -300,6 +300,6 @@ ticket, if the loop took three or more fix rounds (step 7).
 - A decision is genuinely the owner's (a step 3 call, or a new direction or
   diagnosis that departs from a grilling): `/yw-workflow:need-me`, which is the
   format for that escalation.
-- The repo has no CI or branch protection for step 6 to merge into: `/yw-workflow:harden`.
+- The repo has no CI or branch protection for step 6 to merge into: `/yw-workflow:hardcore`.
 - The change needs explaining to someone who will not read the diff:
   `/yw-workflow:eli5` for a page they keep, `/yw-workflow:eli5-text` in passing.
