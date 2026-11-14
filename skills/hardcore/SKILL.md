@@ -33,22 +33,21 @@ Three ways in:
 1. **Quote the rule and its source.** Copy the rule word for word with its
    file and line, e.g. `~/CLAUDE.md` section 7, or a memory file, or a lane
    issue's `## Next`. Write at least one broken input for each way the rule
-   can break, e.g. a reply that holds an em-dash. Use a real break when one
-   is known. Step 7 uses these inputs.
-2. **Find every event where the violation shows.** A script can only see
-   what an event hands it. List each event that carries the violation, e.g.
-   a rule about all prose needs Stop for replies and PreToolUse on Write for
-   files:
-   - a tool call, before it runs (PreToolUse: the Bash command text, the
-     Write content),
+   can break, e.g. a reply that holds an em-dash. Use a real break when one is
+   known. Step 7 uses these inputs.
+2. **Find every event where the violation shows.** A script can only see what
+   an event hands it. List each event that carries the violation, e.g. a rule
+   about all prose needs Stop for replies and PreToolUse on Write for files:
+   - a tool call, before it runs (PreToolUse: the Bash command text, the Write
+     content),
    - the end of a turn (Stop: the reply text and the transcript),
    - a tool call, after it ran (PostToolUse: e.g. a `gh pr merge` that
      finished),
    - a pushed branch (CI: the diff, the built files, the PR body),
    - a setting the tool already has (branch protection, `.gitignore`,
      `permissions.deny`),
-   - a script the repo makes agents call (e.g. `scripts/lane_claim.py`):
-     the script refuses.
+   - a script the repo makes agents call (e.g. `scripts/lane_claim.py`): the
+     script refuses.
 
    Event names and what each event carries change between Claude Code
    versions. Before you pick an event, read
@@ -57,58 +56,63 @@ Three ways in:
    that carries its report.
 3. **Classify it.** The rule is *mechanical* when a script on that event can
    decide pass or fail with no reading of intent, e.g. "no em-dash in the
-   reply" or "no merge without a review comment". It is *judgment* when only
-   a reader can decide, e.g. "the method section keeps its coverage". A
-   judgment rule ends here: say it cannot be enforced, say which word in it
-   needs a reader, and change nothing. A rule with a mechanical part and a
-   judgment part: enforce the mechanical part and name the part left as
-   prose. A check on the mechanical part may also stop some correct work,
-   e.g. blocking every `gh pr create --draft` for "never park work in a
-   draft PR". Take it only when its override is cheap, and name the correct
-   work it stops in the report.
+   reply" or "no merge without a review comment". It is *judgment* when only a
+   reader can decide, e.g. "the method section keeps its coverage". A judgment
+   rule ends here: say it cannot be enforced, say which word in it needs a
+   reader, and change nothing. A rule with a mechanical part and a judgment
+   part: enforce the mechanical part and name the part left as prose. A check
+   on the mechanical part may also stop some correct work, e.g. blocking every
+   `gh pr create --draft` for "never park work in a draft PR". Take it only
+   when its override is cheap, and name the correct work it stops in the
+   report.
 4. **List what may already cover it, and let the owner decide.** Deciding
-   cover alone is unreliable: a hook can be wired but switched off by a
-   config key, and a self-test can test a function the hook never calls. So
-   list candidates, and do not judge them. A candidate is a hook wired for an
-   event from step 2 whose name, docstring or self-tests mention the rule's
+   cover alone is unreliable: a hook can be wired but switched off by a config
+   key, and a self-test can test a function the hook never calls. So list
+   candidates, and do not judge them. A candidate is a hook wired for an event
+   from step 2 whose name, docstring or self-tests mention the rule's
    violation, a `permissions.deny` entry that names the exact tool, or a CI
-   check whose file or script mentions the violation. Hooks
-   are wired in the plugin's `hooks/hooks.json`, the `hooks` block of
+   check whose file or script mentions the violation. Hooks are wired in the
+   plugin's `hooks/hooks.json`, the `hooks` block of
    `~/.claude/settings.json`, the repo's `.claude/settings.json` and
    `.claude/settings.local.json`, and other enabled plugins. For each
    candidate, give:
    - the file, the event, the `matcher` and the `if`,
    - each thing that can switch it off, with its state where it runs (this
-     machine for a hook, the CI job for a CI check): a
-     config key (e.g. `"negation": False` in `hooks/handrail_config.py`, not
-     set in `~/.handrail.toml`), an off-switch file (e.g.
-     `~/.claude/.ste-off`), a block limit for each session (e.g.
-     `MAX_BLOCKS_PER_SESSION = 2`),
+     machine for a hook, the CI job for a CI check): a config key (e.g.
+     `"negation": False` in `hooks/handrail_config.py`, not set in
+     `~/.handrail.toml`), an off-switch file (e.g. `~/.claude/.ste-off`), a
+     block limit for each session (e.g. `MAX_BLOCKS_PER_SESSION = 2`),
    - each self-test case that mentions the violation, in any self-test that
-     runs this mechanism, whether that case
-     expects a block or an allow, and whether it runs the command the wiring
-     calls or only calls a function inside the hook.
+     runs this mechanism, whether that case expects a block or an allow, and
+     whether it runs the command the wiring calls or only calls a function
+     inside the hook.
 
-   No candidate: go on. Candidates: ask the owner with one AskUserQuestion.
-   Its options are "covered, stop", "build a new one", and "extend
-   `<file>`" for at most two candidates in git, the closest first. The
-   evidence for every candidate goes in the question text. The owner is
-   usually present, since the owner named the rule. In an *Audit*, put the
-   candidates in the table and ask nothing.
+   No candidate: go on. Candidates: ask the owner, with one question for each
+   event from step 2 that has candidates, all in one AskUserQuestion. Each
+   question's options are "covered, stop", "build a new one", and "extend
+   `<file>`" for at most two candidates in git, the closest first. Each answer
+   applies to its own event only. An event with no candidate gets no question
+   and goes on. The evidence for every candidate goes in the question text.
+   The owner is usually present, since the owner named the rule. In an
+   *Audit*, put the candidates in the table and ask nothing.
 
    This skill never edits a mechanism outside git (`~/.claude/hooks/`,
    `~/.claude/settings.json`), because no review can reach it, so such a
    candidate gets no "extend" option. "Build a new one" puts the new hook
    where step 5 says, and the report names the outside file beside it.
 5. **Put it where the rule's scope is.**
-   - The owner chose "extend" for a CI check in step 4: extend that check,
-     in the repo that holds it. Add no other CI check for this rule.
-   - A rule from `~/CLAUDE.md` holds in every repo. Its hook goes in this
-     plugin, as the owner chose in step 4: extend the hook the owner named,
-     or add `hooks/<name>.py`, wired in `hooks/hooks.json`. With no step 4
-     question, extend the plugin hook whose subject is closest, e.g.
-     `hooks/claude-md-guard.py` for a rule about reply prose, or add a new
-     one when no hook has that subject.
+   - Apply each step 4 answer to its own event. "Covered, stop" for an event:
+     add nothing for that event. "Extend `<file>`": extend that hook or CI
+     check, in the repo that holds it, and add nothing else for that event. An
+     extended hook that must read a new event gets a new entry in the wiring
+     file for that event. The bullets below apply only to events with no
+     answer, or with "build a new one".
+   - A rule from `~/CLAUDE.md` holds in every repo. For an event where the
+     owner chose "build a new one", its hook goes in this plugin:
+     `hooks/<name>.py`, wired in `hooks/hooks.json`. For an event with no step
+     4 question, extend the plugin hook whose subject is closest, e.g.
+     `hooks/claude-md-guard.py` for a rule about reply prose, or add a new one
+     when no hook has that subject.
    - A rule for one repo (its `CLAUDE.md`, its memory, a lane issue) goes in
      that repo: a hook in `.claude/hooks/` wired in `.claude/settings.json`.
    - Add a CI check when the violation leaves a trace in the repo (a file, a
@@ -139,26 +143,25 @@ Three ways in:
    mechanism that does the step: a PostToolUse hook or a CI job on push to
    `main`. Doing the step beats blocking the next one.
 7. **Build it test first.** Write the self-test before the hook, beside it as
-   `<name>-selftest.py`, in the shape of
-   `hooks/no-ai-attribution-selftest.py`. An extended hook gets new cases in
-   its own self-test. The self-test holds each broken input from step 1 with
-   the result it must give, and one valid input that must pass. Each case
+   `<name>-selftest.py`, in a folder whose self-tests the repo's CI runs
+   (here, `.github/workflows/ci.yml` runs `hooks/*-selftest.*`), in the shape
+   of `hooks/no-ai-attribution-selftest.py`. An extended hook gets new cases
+   in its own self-test. The self-test holds each broken input from step 1
+   with the result it must give, and one valid input that must pass. Each case
    feeds the hook's entry point, the command the wiring calls, with that
    event's JSON and a new `session_id`. The case's tool name must match the
    wiring's `matcher` and `if`, or the hook never runs in a session.
-   `hooks/no-ai-attribution-selftest.py` runs its PreToolUse hook as a
-   command with event JSON, and `hooks/handrail-config-selftest.py` runs its
-   Stop hook with a transcript and a new `session_id`. For a CI check, a case
-   feeds the check's command a file that holds the violation and expects a
-   non-zero exit, e.g. the em-dash probe a reviewer runs on
-   `tools/check-repo.py`. A case that
-   only calls a function inside the hook does not prove the wired hook blocks.
-   Run the self-test and see each new case fail. A new case that passes before
-   you change the hook: stop, and show the owner that case. Then write the
-   hook. Give the hook an override that shows in the command, e.g.
-   `SKIP_<NAME>=1`, and say it in the block message. A rule that says it has
-   no override gets none. Add a `mutation-gate` entry when the repo has the
-   gate.
+   `hooks/no-ai-attribution-selftest.py` runs its PreToolUse hook as a command
+   with event JSON, and `hooks/handrail-config-selftest.py` runs its Stop hook
+   with a transcript and a new `session_id`. For a CI check, a case puts a
+   file that holds the violation into a copy of the repo, runs the check's
+   command there, and expects a non-zero exit. A case that only calls a
+   function inside the hook does not prove the wired hook blocks. Run the
+   self-test and see each new case fail. A new case that passes before you
+   change the hook: stop, and show the owner that case. Then write the hook.
+   Give the hook an override that shows in the command, e.g. `SKIP_<NAME>=1`,
+   and say it in the block message. A rule that says it has no override gets
+   none. Add a `mutation-gate` entry when the repo has the gate.
 8. **Point the prose at the mechanism, after it is live.** Keep the rule's
    text. Add one line after it, or extend the `Enforced by` line it has, e.g.
    `Enforced by <file> (<event>, blocks the call).` Write what it does: blocks
@@ -167,7 +170,9 @@ Three ways in:
    For a plugin hook, it is the merge, then `claude plugin marketplace update
    yw-workflow`, then `claude plugin update yw-workflow@yw-workflow`, then a
    restart of Claude Code. A line in `~/CLAUDE.md` that names a mechanism not
-   yet installed sends every session to something that is not there.
+   yet installed sends every session to something that is not there. This line
+   is the one edit the skill makes to a file outside git, and the report
+   quotes it.
 9. **Ship it** through `/yw-workflow:ship-loop`. Each repo the rule touches
    gets its own PR, the plugin first. The reviewer gets the broken inputs to
    try, and asks for three more.
