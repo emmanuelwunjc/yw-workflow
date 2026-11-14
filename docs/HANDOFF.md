@@ -1147,6 +1147,36 @@ Waits on the owner: whether the migrated repos also get a
   (#27). #15 has the reverse case, a quoted `cd` path that lets a commit onto
   `main`.
 
+## 2026-11-13: parallel Next tasks and the zsh trap guard (#90)
+
+- Start here step 6 now starts every `parallel` task in one turn, each in
+  its own worktree, two to four at once. A task with no mark is `parallel`
+  unless it names another task it waits for. Order words inside one item
+  ("first", "then") order that item's work and set no dependency. Found in
+  edsim-paper (#82): a session ran only review loops for an hour while the
+  paper sections, which needed none of that tooling, waited.
+- A lane may edit the Start here block. Change the pinned copy in
+  `hooks/handoff-freshness-selftest.py` first. The self-test then fails
+  until all three copies match.
+- Every other repo keeps its pasted old step 6, so its sessions stay serial
+  until someone pastes the new block. #85 adds a warning for this.
+- Why the default rule took four fix rounds: each fix put the rule where the
+  author edited, and not where the resuming session reads. The last miss was
+  the default for unmarked items, which lived only in the skill. #89
+  (housekeeping) holds the pattern.
+- Rejected: reading any order word as a dependency on the item before. It
+  turned "#67 first, then #68" inside one item into a false wait.
+- `hooks/zsh-trap-guard.py` blocks unbraced `$name:r`-type zsh modifiers and
+  `for n in $LIST`. Facts, each run in zsh 5.9: double quotes do not stop a
+  modifier. `g`, `f`, `w` are prefixes (`$s:gr`). `:&` is a modifier only
+  inside double quotes. `chown $USER:staff` and `$IMG:latest` really change,
+  so those blocks are correct. Off switch: `[rules] zsh_traps = false` in
+  `.handrail.toml`. Nits in #84.
+- Trap: the CI review gate needs a verdict comment on the PR. A combined PR
+  of two reviewed lanes carries none until the session posts one.
+- Trap: a commit through `git -C <worktree>` is refused when the session
+  sits on `main`. A literal `cd <worktree> &&` in its own call works (#74).
+
 ## 2026-11-13: handoff pass
 
 ### Next
@@ -1154,7 +1184,10 @@ Waits on the owner: whether the migrated repos also get a
 All open work is in lane #47 (the lane-claim follow-ups and the rest of this
 repo's backlog). Step 3 of the Start here block lists it (recount: step 3's
 command). First task, from its `## Next`: update the handoff sections of
-`/Users/yw1084/CLAUDE.md`. Its `## Next` holds the order after that. Two tickets gained
+`/Users/yw1084/CLAUDE.md`. Its `## Next` holds the rest. Items 3 to 7 are a chain of `after`
+marks, because their tickets edit the same skills and hooks. The first
+task and items 1, 2, 3 and 8 run in parallel. Item 8 pastes the new step
+6 into the other repos. Two tickets gained
 evidence from #65: #27 (the quoted `-C` repro) and #62 (skill prose commands
 nobody ran).
 
