@@ -29,13 +29,13 @@ with the rules in it.
 
 ## Workflow
 
-yw-workflow is made to sit beside [Matt Pocock's skills](https://github.com/mattpocock/skills).
-His `tdd`, `diagnosing-bugs` and `code-review` check the work inside the loop.
-These skills plan it, isolate it, review it, merge it, and carry it to the
-next session. Blue boxes are yw-workflow. Brown boxes are mattpocock-skills,
-called as `/mattpocock-skills:<name>`. Call the blue ones as
-`/yw-workflow:<name>`, because Matt has his own `handoff` and `wayfinder`. The green box uses one skill from each
-set. Every arrow is a hand-off that a skill names today.
+yw-workflow is made to sit beside [Matt Pocock's
+skills](https://github.com/mattpocock/skills). These skills plan the work,
+isolate it, review it, merge it, and carry it to the next session. Blue boxes
+are yw-workflow skills. Brown boxes are mattpocock-skills, called as
+`/mattpocock-skills:<name>`. The green box uses one skill from each set. Grey
+boxes are inputs, steps and agents. Every arrow is a hand-off that a skill
+names today.
 
 ```mermaid
 flowchart LR
@@ -55,9 +55,10 @@ flowchart LR
         lanes[git-lanes]:::yw
         build[tdd<br/>diagnosing-bugs for a bug]:::matt
         review[fresh-eye<br/>+ code-review]:::both
-        fixer[fixer]:::yw
-        merge[PR and merge]:::yw
-        ticket --> lanes --> build --> review
+        fixer([fixer agent]):::start
+        merge([PR and merge]):::start
+        ticket -->|repo shared| lanes --> build --> review
+        ticket --> build
         review -->|blocking| fixer --> review
         review -->|clean| merge
     end
@@ -84,25 +85,22 @@ How to read it, one stage at a time:
 1. **Start.** Work arrives as an idea or a bug.
 2. **Plan.** An idea goes to `grill`, one decision at a time. Work sized for
    one session goes straight to `ship-loop`. Work too big for one session goes
-   to `wayfinder`, which maps it as decision tickets and hands the finished
-   map to `ship-loop`. The model cannot call the yw `wayfinder`, so type
-   `/yw-workflow:wayfinder`. Open ticket [#45](https://github.com/emmanuelwunjc/yw-workflow/issues/45) will replace it with
-   Matt's copy.
+   to `wayfinder`, which maps it as decision tickets and hands the finished map
+   to `ship-loop`. The model cannot call the yw `wayfinder`, so type
+   `/yw-workflow:wayfinder`. Open ticket
+   [#45](https://github.com/emmanuelwunjc/yw-workflow/issues/45) will replace
+   it with Matt's copy.
 3. **Ship one ticket.** `ship-loop` runs each ticket around one loop.
-   `git-lanes` gives the agent its own worktree when others may share the
-   repo. A change to behavior is written test first with `tdd`. A bug starts with
+   `git-lanes` gives the agent its own worktree when others may share the repo.
+   A change to behavior is written test first with `tdd`. A bug starts with
    `diagnosing-bugs`, which finds one command that fails first. `fresh-eye`
-   sends a reviewer who did not write it, and that reviewer runs
-   `code-review`. Blocking findings go to a `fixer` agent, and the fix gets a
-   new review. After a clean review, the lane merges (`git-lanes`). Its PR
-   body records each review (`ship-loop` step 6).
-4. **After merge.** `handoff` writes what the next session needs, and the
-   next session starts from it.
-
-Matt's `implement`, `implement-spec`, `to-tickets`, `triage` and `retro` have
-no hand-off from these skills yet. Open tickets [#42](https://github.com/emmanuelwunjc/yw-workflow/issues/42) (`triage`) and
-[#43](https://github.com/emmanuelwunjc/yw-workflow/issues/43) (the other four) add hand-off lines or
-rules for them.
+   sends a reviewer who did not write it. For a change that assembles or
+   corrects code, the reviewer also runs `code-review` when it is installed.
+   Blocking findings go to a `fixer` agent, and the fix gets a new review.
+   After a clean review, the lane merges (`git-lanes`). Its PR body records
+   each review (`ship-loop` step 6).
+4. **After merge.** `handoff` writes what the next session needs, and the next
+   session starts from it.
 
 Skills for any stage:
 
@@ -151,7 +149,7 @@ plugin path only. The full rules, the CI gate and the config are in
 | **no-ai-attribution.py** | PreToolUse | Keeps AI-generation footers out of anything people read. |
 | **zsh-trap-guard.py** | PreToolUse | Blocks zsh traps in Bash commands, e.g. `$s:refs` (write `${s}:refs`). |
 | **claude-md-guard.py** | UserPromptSubmit, Stop | Blocks em-dashes, negation-then-correction, and prose questions where checkboxes are required. |
-| **handoff-freshness.py** | Stop | Warns when a session commits real work and never touches `docs/HANDOFF.md`. On a lane, it reminds you to write `## Handoff notes` in the PR body. Override: `SKIP_HANDOFF_CHECK=1`. |
+| **handoff-freshness.py** | Stop | On a lane that changes real files, reminds it to write the PR body's `## Handoff notes`, and warns if the lane changes `docs/HANDOFF.md`. On trunk or a `docs/handoff-*` branch, warns when work piles up against an untouched `docs/HANDOFF.md`. Override: `SKIP_HANDOFF_CHECK=1`. |
 | **context-handoff.py** | PostToolBatch, UserPromptSubmit, Stop | Winds a session down past about 120k tokens of context, and has it write the handoff. |
 
 Wire them in one place only. Wiring a hook here and in
