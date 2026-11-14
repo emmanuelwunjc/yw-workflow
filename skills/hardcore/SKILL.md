@@ -34,7 +34,7 @@ Three ways in:
    file and line, e.g. `~/CLAUDE.md` section 7, or a memory file, or a lane
    issue's `## Next`. Write at least one broken input for each way the rule
    can break, e.g. a reply that holds an em-dash. Use a real break when one
-   is known. Steps 4 and 7 use these inputs.
+   is known. Step 7 uses these inputs.
 2. **Find every event where the violation shows.** A script can only see
    what an event hands it. List each event that carries the violation, e.g.
    a rule about all prose needs Stop for replies and PreToolUse on Write for
@@ -66,23 +66,27 @@ Three ways in:
    e.g. blocking every `gh pr create --draft` for "never park work in a
    draft PR". Take it only when its override is cheap, and name the correct
    work it stops in the report.
-4. **Find what already covers it, from the self-tests.** List the hooks
-   wired for each event from step 2. They are wired in the plugin's
-   `hooks/hooks.json`, the `hooks` block of `~/.claude/settings.json`, the
-   repo's `.claude/settings.json` and `.claude/settings.local.json`, and
-   other enabled plugins. A hook file that nothing wires covers nothing.
-   Also list the settings that forbid, e.g. `permissions.deny`.
+4. **List what may already cover it, and let the owner decide.** Deciding
+   cover alone is unreliable: a hook can be wired but switched off by a
+   config key, and a self-test can test a function the hook never calls. So
+   list candidates, and do not judge them. A candidate is a hook wired for an
+   event from step 2 whose name, docstring or self-test mentions the rule's
+   violation, or a `permissions.deny` entry that names the exact tool. Hooks
+   are wired in the plugin's `hooks/hooks.json`, the `hooks` block of
+   `~/.claude/settings.json`, the repo's `.claude/settings.json` and
+   `.claude/settings.local.json`, and other enabled plugins. For each one,
+   give the file, the event, and the self-test line that mentions the
+   violation.
 
-   A hook covers a broken input when its self-test holds a case with that
-   violation that must block, and the self-test passes. A `permissions.deny`
-   entry covers a tool call when it names that exact tool. Every input
-   covered: report the hooks and the cases, and stop. Some inputs not
-   covered: go on with only those. Not sure: go on, because step 7 settles
-   it.
+   No candidate: go on. Candidates: ask the owner with one AskUserQuestion,
+   one option for each candidate ("extend this one"), plus "covered, stop"
+   and "build a new one". The owner present is the usual case, since the
+   owner named the rule. In an *Audit*, put the candidates in the table and
+   ask nothing.
 
-   A mechanism outside git (`~/.claude/hooks/`, `~/.claude/settings.json`)
-   counts as cover, and this skill never edits it, because no review can
-   reach it. A gap next to one goes to the plugin as a new hook. The report
+   This skill never edits a mechanism outside git (`~/.claude/hooks/`,
+   `~/.claude/settings.json`), because no review can reach it. When the
+   owner picks one, the gap goes to the plugin as a new hook, and the report
    names both files.
 5. **Put it where the rule's scope is.**
    - A rule from `~/CLAUDE.md` holds in every repo. Its hook goes in this
@@ -122,12 +126,14 @@ Three ways in:
    `<name>-selftest.py`, in the shape of `hooks/no-ai-attribution-selftest.py`.
    An extended hook gets new cases in its own self-test. The self-test holds
    each broken input from step 1 with the result it must give, and one valid
-   input that must pass. Run it and see it fail. A new case that passes
-   before you change the hook shows the hook covers it already: keep the
-   case, change no hook code, and report the rule as covered. Then write the
-   hook. Give the hook an override that shows in the command, e.g.
-   `SKIP_<NAME>=1`, and say it in the block message. A rule that says it has no override gets
-   none. Add a `mutation-gate` entry when the repo has the gate.
+   input that must pass. Each case feeds the hook's entry point, the command
+   the wiring calls, with that event's JSON. A case that only calls a
+   function inside the hook does not prove the wired hook blocks. Run the
+   self-test and see each new case fail. A new case that passes before you
+   change the hook: stop, and show the owner that case. Then write the hook.
+   Give the hook an override that shows in the command, e.g.
+   `SKIP_<NAME>=1`, and say it in the block message. A rule that says it has
+   no override gets none. Add a `mutation-gate` entry when the repo has the gate.
 8. **Point the prose at the mechanism, after it is live.** Keep the rule's
    text. Add one line after it, or extend the `Enforced by` line it has, e.g.
    `Enforced by <file> (<event>, blocks the call).` Write what it does: blocks
@@ -151,13 +157,13 @@ on a violation, any part left as prose, and any correct work the check stops.
    repo's skill bodies. A rule is any sentence that tells an agent what it
    must or must not do.
 2. **Run steps 1 to 6 of *One rule* on each rule**, without building. A
-   rule whose broken inputs step 4 shows are all covered goes in an
-   *Already enforced* list, with its hooks and the self-test cases.
-   An `Enforced by` line is a claim, so it gets the same run.
+   rule with step 4 candidates gets a *Candidates* cell in the table, for
+   the owner to judge. An `Enforced by` line is a claim, so it gets the same
+   run.
 3. **Write the table**, one row per rule:
 
-   | Rule (quoted) | Source | Class | Event | Mechanism and home | Proof command |
-   |---|---|---|---|---|---|
+   | Rule (quoted) | Source | Class | Event | Candidates | Mechanism and home | Proof command |
+   |---|---|---|---|---|---|---|
 
    The proof command is the one that shows the mechanism fails on a
    violation, e.g. `python3 hooks/<name>-selftest.py`. A judgment row says
