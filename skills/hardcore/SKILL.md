@@ -70,24 +70,30 @@ Three ways in:
    cover alone is unreliable: a hook can be wired but switched off by a
    config key, and a self-test can test a function the hook never calls. So
    list candidates, and do not judge them. A candidate is a hook wired for an
-   event from step 2 whose name, docstring or self-test mentions the rule's
+   event from step 2 whose name, docstring or self-tests mention the rule's
    violation, or a `permissions.deny` entry that names the exact tool. Hooks
    are wired in the plugin's `hooks/hooks.json`, the `hooks` block of
    `~/.claude/settings.json`, the repo's `.claude/settings.json` and
-   `.claude/settings.local.json`, and other enabled plugins. For each one,
-   give the file, the event, and the self-test line that mentions the
-   violation.
+   `.claude/settings.local.json`, and other enabled plugins. For each
+   candidate, give:
+   - the file, the event, and the `matcher`,
+   - each config key that can switch it off, with its value on this machine,
+     e.g. `negation = false` in `hooks/handrail_config.py`, not set in
+     `~/.handrail.toml`,
+   - each self-test case that mentions the violation, and whether that case
+     expects a block or an allow.
 
-   No candidate: go on. Candidates: ask the owner with one AskUserQuestion,
-   one option for each candidate ("extend this one"), plus "covered, stop"
-   and "build a new one". The owner present is the usual case, since the
-   owner named the rule. In an *Audit*, put the candidates in the table and
-   ask nothing.
+   No candidate: go on. Candidates: ask the owner with one AskUserQuestion.
+   Its options are "covered, stop", "build a new one", and "extend
+   `<file>`" for at most two candidates in git, the closest first. The
+   evidence for every candidate goes in the question text. The owner is
+   usually present, since the owner named the rule. In an *Audit*, put the
+   candidates in the table and ask nothing.
 
    This skill never edits a mechanism outside git (`~/.claude/hooks/`,
-   `~/.claude/settings.json`), because no review can reach it. When the
-   owner picks one, the gap goes to the plugin as a new hook, and the report
-   names both files.
+   `~/.claude/settings.json`), because no review can reach it, so such a
+   candidate gets no "extend" option. "Build a new one" puts the new hook
+   where step 5 says, and the report names the outside file beside it.
 5. **Put it where the rule's scope is.**
    - A rule from `~/CLAUDE.md` holds in every repo. Its hook goes in this
      plugin. Extend the plugin hook whose subject is closest, e.g.
@@ -123,17 +129,21 @@ Three ways in:
    mechanism that does the step: a PostToolUse hook or a CI job on push to
    `main`. Doing the step beats blocking the next one.
 7. **Build it test first.** Write the self-test before the hook, beside it as
-   `<name>-selftest.py`, in the shape of `hooks/no-ai-attribution-selftest.py`.
-   An extended hook gets new cases in its own self-test. The self-test holds
-   each broken input from step 1 with the result it must give, and one valid
-   input that must pass. Each case feeds the hook's entry point, the command
-   the wiring calls, with that event's JSON. A case that only calls a
+   `<name>-selftest.py`, in the shape of
+   `hooks/no-ai-attribution-selftest.py`. An extended hook gets new cases in
+   its own self-test. The self-test holds each broken input from step 1 with
+   the result it must give, and one valid input that must pass. Each case
+   feeds the hook's entry point, the command the wiring calls, with that
+   event's JSON and a new `session_id`. The case's tool name must match the
+   wiring's `matcher` and `if`, or the hook never runs in a session.
+   `hooks/no-ai-attribution-selftest.py` does this for PreToolUse, and
+   `hooks/handrail-config-selftest.py` for Stop. A case that only calls a
    function inside the hook does not prove the wired hook blocks. Run the
    self-test and see each new case fail. A new case that passes before you
    change the hook: stop, and show the owner that case. Then write the hook.
-   Give the hook an override that shows in the command, e.g.
-   `SKIP_<NAME>=1`, and say it in the block message. A rule that says it has
-   no override gets none. Add a `mutation-gate` entry when the repo has the gate.
+   Give the hook an override that shows in the command, e.g. `SKIP_<NAME>=1`,
+   and say it in the block message. A rule that says it has no override gets
+   none. Add a `mutation-gate` entry when the repo has the gate.
 8. **Point the prose at the mechanism, after it is live.** Keep the rule's
    text. Add one line after it, or extend the `Enforced by` line it has, e.g.
    `Enforced by <file> (<event>, blocks the call).` Write what it does: blocks
@@ -156,13 +166,14 @@ on a violation, any part left as prose, and any correct work the check stops.
    project memory folder, `docs/HANDOFF.md`, the open `lane` issues, and the
    repo's skill bodies. A rule is any sentence that tells an agent what it
    must or must not do.
-2. **Run steps 1 to 6 of *One rule* on each rule**, without building. A
-   rule with step 4 candidates gets a *Candidates* cell in the table, for
-   the owner to judge. An `Enforced by` line is a claim, so it gets the same
-   run.
+2. **Run steps 1 to 6 of *One rule* on each rule**, without building. A rule
+   with step 4 candidates gets a *Candidates* cell in the table, for the owner
+   to judge. It gets no ticket until the owner has judged it. An `Enforced by`
+   line is a claim, so it gets the same run.
 3. **Write the table**, one row per rule:
 
-   | Rule (quoted) | Source | Class | Event | Candidates | Mechanism and home | Proof command |
+   | Rule (quoted) | Source | Class | Event | Candidates | Mechanism and home
+   | Proof command |
    |---|---|---|---|---|---|---|
 
    The proof command is the one that shows the mechanism fails on a
