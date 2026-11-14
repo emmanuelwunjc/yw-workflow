@@ -67,20 +67,27 @@ Three ways in:
    draft PR". Take it only when its override is cheap, and name the correct
    work it stops in the report.
 4. **Prove what already covers it, by running it.** Find the mechanisms:
-   every hook wired for each event from step 2 (the plugin's
-   `hooks/hooks.json`, the `hooks` block of `~/.claude/settings.json`, and
-   the repo's `.claude/settings.json` and `.claude/settings.local.json`),
-   every setting that forbids (`permissions.deny`, `attribution`, branch
-   protection), and the repo's CI. A hook file that no settings file wires
-   covers nothing.
+   every hook wired for each event from step 2, and every setting that
+   forbids. Hooks are wired in the plugin's `hooks/hooks.json`, the `hooks`
+   block of `~/.claude/settings.json`, the repo's `.claude/settings.json`
+   and `.claude/settings.local.json`, and other enabled plugins. Keep only
+   the hooks whose `matcher` and `if` match the input. A hook file that
+   nothing wires covers nothing.
 
-   Then feed each broken input from step 1 to each wired hook for its event,
-   as that event's JSON on stdin, and read the exit code. A Stop hook reads
-   the reply from a transcript file. `hooks/handrail-config-selftest.py`
-   shows how to make one. An input is covered
-   when one mechanism blocks it. Every input covered: report the files and
-   the commands you ran, and stop. Some inputs not covered: go on with only
-   those.
+   Then feed each broken input from step 1 to each of those hooks, as that
+   event's JSON on stdin, with a new `session_id` for each input. Run only a
+   hook whose file you have read. Skip one that sends data out of the
+   machine, and name it in the report. An input is blocked when a hook
+   exits 2 with a reason on stderr, or exits 0 and prints JSON with
+   `"decision": "block"` or `"permissionDecision": "deny"`. Any other
+   non-zero exit is a broken run, so fix the input and run it again. A Stop
+   payload carries both `transcript_path` and `last_assistant_message`.
+   `hooks/handrail-config-selftest.py` shows how to make a transcript.
+
+   A setting cannot take an input, so read it: a `permissions.deny` entry
+   that names the exact tool covers that tool. Every input blocked: report
+   the files and the commands you ran, and stop. Some inputs not blocked:
+   go on with only those.
 
    A mechanism outside git (`~/.claude/hooks/`, `~/.claude/settings.json`)
    counts as cover, and this skill never edits it, because no review can
@@ -97,8 +104,8 @@ Three ways in:
      diff, a PR body), because a cloud routine or a teammate never loads this
      laptop's hooks. A check counts only when it fires before the cost the
      rule protects, e.g. CI on a draft PR runs after the CI minutes are
-     spent, so a draft-PR rule gets a hook. A rule about replies or tool calls leaves no trace, so it
-     gets a hook only. No CI yet: run *Repo setup* first.
+     spent, so a draft-PR rule gets a hook. A rule about replies or tool
+     calls leaves no trace, so it gets a hook only. No CI yet: run *Repo setup* first.
    - A rule from `~/CLAUDE.md` that leaves a trace gets both homes: the plugin
      hook, and a CI check in each repo where the owner names the trace as a
      problem. Ask the owner which repos when the rule does not say. Code the
@@ -112,9 +119,10 @@ Three ways in:
 
    Say the choice in one line before you build.
 6. **Take the cheapest mechanism that blocks**, in this order: a hook that
-   blocks, CI that fails, a config setting that forbids. A hook blocks: it
-   exits 2 with the reason on stderr. A warning that only prints is the last
-   choice, used only where a block would stop correct work, and the report
+   blocks, CI that fails, a config setting that forbids. A new hook blocks
+   by exiting 2 with the reason on stderr. An extended hook keeps the way it
+   blocks already, e.g. the JSON decision of `hooks/claude-md-guard.py`.
+   A warning that only prints is the last choice, used only where a block would stop correct work, and the report
    says so. A rule that says to do a step after an event, e.g. "render the PDF
    again after each merge", gets a mechanism that does the step: a
    PostToolUse hook or a CI job on push to `main`. Doing the step beats
@@ -129,8 +137,8 @@ Three ways in:
    none. Add a `mutation-gate` entry when the repo has the gate.
 8. **Point the prose at the mechanism, after it is live.** Keep the rule's
    text. Add one line after it, or extend the `Enforced by` line it has,
-   e.g. `Enforced by <file> (<event>, blocks the call).` Write what it does: blocks the call, blocks the turn,
-   fails CI, or does the step. Add the line only when the mechanism runs.
+   e.g. `Enforced by <file> (<event>, blocks the call).` Write what it
+   does: blocks the call, blocks the turn, fails CI, or does the step. Add the line only when the mechanism runs.
    For a repo hook or CI check, that is the merge. For a plugin hook, it is
    the merge, then `claude plugin marketplace update yw-workflow`, then
    `claude plugin update yw-workflow@yw-workflow`, then a restart of Claude
@@ -348,8 +356,8 @@ actually run there.
 ## Hands off to
 
 - Each mechanism ships through `/yw-workflow:ship-loop`, one PR for each
-  repo a ticket touches, and the reviewer from `/yw-workflow:fresh-eye` tries the broken
-  inputs.
+  repo a ticket touches. The reviewer from `/yw-workflow:fresh-eye` tries
+  the broken inputs.
 - A new self-check in a repo with the gate: `/yw-workflow:mutation-gate` proves
   it can fail.
 - The repo is set up: `/yw-workflow:ship-loop` is what merges through the gate
