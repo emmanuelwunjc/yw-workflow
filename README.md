@@ -59,7 +59,7 @@ grill -> wayfinder -> git-lanes -> ship-loop -> fresh-eye
 `ship-loop` and `fresh-eye` share one review procedure. `ship-loop` step 6
 has when the loop stops and the `Rounds:` line each PR body carries.
 
-`hardcore` turns a rule you name into a hook or CI check, and sets up a repo's CI and branch protection once, before any of it merges. `mutation-gate` ships a
+`hardcore` turns a rule you name into a hook or CI check. It also sets up a repo's CI once, before any of it merges. `mutation-gate` ships a
 script: a repo copies `skills/mutation-gate/mutation_gate.py` verbatim and adds
 a data file, and `fresh-eye` findings are where its entries come from.
 

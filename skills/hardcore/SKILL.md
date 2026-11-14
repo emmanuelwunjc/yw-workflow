@@ -1,6 +1,6 @@
 ---
 name: hardcore
-description: Turn a prose rule into a mechanism (a hook that blocks, a CI check that fails, a config setting that forbids) with a self-test that proves it fires. Use when the user names a rule and says "/hardcore", asks "is this hardened or prosed", "make this a hook", "enforce this rule", "audit the rules in this repo", or when a rule broke after it was written down. Also sets up CI, pre-commit hooks, a PR template and branch protection: "set up CI", "add branch protection", "bootstrap this repo", "add git hygiene".
+description: Turn a prose rule into a mechanism (a hook that blocks, a CI check that fails, a config setting that forbids) with a self-test that proves it fires. Use when the user names a rule and says "/hardcore", asks "is this hardened or prosed", "make this a hook", "enforce this rule", "audit the rules in this repo", or when a rule broke after it was written down. Also sets up CI, pre-commit hooks, a PR template and branch protection: "set up CI", "add branch protection", "bootstrap this repo", "add git hygiene", "harden this repo's git workflow", or when starting real work in a repo that has none of this yet.
 origin: authored
 tags: [rules, hooks, ci, enforcement, branch-protection, bootstrap]
 version: 2.0.0
@@ -16,8 +16,8 @@ what they got.
 A prose rule holds while it sits in the reader's recent context. It fails
 once the session moves on, a skill body loads later, or the work goes to a
 subagent that never saw it. The failure is silent: the owner finds it by
-reading the output. Issue #94 (prose rules fail silently) lists thirteen
-cases from one week. This skill moves a rule from text into something that
+reading the output. Issue #94 (prose rules fail silently), collected on
+2026-11-13, lists thirteen such cases. This skill moves a rule from text into something that
 runs.
 
 Three ways in:
@@ -33,8 +33,16 @@ Three ways in:
 1. **Quote the rule and its source.** Copy the rule word for word with its
    file and line, e.g. `~/CLAUDE.md` section 7, or a memory file, or a lane
    issue's `## Next`. Name one real time it broke, if one is known.
+   Then look for a mechanism that already covers it: grep the plugin's
+   `hooks/`, the repo's `.claude/hooks/` and CI for the rule's key words.
+   Found, and it blocks the case: report the file and the proof command, and
+   stop. Found, and a case gets through: add that case to the hook's
+   self-test and fix the hook that exists. Steps 2 to 8 then apply to that
+   hook.
 2. **Find the event where the violation shows.** A script can only see what
-   an event hands it. Pick the first one that carries the violation:
+   an event hands it. Pick each event that carries the violation, e.g. a
+   rule about all prose needs Stop for replies and PreToolUse on Write for
+   files:
    - a tool call, before it runs (PreToolUse: the Bash command text, the
      Write content),
    - the end of a turn (Stop: the reply text and the transcript),
@@ -42,7 +50,9 @@ Three ways in:
      finished),
    - a pushed branch (CI: the diff, the built files, the PR body),
    - a setting the tool already has (branch protection, `.gitignore`,
-     `permissions.deny`).
+     `permissions.deny`),
+   - a script the repo makes agents call (e.g. `scripts/lane_claim.py`):
+     the script refuses.
 3. **Classify it.** The rule is *mechanical* when a script on that event can
    decide pass or fail with no reading of intent, e.g. "no em-dash in the
    reply" or "no merge without a review comment". It is *judgment* when only
@@ -53,7 +63,9 @@ Three ways in:
    prose.
 4. **Put it where the rule's scope is.**
    - A rule from `~/CLAUDE.md` holds in every repo. Its hook goes in this
-     plugin: `hooks/<name>.py`, wired in `hooks/hooks.json`.
+     plugin: a new rule in the hook that already reads that event (e.g.
+     `hooks/claude-md-guard.py` for a reply rule), or a new
+     `hooks/<name>.py` wired in `hooks/hooks.json`.
    - A rule for one repo (its `CLAUDE.md`, its memory, a lane issue) goes in
      that repo: a hook in `.claude/hooks/` wired in `.claude/settings.json`.
    - Add a CI check when the violation leaves a trace in the repo (a file, a
@@ -68,7 +80,9 @@ Three ways in:
      parent's memory, and hooks from settings files and plugins run inside
      subagents too ("When a subagent calls a tool, tool events such as
      `PreToolUse` and `PostToolUse` fire the same configured hooks as in the
-     main conversation", https://code.claude.com/docs/en/hooks.md).
+     main conversation", https://code.claude.com/docs/en/hooks.md). That
+     covers tool events. A rule about a subagent's final reply needs
+     `SubagentStop`, because `Stop` fires only for the main session.
 
    Say the choice in one line before you build.
 5. **Take the cheapest mechanism that blocks**, in this order: a hook that
@@ -86,11 +100,15 @@ Three ways in:
    hook. Give the hook an override that shows in the command, e.g.
    `SKIP_<NAME>=1`, and say it in the block message. Add a `mutation-gate`
    entry when the repo has the gate.
-7. **Point the prose at the mechanism.** Keep the rule's text, and add one
-   line after it: `Enforced by <file> (<event>, blocks the turn).` The text
-   keeps the reason a reader needs. The line tells them the rule no longer
-   depends on memory.
-8. **Ship it as one PR** through `/yw-workflow:ship-loop`. The reviewer gets
+7. **Point the prose at the mechanism, after it is live.** Keep the rule's
+   text, and add one line after it, e.g. `Enforced by <file> (<event>,
+   blocks the call).` Write what it does: blocks the call, blocks the turn,
+   fails CI, or does the step. Add the line only after the PR merges and,
+   for a plugin hook, after `claude plugin update yw-workflow@yw-workflow`
+   installs it. A line in `~/CLAUDE.md` that names a mechanism not yet
+   installed sends every session to something that is not there.
+8. **Ship it** through `/yw-workflow:ship-loop`: one PR for each repo it
+   touches, the plugin first. The reviewer gets
    the broken inputs to try, and asks for three more.
 
 Report back: the rule, the event, the file, the command that proves it fails
@@ -102,9 +120,9 @@ on a violation, and any part left as prose.
    project memory folder, `docs/HANDOFF.md`, the open `lane` issues, and the
    repo's skill bodies. A rule is any sentence that tells an agent what it
    must or must not do.
-2. **Drop the ones already enforced.** A rule with an `Enforced by` line, or
-   one a hook already blocks, is done. Check the hook exists before you drop
-   the rule.
+2. **Set aside the ones already enforced.** A rule with an `Enforced by`
+   line, or one a hook already blocks, goes in an *Already enforced* list
+   with its file and proof command. Check the hook exists first.
 3. **Run steps 2 to 5 of *One rule* on each one left**, without building.
 4. **Write the table**, one row per rule:
 
@@ -300,12 +318,11 @@ actually run there.
 
 ## Hands off to
 
-- Each mechanism ships through `/yw-workflow:ship-loop`, one PR per rule, and
-  the reviewer from `/yw-workflow:fresh-eye` tries the broken inputs.
+- Each mechanism ships through `/yw-workflow:ship-loop`, one PR for each
+  ticket, and the reviewer from `/yw-workflow:fresh-eye` tries the broken
+  inputs.
 - A new self-check in a repo with the gate: `/yw-workflow:mutation-gate` proves
   it can fail.
-- The rule turned out to be a decision only the owner can make:
-  `/yw-workflow:need-me`.
 - The repo is set up: `/yw-workflow:ship-loop` is what merges through the gate
   you just built.
 - `git-safety-guard.sh` protects one laptop only. A cloud routine never touches

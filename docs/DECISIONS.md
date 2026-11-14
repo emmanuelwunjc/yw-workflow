@@ -66,7 +66,7 @@ one, never in a copy step.
 
 ## 2026-08-27: a git wrapper bypasses the safety hook, and worktrunk evaluated
 
-Supports `git-lanes` and `harden`. Take `wt switch` and `wt remove`. Refuse
+Supports `git-lanes` and `harden` (renamed `hardcore` on 2026-11-13). Take `wt switch` and `wt remove`. Refuse
 `wt merge`, and block it in the hook before anyone runs it.
 
 This plugin's `hooks/git-safety-guard.sh` matches on the literal string `git `. Any
