@@ -125,8 +125,8 @@ Three ways in:
    input that must pass. Run it and see it fail. A new case that passes
    before you change the hook shows the hook covers it already: keep the
    case, change no hook code, and report the rule as covered. Then write the
-   hook. Give the hook an override that shows in the command, e.g. `SKIP_<NAME>=1`, and
-   say it in the block message. A rule that says it has no override gets
+   hook. Give the hook an override that shows in the command, e.g.
+   `SKIP_<NAME>=1`, and say it in the block message. A rule that says it has no override gets
    none. Add a `mutation-gate` entry when the repo has the gate.
 8. **Point the prose at the mechanism, after it is live.** Keep the rule's
    text. Add one line after it, or extend the `Enforced by` line it has, e.g.
