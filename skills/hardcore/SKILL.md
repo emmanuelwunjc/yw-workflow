@@ -78,12 +78,14 @@ Three ways in:
    `.claude/settings.local.json`, and other enabled plugins. For each
    candidate, give:
    - the file, the event, the `matcher` and the `if`,
-   - each thing that can switch it off, with its state on this machine: a
+   - each thing that can switch it off, with its state where it runs (this
+     machine for a hook, the CI job for a CI check): a
      config key (e.g. `"negation": False` in `hooks/handrail_config.py`, not
      set in `~/.handrail.toml`), an off-switch file (e.g.
      `~/.claude/.ste-off`), a block limit for each session (e.g.
      `MAX_BLOCKS_PER_SESSION = 2`),
-   - each self-test case that mentions the violation, whether that case
+   - each self-test case that mentions the violation, in any self-test that
+     runs this mechanism, whether that case
      expects a block or an allow, and whether it runs the command the wiring
      calls or only calls a function inside the hook.
 
@@ -99,6 +101,8 @@ Three ways in:
    candidate gets no "extend" option. "Build a new one" puts the new hook
    where step 5 says, and the report names the outside file beside it.
 5. **Put it where the rule's scope is.**
+   - The owner chose "extend" for a CI check in step 4: extend that check,
+     in the repo that holds it. Add no other CI check for this rule.
    - A rule from `~/CLAUDE.md` holds in every repo. Its hook goes in this
      plugin, as the owner chose in step 4: extend the hook the owner named,
      or add `hooks/<name>.py`, wired in `hooks/hooks.json`. With no step 4
@@ -142,8 +146,12 @@ Three ways in:
    feeds the hook's entry point, the command the wiring calls, with that
    event's JSON and a new `session_id`. The case's tool name must match the
    wiring's `matcher` and `if`, or the hook never runs in a session.
-   `hooks/no-ai-attribution-selftest.py` feeds its hook this way for
-   PreToolUse, and `hooks/handrail-config-selftest.py` for Stop. A case that
+   `hooks/no-ai-attribution-selftest.py` runs its PreToolUse hook as a
+   command with event JSON, and `hooks/handrail-config-selftest.py` runs its
+   Stop hook with a transcript and a new `session_id`. For a CI check, a case
+   feeds the check's command a file that holds the violation and expects a
+   non-zero exit, e.g. the em-dash probe a reviewer runs on
+   `tools/check-repo.py`. A case that
    only calls a function inside the hook does not prove the wired hook blocks.
    Run the self-test and see each new case fail. A new case that passes before
    you change the hook: stop, and show the owner that case. Then write the
