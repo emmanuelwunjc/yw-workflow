@@ -32,8 +32,9 @@ Three ways in:
 
 1. **Quote the rule and its source.** Copy the rule word for word with its
    file and line, e.g. `~/CLAUDE.md` section 7, or a memory file, or a lane
-   issue's `## Next`. Name one real time it broke, if one is known. Each
-   break is a broken input for step 7.
+   issue's `## Next`. Write at least one broken input for each way the rule
+   can break, e.g. a reply that holds an em-dash. Use a real break when one
+   is known. Steps 4 and 7 run these inputs.
 2. **Find every event where the violation shows.** A script can only see
    what an event hands it. List each event that carries the violation, e.g.
    a rule about all prose needs Stop for replies and PreToolUse on Write for
@@ -41,7 +42,6 @@ Three ways in:
    - a tool call, before it runs (PreToolUse: the Bash command text, the
      Write content),
    - the end of a turn (Stop: the reply text and the transcript),
-   - the end of a subagent's turn (SubagentStop: the subagent's reply),
    - a tool call, after it ran (PostToolUse: e.g. a `gh pr merge` that
      finished),
    - a pushed branch (CI: the diff, the built files, the PR body),
@@ -49,6 +49,12 @@ Three ways in:
      `permissions.deny`),
    - a script the repo makes agents call (e.g. `scripts/lane_claim.py`):
      the script refuses.
+
+   Event names and what each event carries change between Claude Code
+   versions. Before you pick an event, read
+   https://code.claude.com/docs/en/hooks.md and quote the line that says the
+   event carries your input. For a subagent's work, the docs name the event
+   that carries its report.
 3. **Classify it.** The rule is *mechanical* when a script on that event can
    decide pass or fail with no reading of intent, e.g. "no em-dash in the
    reply" or "no merge without a review comment". It is *judgment* when only
@@ -60,18 +66,26 @@ Three ways in:
    e.g. blocking every `gh pr create --draft` for "never park work in a
    draft PR". Take it only when its override is cheap, and name the correct
    work it stops in the report.
-4. **Find what already covers it.** Search every place a mechanism can live,
-   for the rule's key words and for each event from step 2:
-   - the plugin's `hooks/` and `hooks/hooks.json`,
-   - `~/.claude/hooks/` and the `hooks` block of `~/.claude/settings.json`,
-   - the repo's `.claude/hooks/`, `.claude/settings.json` and
-     `.claude/settings.local.json`,
-   - the repo's CI files and its branch protection.
+4. **Prove what already covers it, by running it.** Find the mechanisms:
+   every hook wired for each event from step 2 (the plugin's
+   `hooks/hooks.json`, the `hooks` block of `~/.claude/settings.json`, and
+   the repo's `.claude/settings.json` and `.claude/settings.local.json`),
+   every setting that forbids (`permissions.deny`, `attribution`, branch
+   protection), and the repo's CI. A hook file that no settings file wires
+   covers nothing.
 
-   For each event, a mechanism covers it when its self-test passes and it
-   blocks the step 1 breaks. Every event covered: report the files and the
-   proof commands, and stop. Some events not covered: go on with only those
-   events, and extend the mechanism that exists before you add a new one.
+   Then feed each broken input from step 1 to each wired hook for its event,
+   as that event's JSON on stdin, and read the exit code. A Stop hook reads
+   the reply from a transcript file. `hooks/handrail-config-selftest.py`
+   shows how to make one. An input is covered
+   when one mechanism blocks it. Every input covered: report the files and
+   the commands you ran, and stop. Some inputs not covered: go on with only
+   those.
+
+   A mechanism outside git (`~/.claude/hooks/`, `~/.claude/settings.json`)
+   counts as cover, and this skill never edits it, because no review can
+   reach it. A gap next to one goes to the plugin as a new hook. The report
+   names both files.
 5. **Put it where the rule's scope is.**
    - A rule from `~/CLAUDE.md` holds in every repo. Its hook goes in this
      plugin. Extend the plugin hook whose subject is closest, e.g.
@@ -81,7 +95,9 @@ Three ways in:
      that repo: a hook in `.claude/hooks/` wired in `.claude/settings.json`.
    - Add a CI check when the violation leaves a trace in the repo (a file, a
      diff, a PR body), because a cloud routine or a teammate never loads this
-     laptop's hooks. A rule about replies or tool calls leaves no trace, so it
+     laptop's hooks. A check counts only when it fires before the cost the
+     rule protects, e.g. CI on a draft PR runs after the CI minutes are
+     spent, so a draft-PR rule gets a hook. A rule about replies or tool calls leaves no trace, so it
      gets a hook only. No CI yet: run *Repo setup* first.
    - A rule from `~/CLAUDE.md` that leaves a trace gets both homes: the plugin
      hook, and a CI check in each repo where the owner names the trace as a
@@ -92,11 +108,7 @@ Three ways in:
      parent's memory, and hooks from settings files and plugins run inside
      subagents too ("When a subagent calls a tool, tool events such as
      `PreToolUse` and `PostToolUse` fire the same configured hooks as in the
-     main conversation", https://code.claude.com/docs/en/hooks.md). That
-     covers tool events. A rule about a subagent's final reply needs
-     `SubagentStop`, because `Stop` fires only for the main session.
-     `SubagentStop` also fires for Claude Code's own internal agents, so the
-     self-test holds one internal-agent reply that must pass.
+     main conversation", https://code.claude.com/docs/en/hooks.md).
 
    Say the choice in one line before you build.
 6. **Take the cheapest mechanism that blocks**, in this order: a hook that
@@ -113,11 +125,11 @@ Three ways in:
    each broken input from step 1 with the result it must give, and one valid
    input that must pass. Run it and see it fail. Then write the hook. Give
    the hook an override that shows in the command, e.g. `SKIP_<NAME>=1`, and
-   say it in the block message. Add a `mutation-gate` entry when the repo has
-   the gate.
+   say it in the block message. A rule that says it has no override gets
+   none. Add a `mutation-gate` entry when the repo has the gate.
 8. **Point the prose at the mechanism, after it is live.** Keep the rule's
-   text, and add one line after it, e.g. `Enforced by <file> (<event>,
-   blocks the call).` Write what it does: blocks the call, blocks the turn,
+   text. Add one line after it, or extend the `Enforced by` line it has,
+   e.g. `Enforced by <file> (<event>, blocks the call).` Write what it does: blocks the call, blocks the turn,
    fails CI, or does the step. Add the line only when the mechanism runs.
    For a repo hook or CI check, that is the merge. For a plugin hook, it is
    the merge, then `claude plugin marketplace update yw-workflow`, then
@@ -137,11 +149,11 @@ on a violation, any part left as prose, and any correct work the check stops.
    project memory folder, `docs/HANDOFF.md`, the open `lane` issues, and the
    repo's skill bodies. A rule is any sentence that tells an agent what it
    must or must not do.
-2. **Set aside the ones already enforced.** A rule with an `Enforced by`
-   line, or one a hook already blocks, goes in an *Already enforced* list
-   with its file and proof command. Check the hook exists first.
-3. **Run steps 2 to 6 of *One rule* on each one left**, without building.
-4. **Write the table**, one row per rule:
+2. **Run steps 1 to 6 of *One rule* on each rule**, without building. A
+   rule whose broken inputs step 4 shows are all blocked goes in an
+   *Already enforced* list, with its files and the commands that showed it.
+   An `Enforced by` line is a claim, so it gets the same run.
+3. **Write the table**, one row per rule:
 
    | Rule (quoted) | Source | Class | Event | Mechanism and home | Proof command |
    |---|---|---|---|---|---|
@@ -149,12 +161,12 @@ on a violation, any part left as prose, and any correct work the check stops.
    The proof command is the one that shows the mechanism fails on a
    violation, e.g. `python3 hooks/<name>-selftest.py`. A judgment row says
    why in the Mechanism cell and has no proof command.
-5. **File one ticket per mechanism**, agent-ready. Rows that share one event
+4. **File one ticket per mechanism**, agent-ready. Rows that share one event
    and one hook go in one ticket. Each ticket holds the rule and source,
    the broken inputs, acceptance criteria as boxes, and the proof command.
    When the owner asked for the table only, print the `gh issue create`
    commands and file nothing.
-6. **Build the tickets** through `/yw-workflow:ship-loop`, one *One
+5. **Build the tickets** through `/yw-workflow:ship-loop`, one *One
    rule* run each. Keep at most four built branches waiting for review.
 
 ## Repo setup: CI and branch protection
