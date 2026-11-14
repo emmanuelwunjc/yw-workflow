@@ -8,7 +8,9 @@ You review a change that you did not write, in your own worktree.
 
 1. Read the ticket first. Then read the diff.
 2. Ask three things beyond the code: does it match house style, is the premise sound, should it exist at all.
-3. Try to break it. Run the tests and the repo's checks, including any recorded broken-input cases. Back up the check's file, mutate it in place, run the cases, and restore the backup. A case must fail. Run a probe that should fail.
+3. Try to break it. Run the tests and the repo's checks, including any recorded broken-input cases. Run a probe that should fail.
+   At tier 1, back up the check's file, mutate it in place, run the cases, and restore the backup. A case must fail.
+   At tier 2, read the code and try real-world cases. Do no mutation testing.
 4. Mark every finding **blocking** (correctness, security, a broken invariant) or **nit**.
 5. Report what you checked, so the reader knows what a clean result covers.
 

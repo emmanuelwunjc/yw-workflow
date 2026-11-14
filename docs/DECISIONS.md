@@ -788,30 +788,31 @@ that CI or the last review round had done.
 
 Evidence, measured in edsim-paper on 2026-11-13: tool PRs ran 3 to 5 review
 rounds, each with one blocking finding, e.g. the overview figure and the
-writer guard. Each round cost 40k to 75k tokens. Recount:
+writer guard. Each round with a recorded cost used 25k to 130k tokens.
+Recount:
 `gh pr list -R georgetown-mdi-gates4/edsim-paper --state merged --limit 100 --json body --jq '.[].body' | grep '^Rounds:'`
 
 The owner decided three rules on 2026-11-13:
 
-1. Two tiers, named by the coordinator in the brief. Tier 1 is a check that
-   protects a product on CI, e.g. a sources check or a fact-check gate. It
-   gets full mutation tests and invented mutations, and a survivor blocks.
-   Tier 2 is local hooks, tools, convenience scripts and figures. The
-   reviewer runs the tests near the change, reads the code and tries
-   real-world cases, with no mutation testing. A finding is a nit with a
-   ticket. It blocks only when its failure is silent, i.e. wrong output ships
+1. Two tiers, named by the coordinator in the brief. Tier 1 is a check whose
+   silent failure lets wrong content ship, e.g. a sources check or a
+   fact-check gate. It gets full mutation tests and invented mutations, and a
+   survivor blocks. Tier 2 is local hooks, tools, scripts and figure tools,
+   including ones that run on CI, when their failure is visible in the output.
+   E.g. a figure tool that stops the render on a bad figure is tier 2, because
+   a bad figure is easy to see in the PDF. The reviewer runs the tests near
+   the change, reads the code and tries real-world cases, with no mutation
+   testing. A finding is a nit with a ticket. It blocks only when its failure is silent, i.e. wrong output ships
    with no sign. A failure a person notices at once (e.g. a stale PDF, a
-   crash) is a nit. A check whose silent failure lets wrong output ship on CI
-   is tier 1. Everything else is tier 2. This tie-break and the silent-failure
-   reading are the coordinator's reading of the owner's words "a failure a
-   person would see".
+   crash) is a nit. The figure-tool tie-break and the silent-failure reading
+   were confirmed by the owner, 2026-11-13.
 2. The reviewer runs only the tests near the change. It never runs the full
    suite or the full render, because CI does that. This follows
    `~/CLAUDE.md` section 3: "CI is the one full test run. Do not repeat it
    locally." The exception is a change to the render itself with no CI run
    at that commit.
-3. At tier 1, a review after a fix mutates only the code the fix changed. Code a past
-   round mutated stays covered.
+3. At tier 1, a review after a fix mutates only the code the fix changed.
+   Code a past round mutated stays covered.
 
 This narrows the 2026-11-04 entry: there, every survivor got a new case,
 blocking or not. That still holds at tier 1. At tier 2 the case goes into a

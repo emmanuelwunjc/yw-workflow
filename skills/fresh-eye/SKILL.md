@@ -57,17 +57,20 @@ scripted edits whose anchor silently matched nothing; features that shipped
 without ever rendering.
 
 **Name the tier.** The coordinator names one tier in the brief. It sets
-whether the reviewer mutates and what a survivor costs. A check whose silent
-failure lets wrong output ship on CI is tier 1. Everything else is tier 2.
+whether the reviewer mutates and what a survivor costs. Tier 1 is a check
+whose silent failure lets wrong content ship. Everything else is tier 2.
 
-- **Tier 1:** a check that protects a product on CI, e.g. a sources check or a
-  fact-check gate. Full mutation tests, three invented mutations, and every
-  survivor blocks.
-- **Tier 2:** local hooks, tools, convenience scripts, figures. Run the tests
-  near the change, read the code, and try real-world cases. No mutation
-  testing. A finding is a nit with a ticket. It blocks only when its failure
-  is silent, i.e. wrong output ships with no sign. A failure a person notices
-  at once (e.g. a stale PDF, a crash) is a nit.
+- **Tier 1:** a check whose silent failure lets wrong content ship, e.g. a
+  sources check or a fact-check gate. Full mutation tests, three invented
+  mutations, and every survivor blocks.
+- **Tier 2:** local hooks, tools, scripts and figure tools, including ones that
+  run on CI, when their failure is visible in the output. E.g. a figure tool
+  that stops the render on a bad figure is tier 2, because a bad figure is easy
+  to see in the PDF. Run the tests near the change, read the code, and try
+  real-world cases. No mutation testing. A finding is a nit with a ticket. It
+  blocks only when its failure is silent, i.e. wrong output ships with no
+  sign. A failure a person notices at once (e.g. a stale PDF, a crash) is a
+  nit.
 
 **Run only the tests near the change.** The reviewer never runs the full suite
 or the full render, because CI does that. One exception: the change is to the
@@ -98,14 +101,14 @@ When a check takes its input as an argument (a string, a row, a dict), the
 author records each broken input as a test case beside it. A case holds the
 input and the problem text it must contain. Add one valid input that must give
 no problem. Give each branch its own problem text, so a case shows which branch
-fired. These are ordinary tests, written with the check. The tests near the check
-run them each round, and CI runs them all.
+fired. These are ordinary tests, written with the check. The tests near the
+check run them each round, and CI runs them all.
 
 At tier 1, check mutations stay hand work each round, because the check's
-code changes between rounds. The reviewer backs up the check's file, edits the file in
-place with a Bash-run script, and runs the cases. Then it restores the backup.
-The tests load the real file, so an edit to a copy tests nothing. For each
-branch the reviewer breaks, at least one case must fail.
+code changes between rounds. The reviewer backs up the check's file, edits
+the file in place with a Bash-run script, and runs the cases. Then it restores
+the backup. The tests load the real file, so an edit to a copy tests nothing.
+For each branch the reviewer breaks, at least one case must fail.
 
 Each survivor has one route, and the route depends on the tier. At tier 1, a
 surviving broken input or check mutation becomes the case that kills it, and
@@ -263,9 +266,10 @@ function, or line number, it belongs in Agent-facing specifics instead.
     This project's recurring failure mode is <disease>. Assume it is present
     until you prove otherwise.
 
-    Tier: <1 or 2>. Tier 1 protects a product on CI: every survivor blocks.
-    Tier 2 is a local hook, tool, script or figure: no mutation testing, and
-    a finding is a nit with a ticket. It blocks only when its failure is
+    Tier: <1 or 2>. Tier 1 is a check whose silent failure lets wrong content
+    ship: every survivor blocks. Tier 2 is a hook, tool, script or figure tool
+    whose failure is visible in the output, also on CI: no mutation testing,
+    and a finding is a nit with a ticket. It blocks only when its failure is
     silent, i.e. wrong output ships with no sign.
     Tier 1, mutate only: <the full diff, or after a fix, the fix's diff>.
 
@@ -290,7 +294,8 @@ function, or line number, it belongs in Agent-facing specifics instead.
     5. What part of the input space does nothing exercise?
     6. Anything orphaned, dead, scope creep, or a comment claiming something the
        code does not do?
-    7. If this change builds or fixes code: revert the non-test part of the
+    7. Both tiers, because it is cheap and checks the fix itself. If this
+       change builds or fixes code: revert the non-test part of the
        diff and show the new test fails (for a fix, show the reproduction fails
        on the base and passes on the branch).
     8. For every sentence that makes a factual claim to a reader, find its
