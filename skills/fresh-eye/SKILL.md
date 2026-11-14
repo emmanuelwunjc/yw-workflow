@@ -56,28 +56,30 @@ that have paid off: checks that grep for a string instead of measuring behavior;
 scripted edits whose anchor silently matched nothing; features that shipped
 without ever rendering.
 
-**Name the tier.** The coordinator names one tier in the brief. It sets how
-hard the reviewer mutates and what a survivor costs.
+**Name the tier.** The coordinator names one tier in the brief. It sets
+whether the reviewer mutates and what a survivor costs. A check whose silent
+failure lets wrong output ship on CI is tier 1. Everything else is tier 2.
 
 - **Tier 1:** a check that protects a product on CI, e.g. a sources check or a
   fact-check gate. Full mutation tests, three invented mutations, and every
   survivor blocks.
 - **Tier 2:** local hooks, tools, convenience scripts, figures. Run the tests
-  near the change, read the code, and try real-world cases. A surviving
-  mutation is a nit with a ticket. It blocks only when it causes a failure a
-  person can see.
+  near the change, read the code, and try real-world cases. No mutation
+  testing. A finding is a nit with a ticket. It blocks only when its failure
+  is silent, i.e. wrong output ships with no sign. A failure a person notices
+  at once (e.g. a stale PDF, a crash) is a nit.
 
 **Run only the tests near the change.** The reviewer never runs the full suite
 or the full render, because CI does that. One exception: the change is to the
 render itself and no CI run exists at that commit.
 
-**After a fix, mutate only what the fix changed.** Code a past round already
-mutated stays covered. Name the fix's diff in the brief, e.g.
+**After a fix, mutate only what the fix changed (tier 1).** Code a past round
+already mutated stays covered. Name the fix's diff in the brief, e.g.
 `git diff <reviewed-sha>..origin/<branch>`.
 
-**Demand mutation, not reading.** This is the highest-value instruction in the
-prompt. List the specific mutations that MUST fail, and ask for any that survive,
-loudly:
+**Demand mutation at tier 1.** At tier 1 this is the highest-value
+instruction in the prompt. List the specific mutations that MUST fail, and ask
+for any that survive, loudly:
 
     Mutate the source and prove each new check actually fails:
       <mutation 1> -> <check that must fire>
@@ -96,20 +98,21 @@ When a check takes its input as an argument (a string, a row, a dict), the
 author records each broken input as a test case beside it. A case holds the
 input and the problem text it must contain. Add one valid input that must give
 no problem. Give each branch its own problem text, so a case shows which branch
-fired. These are ordinary tests, written with the check. The suite runs them
-every round and in CI.
+fired. These are ordinary tests, written with the check. The tests near the check
+run them each round, and CI runs them all.
 
-Check mutations stay hand work each round, because the check's code changes
-between rounds. The reviewer backs up the check's file, edits the file in
+At tier 1, check mutations stay hand work each round, because the check's
+code changes between rounds. The reviewer backs up the check's file, edits the file in
 place with a Bash-run script, and runs the cases. Then it restores the backup.
 The tests load the real file, so an edit to a copy tests nothing. For each
 branch the reviewer breaks, at least one case must fail.
 
-Each survivor has one route. A surviving broken input becomes a new case. It
-blocks at tier 1. At tier 2 it is a nit with a ticket, unless a person can see
-the failure it causes. A case is cheap to run, but adding one after a `PASS` changes
-code, so it costs one more review round (`ship-loop` step 6). A surviving check
-mutation gets the case that kills it. A code breakage that a script's own
+Each survivor has one route, and the route depends on the tier. At tier 1, a
+surviving broken input or check mutation becomes the case that kills it, and
+it blocks. A case is cheap to run, but adding one after a `PASS` changes
+code, so it costs one more review round (`ship-loop` step 6). At tier 2, a
+finding is a nit with a ticket, and the ticket holds the case. It blocks only
+when its failure is silent. At tier 1, a code breakage that a script's own
 self-check missed becomes a `mutation-gate` entry. Cases go when their check
 goes. The measurement behind this rule is in `docs/DECISIONS.md` (2026-11-04).
 
@@ -261,21 +264,26 @@ function, or line number, it belongs in Agent-facing specifics instead.
     until you prove otherwise.
 
     Tier: <1 or 2>. Tier 1 protects a product on CI: every survivor blocks.
-    Tier 2 is a local hook, tool, script or figure: a survivor is a nit with
-    a ticket, unless a person can see the failure it causes.
-    Mutate only: <the full diff, or after a fix, the fix's diff>.
+    Tier 2 is a local hook, tool, script or figure: no mutation testing, and
+    a finding is a nit with a ticket. It blocks only when its failure is
+    silent, i.e. wrong output ships with no sign.
+    Tier 1, mutate only: <the full diff, or after a fix, the fix's diff>.
 
     1. Run the tests near the change: <the test files>. Never run the full
-       suite or the full render. CI runs those. NOTE: a check reports
+       suite or the full render. CI runs those. One exception: the change is
+       to the render, and no CI run exists at that commit. NOTE: a check reports
        failures on stderr and signals with its exit code; do not grep stdout.
-    2. Run the recorded broken-input cases. Then back up the check's file,
-       mutate it in place, run the cases, and restore the backup. A case
-       must fail for each branch you break:
+    2. Tier 1: run the recorded broken-input cases. Then back up the check's
+       file, mutate it in place, run the cases, and restore the backup. A
+       case must fail for each branch you break:
        <list>
        Report any that survived, loudly. Name each survivor's route. A
        surviving broken input or check mutation becomes a new case. A
        script breakage its own self-check missed becomes a `mutation-gate`
-       entry. At tier 2, read the code and try real-world cases as well.
+       entry.
+       Tier 2: do no mutation testing. Read the code and try real-world
+       cases, e.g. <cases>. Report each finding as a nit with a ticket,
+       unless its failure is silent.
     3. Tier 1 only: invent three more mutations aimed at the weakest checks.
     4. Is the promised bound justified by the problem, or chosen to exclude
        failures?

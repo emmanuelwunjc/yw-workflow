@@ -128,7 +128,7 @@ Run the review on the FIX for the previous review too. That is where the next
 defect usually is: each fix to a check tends to open a different hole in it.
 
 Name the tier in the brief (`fresh-eye`, "Name the tier"). The reviewer runs
-only the tests near the change, and after a fix it mutates only the fix.
+only the tests near the change. At tier 1, after a fix it mutates only the fix.
 
 ## 5. Triage the findings, and record all of them
 
@@ -159,6 +159,7 @@ Then post the verdict where the change lives, including what you did not fix.
 
 Go back to step 4 with the new state. If a round changes code, the next round
 is mandatory: you have just changed the code, and the change is unreviewed.
+At tier 1, a round after a fix mutates only what the fix changed.
 
 While a review round runs, the coordinator keeps the other `parallel` tasks
 running, each in its own worktree. `parallel` is a mark on a `## Next` item
