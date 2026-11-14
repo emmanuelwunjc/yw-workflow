@@ -779,3 +779,30 @@ earlier entries keep their text.
 
 Check: `grep -n '"first": 120000' hooks/context-handoff.py hooks/handrail_config.py`
 and `./hooks/context-handoff-selftest.py`.
+
+## 2026-11-13: two review tiers, tests near the change, mutate only the fix
+
+Supports `fresh-eye` and `ship-loop`. The case and its evidence are in issue
+#98 (`gh issue view 98 -R emmanuelwunjc/yw-workflow`). Reviews repeated work
+that CI or the last review round had done.
+
+The owner decided three rules on 2026-11-13:
+
+1. Two tiers, named by the coordinator in the brief. Tier 1 is a check that
+   protects a product on CI, e.g. a sources check or a fact-check gate. It
+   gets full mutation tests and invented mutations, and a survivor blocks.
+   Tier 2 is local hooks, tools, convenience scripts and figures. The
+   reviewer runs the tests near the change, reads the code and tries
+   real-world cases. A surviving mutation is a nit with a ticket, unless it
+   causes a failure a person can see.
+2. The reviewer runs only the tests near the change. It never runs the full
+   suite or the full render, because CI does that. This follows
+   `~/CLAUDE.md` section 3: "CI is the one full test run. Do not repeat it
+   locally." The exception is a change to the render itself with no CI run
+   at that commit.
+3. A review after a fix mutates only the code the fix changed. Code a past
+   round mutated stays covered.
+
+This narrows the 2026-11-04 entry: there, every survivor got a new case,
+blocking or not. That still holds at tier 1. At tier 2 the case goes into a
+ticket.

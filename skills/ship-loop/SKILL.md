@@ -3,7 +3,7 @@ name: ship-loop
 description: Run work as a closing loop instead of a trailing-off one. Ticket, branch, implement test-first, dispatch an independent review, fix what blocks, file what does not, and repeat until a review round comes back clean. Use when asked to "run the loop", "keep going until it's right", "loop until the feedback is perfect", "babysit this to done", or when handed a backlog of tickets to work through. Also use to decide what happens to review findings.
 origin: authored
 tags: [workflow, review, tdd, subagents, loop, tickets]
-version: 1.3.3
+version: 1.4.0
 ---
 
 # Ship loop
@@ -126,6 +126,9 @@ what its ticket asked for.
 
 Run the review on the FIX for the previous review too. That is where the next
 defect usually is: each fix to a check tends to open a different hole in it.
+
+Name the tier in the brief (`fresh-eye`, "Name the tier"). The reviewer runs
+only the tests near the change, and after a fix it mutates only the fix.
 
 ## 5. Triage the findings, and record all of them
 

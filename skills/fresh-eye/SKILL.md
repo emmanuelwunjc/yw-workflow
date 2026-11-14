@@ -3,7 +3,7 @@ name: fresh-eye
 description: Dispatch an independent adversarial reviewer that did not write the code, in an isolated git worktree, to try to break a change rather than agree with it. Use before merging anything non-trivial, when asked for "a fresh eye", "a second opinion", "review this properly", "try to break this", or when you have just finished work and are about to call it done. Also use on the FIX for a previous review, because that is where the next defect usually is.
 origin: authored
 tags: [review, quality, adversarial, worktree, mutation-testing]
-version: 1.2.0
+version: 1.3.0
 ---
 
 # Fresh eye
@@ -56,6 +56,25 @@ that have paid off: checks that grep for a string instead of measuring behavior;
 scripted edits whose anchor silently matched nothing; features that shipped
 without ever rendering.
 
+**Name the tier.** The coordinator names one tier in the brief. It sets how
+hard the reviewer mutates and what a survivor costs.
+
+- **Tier 1:** a check that protects a product on CI, e.g. a sources check or a
+  fact-check gate. Full mutation tests, three invented mutations, and every
+  survivor blocks.
+- **Tier 2:** local hooks, tools, convenience scripts, figures. Run the tests
+  near the change, read the code, and try real-world cases. A surviving
+  mutation is a nit with a ticket. It blocks only when it causes a failure a
+  person can see.
+
+**Run only the tests near the change.** The reviewer never runs the full suite
+or the full render, because CI does that. One exception: the change is to the
+render itself and no CI run exists at that commit.
+
+**After a fix, mutate only what the fix changed.** Code a past round already
+mutated stays covered. Name the fix's diff in the brief, e.g.
+`git diff <reviewed-sha>..origin/<branch>`.
+
 **Demand mutation, not reading.** This is the highest-value instruction in the
 prompt. List the specific mutations that MUST fail, and ask for any that survive,
 loudly:
@@ -65,8 +84,8 @@ loudly:
       <mutation 2> -> <check that must fire>
     Revert each after testing. Report any mutation that was NOT caught.
 
-Then ask it to invent three more mutations you did not think of, aimed at the
-weakest checks. Those are the ones that find things.
+At tier 1, also ask it to invent three more mutations you did not think of,
+aimed at the weakest checks. Those are the ones that find things.
 
 **Record the broken inputs, so no round retypes them.** Two kinds of mutation
 go into a review. A *broken input* is bad data fed to a check, e.g. a tag with
@@ -86,8 +105,9 @@ place with a Bash-run script, and runs the cases. Then it restores the backup.
 The tests load the real file, so an edit to a copy tests nothing. For each
 branch the reviewer breaks, at least one case must fail.
 
-Each survivor has one route. A surviving broken input becomes a new case,
-blocking or not. A case is cheap to run, but adding one after a `PASS` changes
+Each survivor has one route. A surviving broken input becomes a new case. It
+blocks at tier 1. At tier 2 it is a nit with a ticket, unless a person can see
+the failure it causes. A case is cheap to run, but adding one after a `PASS` changes
 code, so it costs one more review round (`ship-loop` step 6). A surviving check
 mutation gets the case that kills it. A code breakage that a script's own
 self-check missed becomes a `mutation-gate` entry. Cases go when their check
@@ -240,17 +260,23 @@ function, or line number, it belongs in Agent-facing specifics instead.
     This project's recurring failure mode is <disease>. Assume it is present
     until you prove otherwise.
 
-    1. Run <the gate command>. It must exit 0. NOTE: it reports failures on
-       stderr and signals with its exit code; do not grep stdout.
-    2. Run the recorded broken-input cases with the suite. Then back up
-       the check's file, mutate it in place, run the cases, and restore
-       the backup. A case must fail for each branch you break:
+    Tier: <1 or 2>. Tier 1 protects a product on CI: every survivor blocks.
+    Tier 2 is a local hook, tool, script or figure: a survivor is a nit with
+    a ticket, unless a person can see the failure it causes.
+    Mutate only: <the full diff, or after a fix, the fix's diff>.
+
+    1. Run the tests near the change: <the test files>. Never run the full
+       suite or the full render. CI runs those. NOTE: a check reports
+       failures on stderr and signals with its exit code; do not grep stdout.
+    2. Run the recorded broken-input cases. Then back up the check's file,
+       mutate it in place, run the cases, and restore the backup. A case
+       must fail for each branch you break:
        <list>
        Report any that survived, loudly. Name each survivor's route. A
        surviving broken input or check mutation becomes a new case. A
        script breakage its own self-check missed becomes a `mutation-gate`
-       entry.
-    3. Invent three more mutations aimed at the weakest checks.
+       entry. At tier 2, read the code and try real-world cases as well.
+    3. Tier 1 only: invent three more mutations aimed at the weakest checks.
     4. Is the promised bound justified by the problem, or chosen to exclude
        failures?
     5. What part of the input space does nothing exercise?
