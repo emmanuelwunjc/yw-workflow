@@ -56,7 +56,8 @@ Judgment and reasoning only. No counts, no SHAs, no issue tallies: those rot
 within hours. Derive them with `gh issue list` and the scripts in the repo.
 
 What this repo is: Yiming's engineering workflow packaged as a Claude Code
-plugin. See `README.md` for what each skill and hook does, and
+plugin. See `README.md` for what each skill and hook does (the full hook
+rules are in `docs/HOOKS.md`), and
 `docs/DECISIONS.md` for the dated measurements behind them. The counts live in
 the README and are checked against the skills on every run, so they are not
 repeated here.
@@ -1177,13 +1178,40 @@ Waits on the owner: whether the migrated repos also get a
 - Trap: a commit through `git -C <worktree>` is refused when the session
   sits on `main`. A literal `cd <worktree> &&` in its own call works (#74).
 
+## 2026-11-13: the README workflow diagram (#103, #104)
+
+- The README opens its Workflow section with a Mermaid diagram of four
+  stages. Blue boxes are yw skills, brown are mattpocock-skills, green uses
+  one of each, grey are inputs, steps and agents. Every arrow is a hand-off a
+  skill file names today. The full Hooks, CI gate and Config text moved word
+  for word to `docs/HOOKS.md`. `ship-loop` points to the diagram, and
+  `~/CLAUDE.md` has a short flow table under "Where things live".
+- Rejected: dashed arrows for planned hand-offs, labeled with tickets. Two
+  rounds in a row, each label cited a ticket that did not add that hand-off.
+  When a join ticket (#42, #43, #45) merges, that PR adds or recolors its box.
+- Trap: the README loop took six rounds. Every fix that added a sentence
+  brought a new finding. The round that cut text was the first to fall.
+  #102 (housekeeping) holds the pattern, and #99 is its mechanism.
+- Trap: a whole-branch re-review cost 75k to 104k tokens and about 5
+  minutes. A re-review of the fix diff alone, with a short brief, cost 25k
+  and 16 seconds. #101 (reviews too slow and too wide) is the owner's
+  global complaint, and this is its first measurement.
+- `Commit trailers stay.` in the attribution hook row is true of the hook,
+  which lets trailers pass on purpose. Settings remove them. Whether the
+  hook should block them too is the owner's call (comment on #100).
+- Trap: `require-code-review.py` blocks a whole Bash call that contains a
+  merge while checks are pending, even after `gh pr checks --watch` in the
+  same call. Wait for the checks in one call, merge in the next.
+
 ## 2026-11-13: handoff pass
 
 ### Next
 
-All open work is in lane #47 (the lane-claim follow-ups and the rest of this
-repo's backlog). Step 3 of the Start here block lists it (recount: step 3's
-command). First task, from its `## Next`: update the handoff sections of
+Open work is in the `lane` issues (list them with step 3's command): #47
+(the lane-claim follow-ups and the rest of this repo's backlog), #96 (the
+README diagram, one task left after `hardcore` merges) and #97 (the
+`hardcore` skill). #101 (reviews too slow and too wide) waits on a grilling
+with the owner. Lane #47's first task, from its `## Next`: update the handoff sections of
 `/Users/yw1084/CLAUDE.md`. Its `## Next` holds the rest. Items 3 to 7 are a chain of `after`
 marks, because their tickets edit the same skills and hooks. The first
 task and items 1, 2, 3 and 8 run in parallel. Item 8 pastes the new step
@@ -1197,3 +1225,6 @@ Waits on the owner:
 - Add a `pm` row to the "Where things live" table in `~/CLAUDE.md`.
 - Whether the migrated repos also get a `.github/workflows/guards.yml`,
   carried over from 2026-09-16.
+- A grilling for #101: which review levels fit which changes, and the cost
+  limit of one review loop.
+- Whether `no-ai-attribution.py` should also block commit trailers (#100).
