@@ -3,7 +3,7 @@ name: ship-loop
 description: Run work as a closing loop instead of a trailing-off one. Ticket, branch, implement test-first, dispatch an independent review, fix what blocks, file what does not, and repeat until a review round comes back clean. Use when asked to "run the loop", "keep going until it's right", "loop until the feedback is perfect", "babysit this to done", or when handed a backlog of tickets to work through. Also use to decide what happens to review findings.
 origin: authored
 tags: [workflow, review, tdd, subagents, loop, tickets]
-version: 1.3.1
+version: 1.3.2
 ---
 
 # Ship loop
@@ -22,6 +22,9 @@ in a comment that dies at merge. This is the version that closes.
            -> stop when a round comes back clean
 
 Step 6 says exactly when the loop stops.
+
+The Workflow diagram in this plugin's `README.md` shows where this loop sits
+beside the other skills.
 
 ## 1. Ticket
 
