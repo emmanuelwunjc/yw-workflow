@@ -34,7 +34,7 @@ Three ways in:
    file and line, e.g. `~/CLAUDE.md` section 7, or a memory file, or a lane
    issue's `## Next`. Write at least one broken input for each way the rule
    can break, e.g. a reply that holds an em-dash. Use a real break when one
-   is known. Steps 4 and 7 run these inputs.
+   is known. Steps 4 and 7 use these inputs.
 2. **Find every event where the violation shows.** A script can only see
    what an event hands it. List each event that carries the violation, e.g.
    a rule about all prose needs Stop for replies and PreToolUse on Write for
@@ -66,39 +66,19 @@ Three ways in:
    e.g. blocking every `gh pr create --draft` for "never park work in a
    draft PR". Take it only when its override is cheap, and name the correct
    work it stops in the report.
-4. **Prove what already covers it, by running it.** Find the mechanisms:
-   every hook wired for each event from step 2, and every setting that
-   forbids. Hooks are wired in the plugin's `hooks/hooks.json`, the `hooks`
-   block of `~/.claude/settings.json`, the repo's `.claude/settings.json`
-   and `.claude/settings.local.json`, and other enabled plugins. Keep only
-   the hooks whose `matcher` and `if` match the input. A hook file that
-   nothing wires covers nothing.
+4. **Find what already covers it, from the self-tests.** List the hooks
+   wired for each event from step 2. They are wired in the plugin's
+   `hooks/hooks.json`, the `hooks` block of `~/.claude/settings.json`, the
+   repo's `.claude/settings.json` and `.claude/settings.local.json`, and
+   other enabled plugins. A hook file that nothing wires covers nothing.
+   Also list the settings that forbid, e.g. `permissions.deny`.
 
-   Then feed each broken input from step 1 to each of those hooks, as that
-   event's JSON on stdin, with a new `session_id` for each input. Run only a
-   hook whose file you have read. Skip one that sends data out of the
-   machine, and name it in the report. A hook blocks when it exits 2 with a
-   reason on stderr, or exits 0 and prints JSON with `"decision": "block"`,
-   `"permissionDecision": "deny"` or `"continue": false`. A hook whose entry
-   sets `"onFailure": "block"` also blocks on any other non-zero exit. For
-   any other hook, another non-zero exit is a broken run, so fix the input
-   and run it again. A Stop payload carries both `transcript_path` and
-   `last_assistant_message`. `hooks/handrail-config-selftest.py` shows how
-   to make a transcript.
-
-   A block counts as cover only when it is for this rule. Its reason must
-   name the violation, and a control input must pass that same hook. The
-   control input is the broken input with only the violation removed, e.g.
-   the same reply with the em-dash replaced by a period. Another rule's hook
-   blocks broken inputs often, e.g. `ste-guard.py` on one unapproved word.
-   Hooks write state files under the `session_id`, e.g.
-   `~/.claude/state/claude-md-guard/<id>.blocks`. Delete the ones your
-   runs made.
-
-   A setting cannot take an input, so read it: a `permissions.deny` entry
-   that names the exact tool covers that tool. Every input blocked: report
-   the files and the commands you ran, and stop. Some inputs not blocked:
-   go on with only those.
+   A hook covers a broken input when its self-test holds a case with that
+   violation that must block, and the self-test passes. A `permissions.deny`
+   entry covers a tool call when it names that exact tool. Every input
+   covered: report the hooks and the cases, and stop. Some inputs not
+   covered: go on with only those. Not sure: go on, because step 7 settles
+   it.
 
    A mechanism outside git (`~/.claude/hooks/`, `~/.claude/settings.json`)
    counts as cover, and this skill never edits it, because no review can
@@ -142,8 +122,10 @@ Three ways in:
    `<name>-selftest.py`, in the shape of `hooks/no-ai-attribution-selftest.py`.
    An extended hook gets new cases in its own self-test. The self-test holds
    each broken input from step 1 with the result it must give, and one valid
-   input that must pass. Run it and see it fail. Then write the hook. Give
-   the hook an override that shows in the command, e.g. `SKIP_<NAME>=1`, and
+   input that must pass. Run it and see it fail. A new case that passes
+   before you change the hook shows the hook covers it already: keep the
+   case, change no hook code, and report the rule as covered. Then write the
+   hook. Give the hook an override that shows in the command, e.g. `SKIP_<NAME>=1`, and
    say it in the block message. A rule that says it has no override gets
    none. Add a `mutation-gate` entry when the repo has the gate.
 8. **Point the prose at the mechanism, after it is live.** Keep the rule's
@@ -169,8 +151,8 @@ on a violation, any part left as prose, and any correct work the check stops.
    repo's skill bodies. A rule is any sentence that tells an agent what it
    must or must not do.
 2. **Run steps 1 to 6 of *One rule* on each rule**, without building. A
-   rule whose broken inputs step 4 shows are all blocked goes in an
-   *Already enforced* list, with its files and the commands that showed it.
+   rule whose broken inputs step 4 shows are all covered goes in an
+   *Already enforced* list, with its hooks and the self-test cases.
    An `Enforced by` line is a claim, so it gets the same run.
 3. **Write the table**, one row per rule:
 
