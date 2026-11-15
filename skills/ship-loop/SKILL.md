@@ -201,7 +201,9 @@ annotations. Rounds are separated by ` · `, and a
 When `fresh-eye` starts two reviewers in a round, the round is still one entry.
 Its verdict follows the combining rule in `fresh-eye`. Its blocking count is
 the number of different blocking defects the two reviewers found. A defect
-that both reviewers report counts once. Its token count is the sum of the
+that both reviewers report counts once. Two findings are the same defect when
+they name the same file and line and the same failure. The coordinating
+session decides. Its token count is the sum of the
 `subagent_tokens` of both task notifications, so post the round only after
 both arrive. E.g. a mutation reviewer with BLOCK 2 at 95k and a code-review
 reviewer with BLOCK 1 at 60k, where that one defect is also one of the two,
