@@ -3,7 +3,7 @@ name: fresh-eye
 description: Dispatch an independent adversarial reviewer that did not write the code, in an isolated git worktree, to try to break a change rather than agree with it. Use before merging anything non-trivial, when asked for "a fresh eye", "a second opinion", "review this properly", "try to break this", or when you have just finished work and are about to call it done. Also use on the FIX for a previous review, because that is where the next defect usually is.
 origin: authored
 tags: [review, quality, adversarial, worktree, mutation-testing]
-version: 1.3.0
+version: 1.4.0
 ---
 
 # Fresh eye
@@ -64,7 +64,8 @@ means tier 1.
   or local. E.g. a sources check, a fact-check gate, or a local guard such as
   `hooks/require-code-review.py`. When that guard fails silently, an
   unreviewed merge goes through. Full mutation tests, three invented
-  mutations, and every survivor blocks.
+  mutations, and every survivor blocks. The brief also asks the read and
+  stub questions in step 3 of the prompt below.
 - **Tier 2:** a tool whose failure shows in its output, e.g. a figure tool or
   the hook that renders the PDF after a merge. Run the tests near the change,
   read the code, and try real-world cases. No mutation testing. A finding
@@ -293,6 +294,13 @@ function, or line number, it belongs in Agent-facing specifics instead.
        Tier 2: do no mutation testing. Read the code and try real-world
        cases, e.g. <cases>. Mark each finding by the tier 2 rule above.
     3. Tier 1 only: invent three more mutations aimed at the weakest checks.
+       Then answer two questions. What does this check read that CI may not
+       have (a commit on a deleted branch, a shallow clone, a remote file)?
+       What does it do when that read fails? A failed read must fail the
+       check with its own message, never count as empty or absent.
+       Which side effects of the real tool does the test stub leave out
+       (files it erases or makes, run time, signals)? Would the code fail if
+       they happened?
     4. Is the promised bound justified by the problem, or chosen to exclude
        failures?
     5. What part of the input space does nothing exercise?
