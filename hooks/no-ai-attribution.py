@@ -6,10 +6,10 @@ The default harness instructions tell the model to append that footer to PR
 bodies. This hook is what makes a repo's own rule win over that instruction,
 since prose alone lost.
 
-It also blocks a Claude co-author trailer: a Co-Authored-By line whose address
-ends with @anthropic.com, case folded. That is the test EdSim's
-tools/loop_authorship.py applies. A co-author trailer that names a person
-passes.
+It also blocks a Claude co-author trailer: a Co-Authored-By line, with ":" or
+"=" after the key, that carries an @anthropic.com address anywhere on that
+line, case folded. EdSim's tools/loop_authorship.py applies the same address
+test. A co-author trailer that names a person passes.
 """
 import json
 import re
@@ -49,10 +49,11 @@ BANNED = [
     (re.compile(r"generated\s+by\s+AI\s+during\s+triage", re.I),
      "the triage skill's AI disclaimer"),
     # Owner decision 2026-11-15 (#108): no Claude co-author. A co-author
-    # trailer is Claude's when its address ends with @anthropic.com, case
-    # folded, the same test EdSim's tools/loop_authorship.py uses. A trailer
-    # that names a person passes.
-    (re.compile(r"Co-Authored-By:[^\n]*@anthropic\.com\b", re.I),
+    # trailer is Claude's when an @anthropic.com address is anywhere on the
+    # trailer line, case folded. ":" or "=" may follow the key, after optional
+    # space, since git commit --trailer takes both. A trailer that names a
+    # person passes.
+    (re.compile(r"Co-Authored-By\s*[:=][^\n]*@anthropic\.com\b", re.I),
      "a Claude co-author trailer"),
 ]
 
