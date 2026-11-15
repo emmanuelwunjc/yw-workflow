@@ -19,6 +19,7 @@ its message: git commit -F or --file, and gh --body-file, -F or --notes-file.
 A file that does not exist when the command runs is not read. In CI, `scan`
 checks the PR body, changed prose files and the PR's commit messages.
 """
+import importlib.util
 import json
 import os
 import re
@@ -75,48 +76,134 @@ BANNED = [
 FILE_FLAGS = ("-F", "--file", "--body-file", "--notes-file")
 
 
-def _message_files(command, cwd):
-    """Text of the files a git or gh command in `command` reads as a message.
+ASSIGNMENT = re.compile(r"^([A-Za-z_]\w*)=(.*)$", re.S)
+VARIABLE = re.compile(r"\$(?:\{(\w+)\}|(\w+))")
+OPERATOR = set("&|;()<>")
 
-    The Write tool can put a footer in msg.txt, and `git commit -F msg.txt`
-    then carries nothing in its own text (#109). A file that does not exist
-    yet, or is no regular file, is skipped: the command text is still checked,
-    and CI scans the commit messages git wrote.
+
+def _words(command):
+    """Shell words of `command`, with ";" where a newline ends a command.
+
+    A line whose quotes do not balance, e.g. an apostrophe in a heredoc, makes
+    shlex fail on the whole text. Then each line is read alone and only the
+    bad line is lost.
     """
-    try:
-        lexer = shlex.shlex(command, posix=True, punctuation_chars=True)
+    def lex(text):
+        lexer = shlex.shlex(text.replace("\n", " ; "), posix=True,
+                            punctuation_chars=True)
         lexer.whitespace_split = True
-        tokens = list(lexer)
+        lexer.commenters = ""  # a "#" in a body or an issue URL is no comment
+        return list(lexer)
+    try:
+        return lex(command)
     except ValueError:
-        return ""
+        words = []
+        for line in command.split("\n"):
+            try:
+                words += lex(line) + [";"]
+            except ValueError:
+                pass
+        return words
+
+
+def _expand(word, shell_vars):
+    """The word with $NAME and ${NAME} filled in: from an assignment earlier in
+    the command first, then from the environment, then ~."""
+    word = VARIABLE.sub(
+        lambda m: shell_vars.get(m.group(1) or m.group(2), m.group(0)), word)
+    return os.path.expanduser(os.path.expandvars(word))
+
+
+_review_hook = None
+
+
+def _cd(words, cwd):
+    """Where `cd` with these arguments lands, or None when unknown.
+
+    require-code-review.py owns this logic. It is loaded from there so the two
+    hooks read a `cd` the same way. If it cannot load, the folder is unknown.
+    """
+    global _review_hook
+    try:
+        if _review_hook is None:
+            spec = importlib.util.spec_from_file_location(
+                "require_code_review",
+                Path(__file__).with_name("require-code-review.py"))
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            _review_hook = module
+        return _review_hook._cd(words, cwd)
+    except Exception:
+        return None
+
+
+def _read(name, cwd):
+    """Text of the file `name`, or "" when it is stdin, unknown or absent."""
+    path = Path(name)
+    if not path.is_absolute():
+        if cwd is None:
+            return ""
+        path = Path(cwd) / path
+    try:
+        if name != "-" and path.is_file():
+            return path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        pass
+    return ""
+
+
+def _flag_files(words, cwd):
+    """Text of the message files that the git or gh command in `words` reads."""
+    start = next((i for i, w in enumerate(words)
+                  if os.path.basename(w) in ("git", "gh")), None)
+    if start is None:
+        return []
+    is_git = os.path.basename(words[start]) == "git"
     texts = []
-    publisher = False  # inside a git or gh command, until the next operator
-    for i, tok in enumerate(tokens):
-        if tok and set(tok) <= set("&|;()<>"):
-            publisher = False
-            continue
-        if os.path.basename(tok) in ("git", "gh"):
-            publisher = True
-            continue
-        if not publisher:
-            continue
+    for i in range(start + 1, len(words)):
+        tok = words[i]
+        nxt = words[i + 1] if i + 1 < len(words) else None
         flag, eq, value = tok.partition("=")
+        if is_git and tok == "-C" and nxt is not None:
+            cwd = _cd([nxt], cwd)
+            continue
         if eq and flag in FILE_FLAGS:
             name = value
-        elif tok in FILE_FLAGS and i + 1 < len(tokens):
-            name = tokens[i + 1]
+        elif tok in FILE_FLAGS and nxt is not None:
+            name = nxt
         elif tok.startswith("-F") and len(tok) > 2:
             name = tok[2:]
         else:
             continue
-        path = Path(name).expanduser()
-        if not path.is_absolute():
-            path = Path(cwd or ".") / path
-        try:
-            if name != "-" and path.is_file():
-                texts.append(path.read_text(encoding="utf-8", errors="replace"))
-        except OSError:
-            pass
+        texts.append(_read(name, cwd))
+    return texts
+
+
+def _message_files(command, cwd):
+    """Text of the files a git or gh command in `command` reads as a message.
+
+    The Write tool can put a footer in msg.txt, and `git commit -F msg.txt`
+    then carries nothing in its own text (#109). The walk follows `cd`,
+    `git -C` and `NAME=value` assignments made earlier in the command. A file
+    that does not exist yet, or sits in a folder the text does not settle, is
+    skipped: the command text is still checked, and CI scans the commit
+    messages git wrote.
+    """
+    texts, shell_vars, seg = [], {}, []
+    for tok in _words(command) + [";"]:
+        if not (tok and set(tok) <= OPERATOR):
+            seg.append(tok)
+            continue
+        words, seg = [_expand(w, shell_vars) for w in seg], []
+        if words and all(ASSIGNMENT.match(w) for w in words):
+            shell_vars.update(ASSIGNMENT.match(w).groups() for w in words)
+            continue
+        while words and ASSIGNMENT.match(words[0]):
+            words.pop(0)
+        if words and words[0] in ("cd", "pushd"):
+            cwd = _cd(words[1:], cwd)
+            continue
+        texts += _flag_files(words, cwd)
     return "\n".join(texts)
 
 
@@ -188,7 +275,7 @@ def main():
     # Bash command while a command carrying a footer is rare. Checking the
     # switch here rather than up front is the same decision, paid for only when
     # it matters.
-    text = command + "\n" + _message_files(command, payload.get("cwd"))
+    text = command + "\n" + _message_files(command, payload.get("cwd") or os.getcwd())
     for pattern, label in BANNED:
         if pattern.search(text):
             policy = _policy()

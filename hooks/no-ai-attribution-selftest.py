@@ -5,6 +5,7 @@ Every case here exists because the hook once got it wrong, or because a check
 that has never gone red proves nothing.
 """
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -84,6 +85,8 @@ CASES = [
 ]
 
 
+FOOTER = "work\n\nGenerated with Claude Code\n"
+
 # #109: text a git or gh command reads from a file. Each case is (name, want,
 # file text, command). The file is written as "msg.txt" in a temp folder that
 # is the payload's cwd, the way the Write tool leaves it for the next command.
@@ -116,12 +119,47 @@ FILE_CASES = [
     # The file may not exist yet. The command text is all there is to check.
     ("git commit -F on a file that does not exist", ALLOW,
      "", "git commit -F missing.txt"),
+    ("git commit -F with the file name joined to the flag", BLOCK,
+     FOOTER, "git commit -Fmsg.txt"),
+    # An operator or a newline ends the git or gh command.
+    ("tail -F after a gh command and &&", ALLOW,
+     FOOTER, "gh auth status && tail -F msg.txt"),
+    ("tail -F on the line after a git command", ALLOW,
+     FOOTER, "git status\ntail -F msg.txt"),
+    # After a cd the text does not settle, msg.txt is some other file.
+    ("git commit -F after a cd to an unknown folder", ALLOW,
+     FOOTER, "cd $NOPE_UNSET_109 && git commit -F msg.txt"),
+    # An apostrophe in a heredoc must not stop the read of the other lines.
+    ("git commit -F after a heredoc with an apostrophe", BLOCK,
+     FOOTER, "cat > notes.txt <<'EOF'\ndon't\nEOF\ngit commit -F msg.txt"),
+]
+
+# The same, with the file in a folder below the temp folder (#109 round 1).
+# The command may name {tmp}. The hook runs with HOME set to the temp folder.
+# Past sessions name the file through a variable most of all.
+DIR_CASES = [
+    ("--body-file through a variable set earlier", BLOCK,
+     "S={tmp}/sub && gh issue comment 1 --body-file $S/msg.txt"),
+    ("--body-file through a quoted variable set earlier", BLOCK,
+     'S={tmp}/sub && gh issue comment 1 --body-file "$S/msg.txt"'),
+    ("--body-file through a braced variable, after a newline", BLOCK,
+     "S={tmp}/sub\ngh issue comment 1 --body-file ${{S}}/msg.txt"),
+    ("--body-file under $HOME", BLOCK,
+     'gh issue comment 1 --body-file "$HOME/sub/msg.txt"'),
+    ("--body-file under ~", BLOCK,
+     "gh issue comment 1 --body-file ~/sub/msg.txt"),
+    ("git commit -F after cd", BLOCK,
+     "cd sub && git commit -F msg.txt"),
+    ("git commit -F after git -C", BLOCK,
+     "git -C sub commit -F msg.txt"),
+    ("a variable that is never set", ALLOW,
+     "gh issue comment 1 --body-file $NOPE/msg.txt"),
 ]
 
 
-def run(payload, stderr=False):
+def run(payload, stderr=False, env=None, cwd=None):
     done = subprocess.run([sys.executable, HOOK], input=payload,
-                          capture_output=True, text=True)
+                          capture_output=True, text=True, env=env, cwd=cwd)
     return done.stderr if stderr else done.returncode
 
 
@@ -136,7 +174,20 @@ def main():
         with tempfile.TemporaryDirectory() as tmp:
             Path(tmp, "msg.txt").write_text(text, encoding="utf-8")
             got = run(json.dumps({"tool_name": "Bash", "cwd": tmp,
-                                  "tool_input": {"command": command}}))
+                                  "tool_input": {"command": command}}),
+                      cwd=tmp)  # Claude Code runs the hook in the session folder
+        if got != want:
+            failures += 1
+            print(f"FAIL want={want} got={got}  {name}")
+    for name, want, command in DIR_CASES:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = str(Path(tmp).resolve())
+            Path(tmp, "sub").mkdir()
+            Path(tmp, "sub", "msg.txt").write_text(FOOTER, encoding="utf-8")
+            env = dict(os.environ, HOME=tmp)
+            env.pop("NOPE", None)
+            got = run(json.dumps({"tool_name": "Bash", "cwd": tmp, "tool_input":
+                                  {"command": command.format(tmp=tmp)}}), env=env)
         if got != want:
             failures += 1
             print(f"FAIL want={want} got={got}  {name}")
