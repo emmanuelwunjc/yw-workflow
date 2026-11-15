@@ -1307,8 +1307,8 @@ Waits on the owner:
   measure a claim or commit can go to it again.
 - #127 (issue #117) runs the handoff shape check at session start. It
   replaces the old lane #47 items to sweep all repos. Its file
-  `hooks/handoff-freshness.py` is over the 300-line limit. Issue #118
-  cuts it.
+  `hooks/handoff-freshness.py` is over the 300-line limit. Cut it in the
+  #118 change (lane #47 item 4).
 - Trap: the Agent tool's `isolation: "worktree"` fails when the session
   runs from a folder that is not a git repo, e.g. a parent folder of
   several clones. Make the reviewer worktree by hand with
