@@ -5,6 +5,11 @@ that gets published: PR bodies, issues, comments, releases, commit messages.
 The default harness instructions tell the model to append that footer to PR
 bodies. This hook is what makes a repo's own rule win over that instruction,
 since prose alone lost.
+
+It also blocks a Claude co-author trailer: a Co-Authored-By line whose address
+ends with @anthropic.com, case folded. That is the test EdSim's
+tools/loop_authorship.py applies. A co-author trailer that names a person
+passes.
 """
 import json
 import re
@@ -43,6 +48,12 @@ BANNED = [
     # The triage skill opens every comment with this disclaimer (#37).
     (re.compile(r"generated\s+by\s+AI\s+during\s+triage", re.I),
      "the triage skill's AI disclaimer"),
+    # Owner decision 2026-11-15 (#108): no Claude co-author. A co-author
+    # trailer is Claude's when its address ends with @anthropic.com, case
+    # folded, the same test EdSim's tools/loop_authorship.py uses. A trailer
+    # that names a person passes.
+    (re.compile(r"Co-Authored-By:[^\n]*@anthropic\.com\b", re.I),
+     "a Claude co-author trailer"),
 ]
 
 
@@ -128,7 +139,9 @@ def main():
                 "For the triage disclaimer, remove that one line and post "
                 "the rest of the comment as it is.\n"
                 "That covers a commit message too: a Claude-Session trailer "
-                "is a session URL. A Co-Authored-By trailer is allowed."
+                "is a session URL, and a co-author trailer at an "
+                "anthropic.com address names Claude. A co-author trailer "
+                "that names a person is fine."
                 + (("\n" + citation) if citation else ""),
                 file=sys.stderr,
             )

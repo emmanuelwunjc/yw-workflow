@@ -71,16 +71,22 @@ with tempfile.TemporaryDirectory() as tmp:
            run(CMG, "scan", clean, dash, fenced), 1)
 
     body_clean = tmp / "body-clean.md"
-    body_clean.write_text("Fixes the parser.\n\nCo-Authored-By: Claude "
-                          "<noreply@anthropic.com>\n")
+    body_clean.write_text("Fixes the parser.\n\nCo-Authored-By: Ada Lovelace "
+                          "<ada@example.org>\n")
+    body_coauthor = tmp / "body-coauthor.md"
+    body_coauthor.write_text("Fixes the parser.\n\nCo-Authored-By: Claude "
+                             "<noreply@anthropic.com>\n")
     body_footer = tmp / "body-footer.md"
     body_footer.write_text("Fixes the parser.\n\nGenerated with [Claude Code]"
                            "(https://claude.com/claude-code)\n")
     body_url = tmp / "body-url.md"
     body_url.write_text("See https://claude.ai/code/session_xyz for context.\n")
 
-    expect("attr scan: a Co-Authored-By trailer passes",
+    expect("attr scan: a co-author trailer naming a person passes",
            run(ATTR, "scan", body_clean), 0)
+    # #108: the Claude co-author trailer fails in CI as it does locally.
+    expect("attr scan: a Claude co-author trailer fails",
+           run(ATTR, "scan", body_coauthor), 1)
     # The Claude-Session trailer has no exemption anywhere (#35), so a file
     # that holds one fails with no flag.
     trailer = tmp / "trailer.md"
