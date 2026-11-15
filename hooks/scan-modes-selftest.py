@@ -71,28 +71,23 @@ with tempfile.TemporaryDirectory() as tmp:
            run(CMG, "scan", clean, dash, fenced), 1)
 
     body_clean = tmp / "body-clean.md"
-    body_clean.write_text("Fixes the parser.\n\nClaude-Session: "
-                          "https://claude.ai/code/session_abc\n")
+    body_clean.write_text("Fixes the parser.\n\nCo-Authored-By: Claude "
+                          "<noreply@anthropic.com>\n")
     body_footer = tmp / "body-footer.md"
     body_footer.write_text("Fixes the parser.\n\nGenerated with [Claude Code]"
                            "(https://claude.com/claude-code)\n")
     body_url = tmp / "body-url.md"
     body_url.write_text("See https://claude.ai/code/session_xyz for context.\n")
 
-    expect("attr scan: clean body passes", run(ATTR, "scan", body_clean), 0)
-    # Indented, and at EOF with no trailing newline: body_clean covers neither,
-    # so this case can fail on its own rather than only alongside that one.
-    trailer_edge = tmp / "trailer-edge.md"
-    trailer_edge.write_text("Fixes it.\n\n    Claude-Session: "
-                            "https://claude.ai/code/session_abc")
-    expect("attr scan: an indented trailer at EOF still passes",
-           run(ATTR, "scan", trailer_edge), 0)
-    # The PR body is published text, so the exemption must be off for it. A
-    # hand-written trailer there is the violation the rule exists to stop.
-    expect("attr scan: --published rejects the trailer",
-           run(ATTR, "scan", "--published", trailer_edge), 1)
-    expect("attr scan: --published still passes clean text",
-           run(ATTR, "scan", "--published", clean), 0)
+    expect("attr scan: a Co-Authored-By trailer passes",
+           run(ATTR, "scan", body_clean), 0)
+    # The Claude-Session trailer has no exemption anywhere (#35), so a file
+    # that holds one fails with no flag.
+    trailer = tmp / "trailer.md"
+    trailer.write_text("Fixes it.\n\nClaude-Session: "
+                       "https://claude.ai/code/session_abc\n")
+    expect("attr scan: a Claude-Session trailer fails",
+           run(ATTR, "scan", trailer), 1)
     expect("attr scan: generation footer fails", run(ATTR, "scan", body_footer), 1)
     expect("attr scan: bare session URL fails", run(ATTR, "scan", body_url), 1)
     expect("attr scan: unreadable path fails closed",

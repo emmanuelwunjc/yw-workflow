@@ -89,10 +89,7 @@ runs:
         # test, or a script that quotes the banned footer on purpose is source,
         # and scanning it reports the rule's own documentation as a violation.
         # This repo's own hooks are exactly that case.
-        # The body is published text, so a Claude-Session line in it is the
-        # violation rather than an exempt commit trailer. Files in the diff keep
-        # the exemption, because a commit message quoted in one is legal.
-        "$YW_HOOKS/no-ai-attribution.py" scan --published "$YW_TMP/yw-pr-body.txt"
+        "$YW_HOOKS/no-ai-attribution.py" scan "$YW_TMP/yw-pr-body.txt"
         if [ -s "$YW_TMP/yw-prose.txt" ]; then
           xargs -a "$YW_TMP/yw-prose.txt" -d '\n' "$YW_HOOKS/no-ai-attribution.py" scan
         fi

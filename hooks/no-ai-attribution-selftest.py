@@ -23,9 +23,14 @@ CASES = [
      'gh release create v1 --notes "🤖 Generated with Claude Code"'),
     ("heredoc PR body carrying a session URL", BLOCK,
      'gh pr create --body-file - <<EOF\nwork\n\nhttps://claude.ai/code/session_01XYZ\nEOF'),
-    ("commit message with only the trailers", ALLOW,
+    # Owner decision 2026-11-15 (#35): the session trailer carries a session
+    # URL, so it blocks like any other. Co-Authored-By stays, because EdSim
+    # keeps it by its own repo rule.
+    ("commit message with only the trailers", BLOCK,
      'git commit -m "fix: thing\n\nCo-Authored-By: Claude Opus 5 <noreply@anthropic.com>\n'
      'Claude-Session: https://claude.ai/code/session_01ABC"'),
+    ("commit message with only a Co-Authored-By trailer", ALLOW,
+     'git commit -m "fix: thing\n\nCo-Authored-By: Claude <noreply@anthropic.com>"'),
     ("commit trailers plus a PR body in one command", BLOCK,
      'git commit -m "fix: x\n\nClaude-Session: https://claude.ai/code/session_01ABC" && '
      'gh pr create --body "🤖 Generated with Claude Code"'),
