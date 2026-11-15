@@ -3,7 +3,7 @@ name: ship-loop
 description: Run work as a closing loop instead of a trailing-off one. Ticket, branch, implement test-first, dispatch an independent review, fix what blocks, file what does not, and repeat until a review round comes back clean. Use when asked to "run the loop", "keep going until it's right", "loop until the feedback is perfect", "babysit this to done", or when handed a backlog of tickets to work through. Also use to decide what happens to review findings.
 origin: authored
 tags: [workflow, review, tdd, subagents, loop, tickets]
-version: 1.4.0
+version: 1.4.1
 ---
 
 # Ship loop
@@ -29,14 +29,18 @@ beside the other skills.
 ## 1. Ticket
 
 Every unit of work starts as a written ticket, agent-ready, so it can feed a
-test-first loop without a conversation:
+test-first loop without a conversation. It has four parts, each a heading in
+this repo's issue template, `.github/ISSUE_TEMPLATE/ticket.md`:
 
 - **Reproduction.** The literal commands and the observed wrong output.
-- **Acceptance criteria as checkable boxes.** Objectively true or false, so a
-  criterion reads like "exit code 0 on N rows" rather than "improve X".
-- **Verification commands**, literally, to paste.
-- **Whether a mutation check is expected**, i.e. reverting the fix must fail
-  something.
+- **Acceptance criteria.** Checkable boxes, each objectively true or false, so
+  a criterion reads like "exit code 0 on N rows" rather than "improve X".
+- **Verification.** The commands, literally, to paste.
+- **Mutation check.** Whether one is expected, i.e. reverting the fix must
+  fail something.
+
+`tools/check-repo.py` fails when these bullets and the template headings name
+different parts.
 
 A ticket without an acceptance criterion is a wish. Write the demand down when
 it is given, then build it. Doing it in the other order is how a set of demands

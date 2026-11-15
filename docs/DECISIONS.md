@@ -850,3 +850,28 @@ Recount the rounds:
 gh pr view 184 -R georgetown-mdi-gates4/edsim-paper --json body --jq .body | grep ^Rounds:
 gh pr view 193 -R georgetown-mdi-gates4/edsim-paper --json body --jq .body | grep ^Rounds:
 ```
+
+## 2026-11-15: other repos copy the ticket template
+
+Supports `ship-loop`. Issue #130 added `.github/ISSUE_TEMPLATE/ticket.md`
+here. Each repo that runs the ship loop gets its own copy of that file, and
+its own `docs/agents/issue-tracker.md` that points at it.
+
+Why a copy per repo:
+
+1. GitHub shows a template only in the repo that holds it. The tickets for
+   most work are in other repos, e.g. edsim-paper.
+2. A shared default from an organization `.github` repo does not fit. GitHub
+   says that repo "must be **public**", and that a repo with its own
+   `.github/ISSUE_TEMPLATE` folder uses none of the defaults. Source:
+   https://docs.github.com/en/communities/setting-up-your-project-for-healthy-contributions/creating-a-default-community-health-file
+   Also, the repos are in more than one owner account.
+3. An agent that runs `gh issue create --body` never sees the template. It
+   reads `docs/agents/issue-tracker.md`, so that file has to be in each repo
+   too.
+
+The cost: a copy can drift from ship-loop step 1. `tools/check-repo.py`
+compares the two only in this repo. A copy is correct on the day it is made.
+
+Not done here: the copy step itself. It goes into the repo-setup skill after
+lane #97 merges, because #97 deletes `skills/harden`.
