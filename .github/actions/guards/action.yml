@@ -88,8 +88,8 @@ runs:
         set -euo pipefail
         printf '%s' "$PR_BODY" > "$YW_TMP/yw-pr-body.txt"
         # The messages git wrote on the PR's commits (#109). A squash merge
-        # carries them into main. This catches what the hook cannot see: a
-        # message read with git commit -F, a trailer key alias, a folded
+        # carries them into main. This catches what the hook misses: some
+        # messages read with git commit -F, a trailer key alias, a folded
         # trailer. The API needs no fetch depth. It lists at most 250 commits.
         gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR/commits" \
           --jq '.[].commit.message' > "$YW_TMP/yw-commits.txt"
