@@ -42,12 +42,6 @@ BANNED = [
     (re.compile(r"https://claude\.ai/code/session_"), "a claude.ai session URL"),
 ]
 
-# A Claude-Session trailer in a commit message is wanted; git history attribution
-# is not publication. Exempt only the URL token on that trailer, never the rest of
-# the line: a compound command can put a `gh pr create` after it on the same line.
-TRAILER = re.compile(
-    r"^[ \t]*Claude-Session:[ \t]*https://claude\.ai/code/session_\S+", re.M)
-
 
 def _safe_path(value):
     # The fallback fires only when the module fails to import, which is a
@@ -64,18 +58,12 @@ def _safe_error(exc):
             else type(exc).__name__)
 
 
-def scan(paths, exempt_trailer=True):
+def scan(paths):
     """CI mode: check files instead of a Bash command.
 
     The hook stops a publish at the moment it is typed. That only covers this
     laptop, so CI re-checks the artefacts themselves: the PR body, and any file
     in the diff.
-
-    exempt_trailer keeps a Claude-Session line legal, which is right for a
-    commit message and wrong for a PR body. Pass --published for text that other
-    people read, where the trailer is the thing being banned. Without that, a
-    hand-written trailer in a PR body walks straight through the check that
-    exists to stop it.
 
     Returns the number of files with at least one finding.
     """
@@ -89,8 +77,7 @@ def scan(paths, exempt_trailer=True):
                                             _safe_error(exc)), file=sys.stderr)
             bad += 1
             continue
-        stripped = TRAILER.sub("", text) if exempt_trailer else text
-        hits = [label for pattern, label in BANNED if pattern.search(stripped)]
+        hits = [label for pattern, label in BANNED if pattern.search(text)]
         if hits:
             bad += 1
             for label in hits:
@@ -103,10 +90,7 @@ def main():
     # scan takes paths on argv. CI has no hook payload and must not block on a
     # stdin read that will never be fed.
     if len(sys.argv) > 1 and sys.argv[1] == "scan":
-        args = sys.argv[2:]
-        published = "--published" in args
-        sys.exit(1 if scan([a for a in args if a != "--published"],
-                           exempt_trailer=not published) else 0)
+        sys.exit(1 if scan(sys.argv[2:]) else 0)
 
     try:
         payload = json.load(sys.stdin)
@@ -127,9 +111,8 @@ def main():
     # Bash command while a command carrying a footer is rare. Checking the
     # switch here rather than up front is the same decision, paid for only when
     # it matters.
-    stripped = TRAILER.sub("", command)
     for pattern, label in BANNED:
-        if pattern.search(stripped):
+        if pattern.search(command):
             policy = _policy()
             if policy is not None and not policy.enabled("ai_attribution"):
                 sys.exit(0)
@@ -139,9 +122,8 @@ def main():
                 "Never put AI-generation footers or session URLs in anything "
                 "other people read: PR bodies, issues, comments, releases. "
                 "Remove those lines and run it again.\n"
-                "Co-Authored-By and Claude-Session trailers in a git commit "
-                "message are history attribution rather than publication, and "
-                "stay."
+                "That covers a commit message too: a Claude-Session trailer "
+                "is a session URL. A Co-Authored-By trailer is allowed."
                 + (("\n" + citation) if citation else ""),
                 file=sys.stderr,
             )
