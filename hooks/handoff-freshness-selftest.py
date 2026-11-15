@@ -7,6 +7,7 @@ shape rule in skills/handoff/SKILL.md says should happen.
 
 Run: ./hooks/handoff-freshness-selftest.py
 """
+import json
 import os
 import pathlib
 import re
@@ -80,6 +81,10 @@ when you stop. Leave this block alone.
 Judgment and reasoning only. No counts, no SHAs, no issue tallies: those rot
 within hours. Derive them with `gh issue list` and the scripts in the repo.
 """
+
+# What SessionStart adds to the shape warning (issue #117), word for word.
+FIRST_TASK = ("Migrate docs/HANDOFF.md to this shape as your first task, "
+              "before you claim a lane or start any other work.")
 
 # The block before 2026-11-10: one first task for every session, so two
 # sessions on two lanes both took the same one. It must warn.
@@ -329,11 +334,55 @@ def git(cwd, *args):
                    cwd=cwd, check=True, capture_output=True)
 
 
-def run_hook(cwd, env_extra=None):
+def run_hook(cwd, env_extra=None, event=None):
     env = {k: v for k, v in os.environ.items() if k != "SKIP_HANDOFF_CHECK"}
     env.update(env_extra or {})
-    return subprocess.run([sys.executable, HOOK], input="{}", cwd=cwd, env=env,
+    data = json.dumps({"hook_event_name": event} if event else {})
+    return subprocess.run([sys.executable, HOOK], input=data, cwd=cwd, env=env,
                           capture_output=True, text=True)
+
+
+def session_start_failures():
+    """Issue #117: at session start the hook runs only the shape check, and
+    tells the session to migrate the file before anything else."""
+    failures = 0
+    # A shape problem: the Stop text, word for word, in additionalContext,
+    # plus the first-task sentence. Nothing on stderr, exit 0.
+    with tempfile.TemporaryDirectory() as tmp:
+        make_repo(tmp, {"docs/HANDOFF.md": NO_BLOCK}, ["docs/HANDOFF.md"])
+        stop = run_hook(tmp, event="Stop")
+        got = run_hook(tmp, event="SessionStart")
+    try:
+        out = json.loads(got.stdout)["hookSpecificOutput"]
+    except Exception:
+        out = {}
+    text = out.get("additionalContext", "")
+    if (out.get("hookEventName") != "SessionStart" or got.returncode != 0
+            or got.stderr or "HANDOFF SHAPE" not in stop.stderr
+            or stop.stderr.strip() not in text or FIRST_TASK not in text):
+        failures += 1
+        print(f"FAIL SessionStart with a shape problem (exit {got.returncode}):"
+              f"\n--- stdout ---\n{got.stdout}\n--- stderr ---\n{got.stderr}")
+    # The Stop run keeps its old output: stderr only, no first-task sentence.
+    if stop.stdout or FIRST_TASK in stop.stderr or stop.returncode != 0:
+        failures += 1
+        print(f"FAIL Stop output changed:\n{stop.stdout}\n{stop.stderr}")
+    # A correct block prints nothing. No handoff prints nothing, even with
+    # two commits of real work: SessionStart skips the staleness check.
+    for label, files, tracked in (
+            ("correct block", {"docs/HANDOFF.md": GOOD}, ["docs/HANDOFF.md"]),
+            ("no handoff, real work", {"a.py": "1\n", "b.py": "2\n"}, [])):
+        with tempfile.TemporaryDirectory() as tmp:
+            make_repo(tmp, files, tracked)
+            for name in tracked or ["a.py", "b.py"]:
+                git(tmp, "add", name)
+                git(tmp, "commit", "-q", "-m", name)
+            got = run_hook(tmp, event="SessionStart")
+        if got.stdout or got.stderr or got.returncode != 0:
+            failures += 1
+            print(f"FAIL SessionStart, {label}, printed (exit {got.returncode}):"
+                  f"\n{got.stdout}{got.stderr}")
+    return failures
 
 
 def make_repo(tmp, files, tracked):
@@ -686,6 +735,7 @@ def main():
                   f"unwanted={present}\n--- stderr ---\n{got.stderr}")
 
     failures += check_lane_jq()
+    failures += session_start_failures()
 
     # the stop rule, word for word, in the block and in the skill's rules
     flat = lambda text: " ".join(text.split())
