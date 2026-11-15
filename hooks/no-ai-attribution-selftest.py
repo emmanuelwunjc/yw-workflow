@@ -24,13 +24,33 @@ CASES = [
     ("heredoc PR body carrying a session URL", BLOCK,
      'gh pr create --body-file - <<EOF\nwork\n\nhttps://claude.ai/code/session_01XYZ\nEOF'),
     # Owner decision 2026-11-15 (#35): the session trailer carries a session
-    # URL, so it blocks like any other. Co-Authored-By stays, because EdSim
-    # keeps it by its own repo rule.
+    # URL, so it blocks like any other.
     ("commit message with only the trailers", BLOCK,
      'git commit -m "fix: thing\n\nCo-Authored-By: Claude Opus 5 <noreply@anthropic.com>\n'
      'Claude-Session: https://claude.ai/code/session_01ABC"'),
-    ("commit message with only a Co-Authored-By trailer", ALLOW,
+    # Owner decision 2026-11-15 (#108): no more Claude co-author. The match is
+    # on the address, case folded, as EdSim's tools/loop_authorship.py does.
+    ("commit message with only a Claude co-author trailer", BLOCK,
      'git commit -m "fix: thing\n\nCo-Authored-By: Claude <noreply@anthropic.com>"'),
+    ("a Claude co-author trailer in another case", BLOCK,
+     'git commit -m "fix: thing\n\nco-authored-by: Claude Opus 5 <NoReply@Anthropic.COM>"'),
+    ("a co-author trailer that names a person", ALLOW,
+     'git commit -m "fix: thing\n\nCo-Authored-By: Ada Lovelace <ada@example.org>"'),
+    # git also takes "=" as the separator in --trailer, and writes the
+    # trailer with a colon. A space before the separator is legal too.
+    ("a Claude co-author trailer with = as the separator", BLOCK,
+     'git commit -m fix --trailer "Co-authored-by=Claude <noreply@anthropic.com>"'),
+    ("a Claude co-author trailer with a space before the colon", BLOCK,
+     'git commit -m "fix: thing\n\nCo-Authored-By : Claude <noreply@anthropic.com>"'),
+    # The trailer can sit in the middle of a command line, after no newline.
+    ("a Claude co-author trailer passed with --trailer", BLOCK,
+     'git commit -m fix --trailer "Co-Authored-By: Claude <noreply@anthropic.com>"'),
+    ("a Claude co-author trailer passed as a second -m", BLOCK,
+     'git commit -m fix -m "Co-Authored-By: Claude <noreply@anthropic.com>"'),
+    # The address must be on the trailer line, not anywhere later.
+    ("a person co-author and an anthropic.com address on another line", ALLOW,
+     'git commit -m "fix: thing\n\nCo-Authored-By: Jane <jane@example.com>\n'
+     'see noreply@anthropic.com docs"'),
     ("commit trailers plus a PR body in one command", BLOCK,
      'git commit -m "fix: x\n\nClaude-Session: https://claude.ai/code/session_01ABC" && '
      'gh pr create --body "🤖 Generated with Claude Code"'),
