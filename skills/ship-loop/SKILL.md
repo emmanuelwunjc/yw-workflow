@@ -74,7 +74,7 @@ go to `yw-workflow:documenter`. If the install predates these types, the Agent
 tool errors on them: start a `general-purpose` helper and put the role first in
 its description (e.g. "Build: ticket 41").
 
-**End the brief with the commit line.** Every builder or fixer brief ends
+**End the brief with the commit line.** Every builder, fixer or documenter brief ends
 with "commit your work on your own branch before you return (on a detached
 HEAD, `git switch -c wip/<folder>` first), as a WIP commit if it is
 unfinished, and report the branch and SHA". `/yw-workflow:git-lanes` says why.

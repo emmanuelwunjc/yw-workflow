@@ -163,8 +163,8 @@ within hours. Derive them with `gh issue list` and the scripts in the repo.
 - **Write it down as you go, in the PR body.** Every decision, defect and
   trap that cost time gets a few lines when it happens. A handoff written at
   close comes from a compacted memory, and the reasoning drops out first.
-- **Before any session stops, the builder and fixer worktrees it started
-  hold no uncommitted work.** That is each Agent-tool worktree it dispatched
+- **Before any session stops, the builder, fixer and documenter worktrees it
+  started hold no uncommitted work.** That is each Agent-tool worktree it dispatched
   and each worktree it made. For each one with uncommitted work, message its
   agent to commit it as WIP on its own branch. On a detached HEAD, that
   means `git switch -c wip/<folder>` first, with the worktree's folder name.

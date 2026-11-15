@@ -86,7 +86,7 @@ A spec stands alone. The worker sees nothing else. It holds:
 - the evidence that proves it is done: the literal commands and their expected result.
 - the rules a worker must keep that no hook will check for it (see the fallback cost below).
 - for a builder, the line "End your report with a `## Handoff notes` section for the PR body, per `/yw-workflow:handoff`."
-- the last line, for a builder or fixer: "commit your work on your own branch before you return (on a detached HEAD, `git switch -c wip/<folder>` first), as a WIP commit if it is unfinished, and report the branch and SHA".
+- the last line, for a builder, fixer or documenter: "commit your work on your own branch before you return (on a detached HEAD, `git switch -c wip/<folder>` first), as a WIP commit if it is unfinished, and report the branch and SHA".
 
 A reviewer spec is the `fresh-eye` prompt skeleton, filled in for this branch.
 It ends with "Do not fix anything. Do not commit."

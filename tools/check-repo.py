@@ -126,11 +126,13 @@ ROLE_TOOLS = {
     "builder": READ | {"Write", "Edit", "Bash", "Skill"},
     "reviewer": READ | {"Bash"},
     "fixer": READ | {"Write", "Edit", "Bash"},
-    "documenter": READ | {"Write", "Edit"},
+    "documenter": READ | {"Write", "Edit", "Bash"},
 }
 # A floor as well as a ceiling: ship-loop has the builder load
 # mattpocock-skills:tdd, which needs the Skill tool.
-ROLE_REQUIRED = {"builder": {"Skill"}}
+# The documenter needs Bash to run the command behind a claim and to commit
+# (yw-workflow #75).
+ROLE_REQUIRED = {"builder": {"Skill"}, "documenter": {"Bash"}}
 agent_files = sorted((ROOT / "agents").glob("*.md"))
 check("agents/ is non-empty", bool(agent_files))
 skill_text = {s.parent.name: s.read_text() for s in skills}

@@ -56,9 +56,9 @@ more than the parallelism gains. The numbering makes exceeding it visible.
 
 Never rename or move a worktree while an agent is working in it.
 
-## Every builder or fixer brief ends with the commit line
+## Every builder, fixer or documenter brief ends with the commit line
 
-End every brief you give a builder or fixer lane with this line:
+End every brief you give a builder, fixer or documenter lane with this line:
 
 ```
 commit your work on your own branch before you return (on a detached HEAD, `git switch -c wip/<folder>` first), as a WIP commit if it is unfinished, and report the branch and SHA

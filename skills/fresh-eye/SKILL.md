@@ -132,7 +132,13 @@ makes a factual claim to a reader (site copy, a report, a README claim), the
 author wrote its source line first: the exact quote (or the command that
 measures a number or a behavior), where it lives, its date.
 The reviewer compares sentence to quote. A sentence stronger than its quote, or
-with no source line, is blocking.
+with no source line, is blocking. Before a PR exists, the source lines are in
+the diff (a comment or a sources file) or in the author's report. Paste the
+report's lines into the review prompt. The reviewer runs the author's commands
+and judges whether each command measures what its sentence claims. Where a
+command does not measure its sentence, or a line is missing, the reviewer
+writes its own. E.g. a `grep -c case` that also counts comment lines does not
+measure "52 cases".
 
 **Forbid fixing.** "Do not fix anything. Do not commit." A reviewer that fixes
 things stops reviewing.
@@ -297,8 +303,12 @@ function, or line number, it belongs in Agent-facing specifics instead.
        on the base and passes on the branch).
     8. For every sentence that makes a factual claim to a reader, find its
        source line (exact quote or the command that measures it, where it
-       lives, date). Diff the sentence against the quote. Stronger than the
-       quote, or no source line: BLOCKING.
+       lives, date). The author's source lines: <pasted in, or "none">.
+       Run each command and compare its output with the line. Judge whether
+       the command measures what the sentence claims (e.g. a count that also
+       counts comment lines does not). Where it does not, or where a line is
+       missing, write your own command. Diff the sentence against
+       the quote. Stronger than the quote, or no source line: BLOCKING.
     9. Does this match house style (the repo's CLAUDE.md, README, or style
        guide)? Is the premise sound? Should this exist at all?
 
