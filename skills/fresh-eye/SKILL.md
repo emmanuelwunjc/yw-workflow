@@ -135,9 +135,10 @@ The reviewer compares sentence to quote. A sentence stronger than its quote, or
 with no source line, is blocking. Before a PR exists, the source lines are in
 the diff (a comment or a sources file) or in the author's report. Paste the
 report's lines into the review prompt. The reviewer runs the author's commands
-and judges whether each command measures what its sentence claims. It writes
-its own command where one does not, or where a line is missing (e.g. a
-`grep -c case` that also counts comment lines does not measure "52 cases").
+and judges whether each command measures what its sentence claims. Where a
+command does not measure its sentence, or a line is missing, the reviewer
+writes its own. E.g. a `grep -c case` that also counts comment lines does not
+measure "52 cases".
 
 **Forbid fixing.** "Do not fix anything. Do not commit." A reviewer that fixes
 things stops reviewing.
