@@ -192,6 +192,13 @@ annotations. Rounds are separated by ` · `, and a
 
     Rounds: BLOCK 3 (95k) · REVIEW 0 (90k) · PASS (88k)
 
+When `fresh-eye` starts two reviewers in a round, the round is still one entry.
+Its verdict follows the combining rule in `fresh-eye`. Its blocking count is
+the sum of both reviewers' blocking counts. Its token count is the sum of the
+`subagent_tokens` of both task notifications, so post the round only after
+both arrive. E.g. a mutation reviewer with BLOCK 2 at 95k and a code-review
+reviewer with PASS at 60k give `BLOCK 2 (155k)`.
+
 That makes the three-round rule checkable at a glance. The averages are one
 command, which reads the first `Rounds:` line of each PR:
 

@@ -123,11 +123,14 @@ print("role agents")
 # adding one forces its author to say what it may use.
 READ = {"Read", "Grep", "Glob"}
 ROLE_TOOLS = {
-    "builder": READ | {"Write", "Edit", "Bash"},
+    "builder": READ | {"Write", "Edit", "Bash", "Skill"},
     "reviewer": READ | {"Bash"},
     "fixer": READ | {"Write", "Edit", "Bash"},
     "documenter": READ | {"Write", "Edit"},
 }
+# A floor as well as a ceiling: ship-loop has the builder load
+# mattpocock-skills:tdd, which needs the Skill tool.
+ROLE_REQUIRED = {"builder": {"Skill"}}
 agent_files = sorted((ROOT / "agents").glob("*.md"))
 check("agents/ is non-empty", bool(agent_files))
 skill_text = {s.parent.name: s.read_text() for s in skills}
@@ -151,6 +154,9 @@ for agent in agent_files:
     extra = tools - ROLE_TOOLS.get(role, set())
     check("agent %s lists only tools its role allows" % role, not extra,
           "not allowed: " + ", ".join(sorted(extra)))
+    missing = ROLE_REQUIRED.get(role, set()) - tools
+    check("agent %s lists every tool its role needs" % role, not missing,
+          "missing: " + ", ".join(sorted(missing)))
     handle = "yw-workflow:" + role
     check("a skill names %s" % handle,
           any(handle in text for text in skill_text.values()))
