@@ -299,6 +299,9 @@ smart zone" below. What still holds: the numbers, how the size is
 measured, the two events, main thread only. What was replaced: the
 warning-only behavior and the rejection of Stop.
 
+The `ask-matt` quote below is out of date. See "ask-matt now puts the smart
+zone at about 150k, and 120k stays" (2026-11-15).
+
 Supports `handoff`. Adds `hooks/context-warning.py`.
 
 The owner decided the numbers: the first warning at 120k tokens, then one more
@@ -748,4 +751,28 @@ copy command with the repo-top path, and a copy that git does not track
 warns too.
 
 Check: `./hooks/lane-claim-selftest.py`, `./hooks/handoff-freshness-selftest.py`
+and `./hooks/context-handoff-selftest.py`.
+
+## 2026-11-15: ask-matt now puts the smart zone at about 150k, and 120k stays
+
+Supports `handoff`. The entries of 2026-09-21 and 2026-09-30 quote
+mattpocock's `ask-matt` skill at "~120k tokens". mattpocock-skills 1.3.1
+gives a different number and a different action. Read on 2026-11-15 from
+`skills/engineering/ask-matt/SKILL.md` in the installed 1.3.1 plugin:
+
+"the window (~150k tokens on state-of-the-art models) within which the
+model still reasons sharply. If a session approaches it before
+`/to-tickets`, don't push on degraded; `/compact` at the nearest phase
+boundary and carry on"
+
+`skills/engineering/ask-matt/PHASE-BOUNDARIES.md` in the same version says
+"(~150k tokens)".
+
+The owner chose 120k, and that number stays (issue #36). `first` stays
+120000 and `step` stays 100000. Only the citation changed: the
+`hooks/context-handoff.py` docstring and the comment in
+`hooks/handrail_config.py` now call 120k the owner's setting. The two
+earlier entries keep their text.
+
+Check: `grep -n '"first": 120000' hooks/context-handoff.py hooks/handrail_config.py`
 and `./hooks/context-handoff-selftest.py`.
