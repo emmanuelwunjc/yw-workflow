@@ -11,7 +11,7 @@ plugin path only.
 |---|---|---|
 | **git-safety-guard.sh** | PreToolUse, `git *` | Blocks commits straight to `main` and tree moves that collide with another agent. |
 | **require-code-review.py** | PreToolUse | Blocks `gh pr merge <number>` on a 25+ line PR with no review, looked up in the repo the command targets (`cd`, `-R`, a PR URL, `GH_REPO`) rather than the folder the session started in. A merge it finds and cannot tie to a literal PR and repo is blocked with a request for `-R owner/repo`. It reads the merge from the command text, so a command that only mentions one with a number is judged as a merge, and a merge with no number is invisible to it (#17). Override: `export SKIP_REVIEW_GATE=1;` in front of the command, announced on stderr when honored. |
-| **no-ai-attribution.py** | PreToolUse | Keeps AI-generation footers and session URLs out of anything people read, commit messages included. A Co-Authored-By trailer passes. |
+| **no-ai-attribution.py** | PreToolUse | Keeps AI-generation footers, session URLs and the triage skill's AI disclaimer out of anything people read, commit messages included. A Co-Authored-By trailer passes. |
 | **zsh-trap-guard.py** | PreToolUse | The Bash tool runs commands under zsh. Blocks an unbraced `$name:` before a letter zsh reads as a modifier (`$s:refs` applies `:r`, so write `${s}:refs`), and `for v in $VAR`, which zsh does not split into words. Ignores single-quoted text and quoted heredocs. Switch: `[rules] zsh_traps`. |
 | **claude-md-guard.py** | UserPromptSubmit, Stop | Blocks em-dashes, negation-then-correction, and prose questions where checkboxes are required. |
 | **handoff-freshness.py** | Stop | On a lane whose net diff from trunk changes real files, reminds it to write the PR body's `## Handoff notes` section, and warns any lane (a detached HEAD included) whose net diff changes `docs/HANDOFF.md`. On trunk (`main`, `master`, or what `origin/HEAD` names) or a `docs/handoff-*` branch, catches work piling up against an untouched `docs/HANDOFF.md`. Also catches a `docs/HANDOFF.md` that lacks the `## Start here` block, has a block that never lists the open `lane` issues, still opens with an "end of a session" preamble, has a block that runs `scripts/lane_claim.py` in a repo without that file, or has a handoff-named `.md` tracked outside `docs/` (the shape in skill `handoff`). Override: `SKIP_HANDOFF_CHECK=1`. |
@@ -67,7 +67,7 @@ not overwrite each other's file lists.
 | Rule | What it reads | What fails the job |
 |---|---|---|
 | `claude-md` | changed `.md` and `.txt` files | an em-dash or a negation-then-correction in prose, with code fences exempt |
-| `no-ai-attribution` | the PR body and changed prose files | a generation footer or a session URL, which includes a `Claude-Session:` trailer |
+| `no-ai-attribution` | the PR body and changed prose files | a generation footer, a session URL (which includes a `Claude-Session:` trailer), or the triage skill's AI disclaimer |
 | `review-gate` | the PR's files, reviews, and comments | a 25+ line code diff with no approval and no verdict comment, including a verdict the author posted themselves |
 
 Three differences from the hook path, each deliberate:

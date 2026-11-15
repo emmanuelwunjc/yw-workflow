@@ -40,6 +40,9 @@ BANNED = [
     (re.compile(r"Generated with \[?Claude Code", re.I), 'the "Generated with Claude Code" footer'),
     (re.compile(r"🤖\s*Generated with"), 'the robot-emoji generation footer'),
     (re.compile(r"https://claude\.ai/code/session_"), "a claude.ai session URL"),
+    # The triage skill opens every comment with this disclaimer (#37).
+    (re.compile(r"generated\s+by\s+AI\s+during\s+triage", re.I),
+     "the triage skill's AI disclaimer"),
 ]
 
 
@@ -122,6 +125,8 @@ def main():
                 "Never put AI-generation footers or session URLs in anything "
                 "other people read: PR bodies, issues, comments, releases. "
                 "Remove those lines and run it again.\n"
+                "For the triage disclaimer, remove that one line and post "
+                "the rest of the comment as it is.\n"
                 "That covers a commit message too: a Claude-Session trailer "
                 "is a session URL. A Co-Authored-By trailer is allowed."
                 + (("\n" + citation) if citation else ""),
