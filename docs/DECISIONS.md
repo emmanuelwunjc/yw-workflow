@@ -358,6 +358,9 @@ ms, the first run). Only the last 2 MB of the transcript is read, so an
 
 ## 2026-09-30: wind down and hand off when context passes the smart zone
 
+The `ask-matt` quote below is out of date. See "ask-matt now puts the smart
+zone at about 150k, and 120k stays" (2026-11-15).
+
 Supports `handoff`. Supersedes the warning-only design of 2026-09-21. Renames
 the hook from `hooks/context-warning.py` to `hooks/context-handoff.py`, with rule `[rules] context_handoff`,
 section `[context_handoff]` and state in `~/.claude/state/context-handoff/`.
