@@ -129,6 +129,8 @@ FILE_CASES = [
     # After a cd the text does not settle, msg.txt is some other file.
     ("git commit -F after a cd to an unknown folder", ALLOW,
      FOOTER, "cd $NOPE_UNSET_109 && git commit -F msg.txt"),
+    ("git commit -F after git -C to an unknown folder", ALLOW,
+     FOOTER, "git -C $NOPE_UNSET_109 commit -F msg.txt"),
     # An apostrophe in a heredoc must not stop the read of the other lines.
     ("git commit -F after a heredoc with an apostrophe", BLOCK,
      FOOTER, "cat > notes.txt <<'EOF'\ndon't\nEOF\ngit commit -F msg.txt"),
@@ -154,6 +156,18 @@ DIR_CASES = [
      "git -C sub commit -F msg.txt"),
     ("a variable that is never set", ALLOW,
      "gh issue comment 1 --body-file $NOPE/msg.txt"),
+    # Round 2: export leaves the variable set, with ;, && or a newline after.
+    ("--body-file through export and ;", BLOCK,
+     "export S={tmp}/sub; gh issue comment 1 --body-file $S/msg.txt"),
+    ("--body-file through export and &&", BLOCK,
+     "export S={tmp}/sub && gh issue comment 1 --body-file $S/msg.txt"),
+    ("--body-file through export and a newline", BLOCK,
+     "export S={tmp}/sub\ngh issue comment 1 --body-file $S/msg.txt"),
+    # The shell fills in assignments left to right.
+    ("--body-file through a variable built from one set before it", BLOCK,
+     "S={tmp} S2=$S/sub && gh issue comment 1 --body-file $S2/msg.txt"),
+    ("git commit -F after cd with an assignment in front", BLOCK,
+     "FOO=1 cd sub && git commit -F msg.txt"),
 ]
 
 
@@ -198,6 +212,37 @@ def main():
         if got != ALLOW:
             failures += 1
             print(f"FAIL want={ALLOW} got={got}  {name}")
+
+    # Round 2: require-code-review.py may fail to load in any way, SystemExit
+    # included. The command text is still checked, and the folder is unknown.
+    # A fault while a file is read (the third probe) must not hide a footer
+    # in the command text either.
+    load = "importlib.util.spec_from_file_location"
+    for name, want, target, fault, command in (
+            ("footer in the command while the helper cannot load", BLOCK,
+             load, "SystemExit(0)",
+             'cd sub && gh pr create --body "Generated with Claude Code"'),
+            ("cd while the helper cannot load reads no relative file", ALLOW,
+             load, "SystemExit(3)", "cd sub && git commit -F msg.txt"),
+            ("footer in the command while a file read fails", BLOCK,
+             "pathlib.Path.is_file", "RuntimeError",
+             'gh pr create -F msg.txt --title "Generated with Claude Code"')):
+        with tempfile.TemporaryDirectory() as tmp:
+            Path(tmp, "msg.txt").write_text(FOOTER, encoding="utf-8")
+            probe = subprocess.run(
+                [sys.executable, "-c",
+                 "import importlib.util, pathlib, runpy, sys\n"
+                 "def boom(*a, **k): raise %s\n"
+                 "%s = boom\n"
+                 "sys.argv = ['no-ai-attribution.py']\n"
+                 "runpy.run_path(%r, run_name='__main__')\n"
+                 % (fault, target, HOOK)],
+                input=json.dumps({"tool_name": "Bash", "cwd": tmp,
+                                  "tool_input": {"command": command}}),
+                capture_output=True, text=True, cwd=tmp)
+        if probe.returncode != want:
+            failures += 1
+            print(f"FAIL want={want} got={probe.returncode}  {name}")
 
     # A block that does not say what to do sends the agent into retries.
     triage = CASES[[c[0] for c in CASES].index(

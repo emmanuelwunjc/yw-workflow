@@ -76,7 +76,6 @@ BANNED = [
 FILE_FLAGS = ("-F", "--file", "--body-file", "--notes-file")
 
 
-ASSIGNMENT = re.compile(r"^([A-Za-z_]\w*)=(.*)$", re.S)
 VARIABLE = re.compile(r"\$(?:\{(\w+)\}|(\w+))")
 OPERATOR = set("&|;()<>")
 
@@ -114,26 +113,21 @@ def _expand(word, shell_vars):
     return os.path.expanduser(os.path.expandvars(word))
 
 
-_review_hook = None
+def _review_hook():
+    """require-code-review.py as a module, or None when it cannot load.
 
-
-def _cd(words, cwd):
-    """Where `cd` with these arguments lands, or None when unknown.
-
-    require-code-review.py owns this logic. It is loaded from there so the two
-    hooks read a `cd` the same way. If it cannot load, the folder is unknown.
+    That hook owns the reading of `cd` and of variable assignments, so both
+    hooks read them the same way. A load can fail in any way, SystemExit
+    included, and then the folder and the variables are unknown.
     """
-    global _review_hook
     try:
-        if _review_hook is None:
-            spec = importlib.util.spec_from_file_location(
-                "require_code_review",
-                Path(__file__).with_name("require-code-review.py"))
-            module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(module)
-            _review_hook = module
-        return _review_hook._cd(words, cwd)
-    except Exception:
+        spec = importlib.util.spec_from_file_location(
+            "require_code_review",
+            Path(__file__).with_name("require-code-review.py"))
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+    except BaseException:
         return None
 
 
@@ -152,7 +146,7 @@ def _read(name, cwd):
     return ""
 
 
-def _flag_files(words, cwd):
+def _flag_files(words, cwd, review):
     """Text of the message files that the git or gh command in `words` reads."""
     start = next((i for i, w in enumerate(words)
                   if os.path.basename(w) in ("git", "gh")), None)
@@ -165,7 +159,7 @@ def _flag_files(words, cwd):
         nxt = words[i + 1] if i + 1 < len(words) else None
         flag, eq, value = tok.partition("=")
         if is_git and tok == "-C" and nxt is not None:
-            cwd = _cd([nxt], cwd)
+            cwd = review._cd([nxt], cwd) if review else None
             continue
         if eq and flag in FILE_FLAGS:
             name = value
@@ -189,22 +183,35 @@ def _message_files(command, cwd):
     skipped: the command text is still checked, and CI scans the commit
     messages git wrote.
     """
+    review = _review_hook()
+    if review is None:
+        cwd = None
     texts, shell_vars, seg = [], {}, []
     for tok in _words(command) + [";"]:
         if not (tok and set(tok) <= OPERATOR):
             seg.append(tok)
             continue
-        words, seg = [_expand(w, shell_vars) for w in seg], []
-        if words and all(ASSIGNMENT.match(w) for w in words):
-            shell_vars.update(ASSIGNMENT.match(w).groups() for w in words)
-            continue
-        while words and ASSIGNMENT.match(words[0]):
+        raw, seg = seg, []
+        # Left to right, as the shell does: S=/a S2=$S/b gives S2 /a/b.
+        for word in review.shell_assignments(raw) if review else ():
+            key, eq, value = word.partition("=")
+            if eq:
+                shell_vars[key] = _expand(value, shell_vars)
+        words = [_expand(w, shell_vars) for w in raw]
+        while review and words and (words[0] in review.SHELL_PREFIXES
+                                    or review.ASSIGNMENT.match(words[0])):
             words.pop(0)
-        if words and words[0] in ("cd", "pushd"):
-            cwd = _cd(words[1:], cwd)
+        if review and words and words[0] in ("cd", "pushd"):
+            cwd = review._cd(words[1:], cwd)
             continue
-        texts += _flag_files(words, cwd)
+        texts += _flag_files(words, cwd, review)
     return "\n".join(texts)
+
+
+def _banned(text):
+    """The label of the first banned pattern in text, or None."""
+    return next((label for pattern, label in BANNED if pattern.search(text)),
+                None)
 
 
 def _safe_path(value):
@@ -275,28 +282,30 @@ def main():
     # Bash command while a command carrying a footer is rare. Checking the
     # switch here rather than up front is the same decision, paid for only when
     # it matters.
-    text = command + "\n" + _message_files(command, payload.get("cwd") or os.getcwd())
-    for pattern, label in BANNED:
-        if pattern.search(text):
-            policy = _policy()
-            if policy is not None and not policy.enabled("ai_attribution"):
-                sys.exit(0)
-            citation = policy.citation() if policy else ""
-            print(
-                f"Blocked: this command would publish {label}.\n"
-                "Never put AI-generation footers or session URLs in anything "
-                "other people read: PR bodies, issues, comments, releases. "
-                "Remove those lines and run it again.\n"
-                "For the triage disclaimer, remove that one line and post "
-                "the rest of the comment as it is.\n"
-                "That covers a commit message too: a Claude-Session trailer "
-                "is a session URL, and a co-author trailer at an "
-                "anthropic.com address names Claude. A co-author trailer "
-                "that names a person is fine."
-                + (("\n" + citation) if citation else ""),
-                file=sys.stderr,
-            )
-            sys.exit(2)
+    # The command text is checked before any file is read, so a fault while
+    # reading files can never switch off the check of the text itself.
+    label = _banned(command) or _banned(
+        _message_files(command, payload.get("cwd") or os.getcwd()))
+    if label:
+        policy = _policy()
+        if policy is not None and not policy.enabled("ai_attribution"):
+            sys.exit(0)
+        citation = policy.citation() if policy else ""
+        print(
+            f"Blocked: this command would publish {label}.\n"
+            "Never put AI-generation footers or session URLs in anything "
+            "other people read: PR bodies, issues, comments, releases. "
+            "Remove those lines and run it again.\n"
+            "For the triage disclaimer, remove that one line and post "
+            "the rest of the comment as it is.\n"
+            "That covers a commit message too: a Claude-Session trailer "
+            "is a session URL, and a co-author trailer at an "
+            "anthropic.com address names Claude. A co-author trailer "
+            "that names a person is fine."
+            + (("\n" + citation) if citation else ""),
+            file=sys.stderr,
+        )
+        sys.exit(2)
     sys.exit(0)
 
 
