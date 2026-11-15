@@ -786,33 +786,44 @@ Supports `fresh-eye` and `ship-loop`. The case and its evidence are in issue
 #98 (`gh issue view 98 -R emmanuelwunjc/yw-workflow`). Reviews repeated work
 that CI or the last review round had done.
 
-Evidence, measured in edsim-paper on 2026-11-13: tool PRs ran 3 to 5 review
-rounds, each with one blocking finding, e.g. the overview figure and the
-writer guard. Each round with a recorded cost used 25k to 130k tokens.
-Recount:
-`gh pr list -R georgetown-mdi-gates4/edsim-paper --state merged --limit 100 --json body --jq '.[].body' | grep '^Rounds:'`
+Evidence, measured in edsim-paper on 2026-11-13. One tool PR, the overview
+figure (edsim-paper #16), ran 3 rounds with one blocking finding each. The
+writer guard (edsim-paper #93) ran 3 blocking rounds, with 1, 2 and 1
+blocking findings. Two section PRs, Method (edsim-paper #63) and Results
+(edsim-paper #79), ran 5 blocking rounds, mostly with one finding each. Each
+round with a recorded cost used 25k to 130k tokens. The recount prints each
+merged PR's number, title and `Rounds:` line, so the title shows which PRs
+are tools:
 
-The owner decided three rules on 2026-11-13:
+```sh
+gh pr list -R georgetown-mdi-gates4/edsim-paper --state merged --limit 100 \
+  --json number,title,body \
+  --jq '.[] | select(.body | test("(?m)^Rounds:"))
+    | "\(.number) \(.title) | \(.body | capture("(?m)^(?<r>Rounds:.*)$").r)"'
+```
 
-1. Two tiers, named by the coordinator in the brief. Tier 1 is a check whose
-   silent failure lets wrong content ship, e.g. a sources check or a
-   fact-check gate. It gets full mutation tests and invented mutations, and a
-   survivor blocks. Tier 2 is local hooks, tools, scripts and figure tools,
-   including ones that run on CI, when their failure is visible in the output.
-   E.g. a figure tool that stops the render on a bad figure is tier 2, because
-   a bad figure is easy to see in the PDF. The reviewer runs the tests near
-   the change, reads the code and tries real-world cases, with no mutation
-   testing. A finding is a nit with a ticket. It blocks only when its failure is silent, i.e. wrong output ships
-   with no sign. A failure a person notices at once (e.g. a stale PDF, a
-   crash) is a nit. The figure-tool tie-break and the silent-failure reading
-   were confirmed by the owner, 2026-11-13.
+The owner decided three rules on 2026-11-13, and settled rule 1 on
+2026-11-15 after review round 3:
+
+1. Two tiers, named by the coordinator in the brief. A brief with no tier
+   means tier 1. Tier 1 is any check whose silent failure lets wrong output
+   through, on CI or local. E.g. a sources check, a fact-check gate, or a
+   local guard. When `hooks/require-code-review.py` fails silently, an
+   unreviewed merge goes through. When `hooks/git-safety-guard.sh` fails
+   silently, a force push goes through. Tier 1 gets full mutation tests and
+   invented mutations, and a survivor blocks. Tier 2 is a tool whose failure
+   shows in its output, e.g. a figure tool or the hook that renders the PDF
+   after a merge. The reviewer runs the tests near the change, reads the code
+   and tries real-world cases, with no mutation testing. A tier 2 finding
+   blocks only when wrong output can ship with no sign. A failure a person
+   sees at once (e.g. a crash, a stale PDF) is a nit with a ticket.
 2. The reviewer runs only the tests near the change. It never runs the full
    suite or the full render, because CI does that. This follows
    `~/CLAUDE.md` section 3: "CI is the one full test run. Do not repeat it
    locally." The exception is a change to the render itself with no CI run
    at that commit.
-3. At tier 1, a review after a fix mutates only the code the fix changed.
-   Code a past round mutated stays covered.
+3. At tier 1, a review after a fix mutates only the code the fix changed and
+   code that calls it. Other code a past round mutated stays covered.
 
 This narrows the 2026-11-04 entry: there, every survivor got a new case,
 blocking or not. That still holds at tier 1. At tier 2 the case goes into a

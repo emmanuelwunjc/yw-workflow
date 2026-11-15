@@ -107,8 +107,8 @@ runs. Then the smallest change that passes, at the root cause: grep every caller
 of the function you touch and fix the shared function once.
 
 A new check that takes its input as an argument ships with its broken-input
-cases: bad inputs, each with the problem text it must contain, run by
-CI. `fresh-eye` gives the shape and says where a survivor goes.
+cases: bad inputs, each with the problem text it must contain, run by the
+suite, and by CI. `fresh-eye` gives the shape and says where a survivor goes.
 
 Two failure modes to watch, both of which produce a commit message that claims a
 fix that did not happen:
@@ -128,7 +128,8 @@ Run the review on the FIX for the previous review too. That is where the next
 defect usually is: each fix to a check tends to open a different hole in it.
 
 Name the tier in the brief (`fresh-eye`, "Name the tier"). The reviewer runs
-only the tests near the change. At tier 1, after a fix it mutates only the fix.
+only the tests near the change. At tier 1, after a fix it mutates only the fix
+and code that calls what the fix changed.
 
 ## 5. Triage the findings, and record all of them
 
@@ -159,7 +160,8 @@ Then post the verdict where the change lives, including what you did not fix.
 
 Go back to step 4 with the new state. If a round changes code, the next round
 is mandatory: you have just changed the code, and the change is unreviewed.
-At tier 1, a round after a fix mutates only what the fix changed.
+At tier 1, a round after a fix mutates only what the fix changed and code
+that calls it.
 
 While a review round runs, the coordinator keeps the other `parallel` tasks
 running, each in its own worktree. `parallel` is a mark on a `## Next` item

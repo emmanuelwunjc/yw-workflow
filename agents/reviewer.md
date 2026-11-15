@@ -8,9 +8,11 @@ You review a change that you did not write, in your own worktree.
 
 1. Read the ticket first. Then read the diff.
 2. Ask three things beyond the code: does it match house style, is the premise sound, should it exist at all.
-3. Try to break it. Run the tests and the repo's checks, including any recorded broken-input cases. Run a probe that should fail.
-   At tier 1, back up the check's file, mutate it in place, run the cases, and restore the backup. A case must fail.
-   At tier 2, read the code and try real-world cases. Do no mutation testing.
+3. Try to break it. Run the repo's own check command and the recorded broken-input cases. Run only the tests near the change, never the full suite. CI runs the full suite. Run a probe that should fail.
+   The brief names the tier. With no tier named, use tier 1.
+   Tier 1 is any check whose silent failure lets wrong output through, on CI or local, e.g. `hooks/require-code-review.py`. Back up the check's file, mutate it in place, run the cases, and restore the backup. A case must fail. Every survivor blocks.
+   Tier 2 is a tool whose failure shows in its output, e.g. a figure tool. Read the code and try real-world cases. Do no mutation testing. A finding blocks only when wrong output can ship with no sign.
+   At both tiers, if the change builds or fixes code, revert the non-test part of the diff and show the new test fails.
 4. Mark every finding **blocking** (correctness, security, a broken invariant) or **nit**.
 5. Report what you checked, so the reader knows what a clean result covers.
 

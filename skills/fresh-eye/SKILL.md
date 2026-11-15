@@ -57,27 +57,27 @@ scripted edits whose anchor silently matched nothing; features that shipped
 without ever rendering.
 
 **Name the tier.** The coordinator names one tier in the brief. It sets
-whether the reviewer mutates and what a survivor costs. Tier 1 is a check
-whose silent failure lets wrong content ship. Everything else is tier 2.
+whether the reviewer mutates and when a finding blocks. A brief with no tier
+means tier 1.
 
-- **Tier 1:** a check whose silent failure lets wrong content ship, e.g. a
-  sources check or a fact-check gate. Full mutation tests, three invented
+- **Tier 1:** any check whose silent failure lets wrong output through, on CI
+  or local. E.g. a sources check, a fact-check gate, or a local guard such as
+  `hooks/require-code-review.py`. When that guard fails silently, an
+  unreviewed merge goes through. Full mutation tests, three invented
   mutations, and every survivor blocks.
-- **Tier 2:** local hooks, tools, scripts and figure tools, including ones that
-  run on CI, when their failure is visible in the output. E.g. a figure tool
-  that stops the render on a bad figure is tier 2, because a bad figure is easy
-  to see in the PDF. Run the tests near the change, read the code, and try
-  real-world cases. No mutation testing. A finding is a nit with a ticket. It
-  blocks only when its failure is silent, i.e. wrong output ships with no
-  sign. A failure a person notices at once (e.g. a stale PDF, a crash) is a
-  nit.
+- **Tier 2:** a tool whose failure shows in its output, e.g. a figure tool or
+  the hook that renders the PDF after a merge. Run the tests near the change,
+  read the code, and try real-world cases. No mutation testing. A finding
+  blocks only when wrong output can ship with no sign. A failure a person
+  sees at once (e.g. a crash, a stale PDF) is a nit with a ticket.
 
 **Run only the tests near the change.** The reviewer never runs the full suite
 or the full render, because CI does that. One exception: the change is to the
 render itself and no CI run exists at that commit.
 
-**After a fix, mutate only what the fix changed (tier 1).** Code a past round
-already mutated stays covered. Name the fix's diff in the brief, e.g.
+**After a fix, mutate only what the fix changed and code that calls what it
+changed (tier 1).** Other code a past round already mutated stays covered.
+Name the fix's diff in the brief, e.g.
 `git diff <reviewed-sha>..origin/<branch>`.
 
 **Demand mutation at tier 1.** At tier 1 this is the highest-value
@@ -114,10 +114,10 @@ Each survivor has one route, and the route depends on the tier. At tier 1, a
 surviving broken input or check mutation becomes the case that kills it, and
 it blocks. A case is cheap to run, but adding one after a `PASS` changes
 code, so it costs one more review round (`ship-loop` step 6). At tier 2, a
-finding is a nit with a ticket, and the ticket holds the case. It blocks only
-when its failure is silent. At tier 1, a code breakage that a script's own
-self-check missed becomes a `mutation-gate` entry. Cases go when their check
-goes. The measurement behind this rule is in `docs/DECISIONS.md` (2026-11-04).
+finding follows the tier 2 rule above, and a nit's ticket holds the case. At
+tier 1, a code breakage that a script's own self-check missed becomes a
+`mutation-gate` entry. Cases go when their check goes. The measurement behind
+this rule is in `docs/DECISIONS.md` (2026-11-04).
 
 **Ask what a bound excludes.** If the change narrows a promise ("works above
 1024 wide"), ask directly: is that bound justified by the physics of the problem,
@@ -266,14 +266,12 @@ function, or line number, it belongs in Agent-facing specifics instead.
     This project's recurring failure mode is <disease>. Assume it is present
     until you prove otherwise.
 
-    Tier: <1 or 2>. Tier 1 is a check whose silent failure lets wrong content
-    ship: every survivor blocks. Tier 2 is a hook, tool, script or figure tool
-    whose failure is visible in the output, also on CI: no mutation testing,
-    and a finding is a nit with a ticket. It blocks only when its failure is
-    silent, i.e. wrong output ships with no sign.
-    Tier 1, mutate only: <the full diff, or after a fix, the fix's diff>.
+    Tier: <1 or 2>. <That tier's rule, pasted from "Name the tier".>
+    Tier 1, mutate only: <the full diff, or after a fix, the fix's diff and
+    code that calls what it changed>.
 
-    1. Run the tests near the change: <the test files>. Never run the full
+    1. Run <the repo's own check command>. It must exit 0.
+       Then run the tests near the change: <the test files>. Never run the full
        suite or the full render. CI runs those. One exception: the change is
        to the render, and no CI run exists at that commit. NOTE: a check reports
        failures on stderr and signals with its exit code; do not grep stdout.
@@ -286,8 +284,7 @@ function, or line number, it belongs in Agent-facing specifics instead.
        script breakage its own self-check missed becomes a `mutation-gate`
        entry.
        Tier 2: do no mutation testing. Read the code and try real-world
-       cases, e.g. <cases>. Report each finding as a nit with a ticket,
-       unless its failure is silent.
+       cases, e.g. <cases>. Mark each finding by the tier 2 rule above.
     3. Tier 1 only: invent three more mutations aimed at the weakest checks.
     4. Is the promised bound justified by the problem, or chosen to exclude
        failures?
