@@ -1196,9 +1196,13 @@ Waits on the owner: whether the migrated repos also get a
   minutes. A re-review of the fix diff alone, with a short brief, cost 25k
   and 16 seconds. #101 (reviews too slow and too wide) is the owner's
   global complaint, and this is its first measurement.
-- `Commit trailers stay.` in the attribution hook row is true of the hook,
+- ~~`Commit trailers stay.` in the attribution hook row is true of the hook,
   which lets trailers pass on purpose. Settings remove them. Whether the
-  hook should block them too is the owner's call (comment on #100).
+  hook should block them too is the owner's call (comment on #100).~~
+  Superseded 2026-11-15: #110 (issue #35) made the hook block the
+  `Claude-Session` trailer. The owner decided the same day that the hook
+  blocks `Co-Authored-By: Claude` too. Issue #108 carries that change and
+  has not merged yet.
 - Trap: `require-code-review.py` blocks a whole Bash call that contains a
   merge while checks are pending, even after `gh pr checks --watch` in the
   same call. Wait for the checks in one call, merge in the next.
@@ -1228,3 +1232,46 @@ Waits on the owner:
 - A grilling for #101: which review levels fit which changes, and the cost
   limit of one review loop.
 - Whether `no-ai-attribution.py` should also block commit trailers (#100).
+
+## 2026-11-15: handoff pass
+
+- #107 (ask-matt puts the smart zone at about 150k) recorded the new
+  figure in `docs/DECISIONS.md`. The owner's setting of 120k stays.
+- #110 (issue #35) makes `hooks/no-ai-attribution.py` block the
+  `Claude-Session` commit trailer. #112 (issue #37) makes it block the AI
+  disclaimer line that the triage skill writes.
+- Decided by the owner 2026-11-15: the attribution hook blocks both commit
+  trailers, `Claude-Session` and `Co-Authored-By: Claude`. This answers the
+  question from the 2026-11-13 pass (comment on #100). Issue #108 adds the
+  `Co-Authored-By` block. It waits for the EdSim change that drops the
+  EdSim test which expects that trailer to pass.
+- #111 (issue #38) tells `fresh-eye` where `code-review` finds the issue
+  tracker and the repo standards. Issue #41 moves that step to its own
+  reviewer and takes these lines with it.
+- #113 (issue #39, the ship-loop half) keeps `## Handoff notes` and the
+  `Rounds:` line when `mattpocock-skills:pr` shapes the PR body. That
+  skill's template has only Summary, Evidence and Merge Danger. The harden
+  half moved to lane #97 item 5, because `feat/hardcore` deletes
+  `skills/harden`.
+- Trap: every PR in this repo raises the plugin version. Each merge makes
+  the next open branch rebase, take the next version and get a short extra
+  review. On 2026-11-15 this cost one extra round on each of the tickets
+  #36, #35, #38, #37 and #39. Before you bump, read the version on
+  `origin/main` (`git show origin/main:.claude-plugin/plugin.json`).
+
+### Next
+
+Open work is in the `lane` issues (list them with step 3's command). Lane
+#47 item 3 has these tickets left: #40 (being built at this pass), then
+#41, after #40. #108 (block `Co-Authored-By: Claude`) waits
+for the EdSim change that drops its trailer test. #96 and #97 have not
+changed since the 2026-11-13 pass.
+
+Waits on the owner:
+- Remove the global `~/.claude/skills/pm` symlink, which shadows the new
+  `pm` skill.
+- Add a `pm` row to the "Where things live" table in `~/CLAUDE.md`.
+- Whether the migrated repos also get a `.github/workflows/guards.yml`,
+  carried over from 2026-09-16.
+- A grilling for #101: which review levels fit which changes, and the cost
+  limit of one review loop.
