@@ -191,6 +191,8 @@ check("the notice says where the handoff goes",
       "handoff skill" in text and "docs/HANDOFF.md" in text
       and "## Handoff notes" in text, True)
 check("the notice ends with a fresh session", "fresh session" in text, True)
+check("the notice names the skill with its plugin prefix",
+      "yw-workflow:handoff" in text, True)
 check("the notice hands the lane off on its issue",
       STOP_RULE in text
       and '`python3 scripts/lane_claim.py write <N> "<name>" <file>`' in text
@@ -320,6 +322,8 @@ e = Env()
 text = context(e.at(130_000, now=T0)[1])
 check("in a plain folder the wind-down notice never mentions a PR body",
       "PR body" not in text and "docs/handoff-" not in text, True)
+check("in a plain folder the notice names the skill with its plugin prefix",
+      "yw-workflow:handoff" in text, True)
 reason = blocked(e.stop(T0 + 1))
 check("in a plain folder the block says it is no git repo",
       "not a git repo" in reason, True)
