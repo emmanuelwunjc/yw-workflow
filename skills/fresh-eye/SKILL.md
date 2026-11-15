@@ -3,7 +3,7 @@ name: fresh-eye
 description: Dispatch an independent adversarial reviewer that did not write the code, in an isolated git worktree, to try to break a change rather than agree with it. Use before merging anything non-trivial, when asked for "a fresh eye", "a second opinion", "review this properly", "try to break this", or when you have just finished work and are about to call it done. Also use on the FIX for a previous review, because that is where the next defect usually is.
 origin: authored
 tags: [review, quality, adversarial, worktree, mutation-testing]
-version: 1.2.0
+version: 1.3.0
 ---
 
 # Fresh eye
@@ -56,17 +56,41 @@ that have paid off: checks that grep for a string instead of measuring behavior;
 scripted edits whose anchor silently matched nothing; features that shipped
 without ever rendering.
 
-**Demand mutation, not reading.** This is the highest-value instruction in the
-prompt. List the specific mutations that MUST fail, and ask for any that survive,
-loudly:
+**Name the tier.** The coordinator names one tier in the brief. It sets
+whether the reviewer mutates and when a finding blocks. A brief with no tier
+means tier 1.
+
+- **Tier 1:** any check whose silent failure lets wrong output through, on CI
+  or local. E.g. a sources check, a fact-check gate, or a local guard such as
+  `hooks/require-code-review.py`. When that guard fails silently, an
+  unreviewed merge goes through. Full mutation tests, three invented
+  mutations, and every survivor blocks.
+- **Tier 2:** a tool whose failure shows in its output, e.g. a figure tool or
+  the hook that renders the PDF after a merge. Run the tests near the change,
+  read the code, and try real-world cases. No mutation testing. A finding
+  blocks only when wrong output can ship with no sign. A failure a person
+  sees at once (e.g. a crash, a stale PDF) is a nit with a ticket.
+
+**Run only the tests near the change.** The reviewer never runs the full suite
+or the full render, because CI does that. One exception: the change is to the
+render itself and no CI run exists at that commit.
+
+**After a fix, mutate only what the fix changed and code that calls what it
+changed (tier 1).** Other code a past round already mutated stays covered.
+Name the fix's diff in the brief, e.g.
+`git diff <reviewed-sha>..origin/<branch>`.
+
+**Demand mutation at tier 1.** At tier 1 this is the highest-value
+instruction in the prompt. List the specific mutations that MUST fail, and ask
+for any that survive, loudly:
 
     Mutate the source and prove each new check actually fails:
       <mutation 1> -> <check that must fire>
       <mutation 2> -> <check that must fire>
     Revert each after testing. Report any mutation that was NOT caught.
 
-Then ask it to invent three more mutations you did not think of, aimed at the
-weakest checks. Those are the ones that find things.
+At tier 1, also ask it to invent three more mutations you did not think of,
+aimed at the weakest checks. Those are the ones that find things.
 
 **Record the broken inputs, so no round retypes them.** Two kinds of mutation
 go into a review. A *broken input* is bad data fed to a check, e.g. a tag with
@@ -77,21 +101,23 @@ When a check takes its input as an argument (a string, a row, a dict), the
 author records each broken input as a test case beside it. A case holds the
 input and the problem text it must contain. Add one valid input that must give
 no problem. Give each branch its own problem text, so a case shows which branch
-fired. These are ordinary tests, written with the check. The suite runs them
-every round and in CI.
+fired. These are ordinary tests, written with the check. The tests near the
+check run them each round, and CI runs them all.
 
-Check mutations stay hand work each round, because the check's code changes
-between rounds. The reviewer backs up the check's file, edits the file in
-place with a Bash-run script, and runs the cases. Then it restores the backup.
-The tests load the real file, so an edit to a copy tests nothing. For each
-branch the reviewer breaks, at least one case must fail.
+At tier 1, check mutations stay hand work each round, because the check's
+code changes between rounds. The reviewer backs up the check's file, edits
+the file in place with a Bash-run script, and runs the cases. Then it restores
+the backup. The tests load the real file, so an edit to a copy tests nothing.
+For each branch the reviewer breaks, at least one case must fail.
 
-Each survivor has one route. A surviving broken input becomes a new case,
-blocking or not. A case is cheap to run, but adding one after a `PASS` changes
-code, so it costs one more review round (`ship-loop` step 6). A surviving check
-mutation gets the case that kills it. A code breakage that a script's own
-self-check missed becomes a `mutation-gate` entry. Cases go when their check
-goes. The measurement behind this rule is in `docs/DECISIONS.md` (2026-11-04).
+Each survivor has one route, and the route depends on the tier. At tier 1, a
+surviving broken input or check mutation becomes the case that kills it, and
+it blocks. A case is cheap to run, but adding one after a `PASS` changes
+code, so it costs one more review round (`ship-loop` step 6). At tier 2, a
+finding follows the tier 2 rule above, and a nit's ticket holds the case. At
+tier 1, a code breakage that a script's own self-check missed becomes a
+`mutation-gate` entry. Cases go when their check goes. The measurement behind
+this rule is in `docs/DECISIONS.md` (2026-11-04).
 
 **Ask what a bound excludes.** If the change narrows a promise ("works above
 1024 wide"), ask directly: is that bound justified by the physics of the problem,
@@ -240,23 +266,33 @@ function, or line number, it belongs in Agent-facing specifics instead.
     This project's recurring failure mode is <disease>. Assume it is present
     until you prove otherwise.
 
-    1. Run <the gate command>. It must exit 0. NOTE: it reports failures on
-       stderr and signals with its exit code; do not grep stdout.
-    2. Run the recorded broken-input cases with the suite. Then back up
-       the check's file, mutate it in place, run the cases, and restore
-       the backup. A case must fail for each branch you break:
+    Tier: <1 or 2>. <That tier's rule, pasted from "Name the tier".>
+    Tier 1, mutate only: <the full diff, or after a fix, the fix's diff and
+    code that calls what it changed>.
+
+    1. Run <the repo's own check command>. It must exit 0.
+       Then run the tests near the change: <the test files>. Never run the full
+       suite or the full render. CI runs those. One exception: the change is
+       to the render, and no CI run exists at that commit. NOTE: a check reports
+       failures on stderr and signals with its exit code; do not grep stdout.
+    2. Tier 1: run the recorded broken-input cases. Then back up the check's
+       file, mutate it in place, run the cases, and restore the backup. A
+       case must fail for each branch you break:
        <list>
        Report any that survived, loudly. Name each survivor's route. A
        surviving broken input or check mutation becomes a new case. A
        script breakage its own self-check missed becomes a `mutation-gate`
        entry.
-    3. Invent three more mutations aimed at the weakest checks.
+       Tier 2: do no mutation testing. Read the code and try real-world
+       cases, e.g. <cases>. Mark each finding by the tier 2 rule above.
+    3. Tier 1 only: invent three more mutations aimed at the weakest checks.
     4. Is the promised bound justified by the problem, or chosen to exclude
        failures?
     5. What part of the input space does nothing exercise?
     6. Anything orphaned, dead, scope creep, or a comment claiming something the
        code does not do?
-    7. If this change builds or fixes code: revert the non-test part of the
+    7. Both tiers, because it is cheap and checks the fix itself. If this
+       change builds or fixes code: revert the non-test part of the
        diff and show the new test fails (for a fix, show the reproduction fails
        on the base and passes on the branch).
     8. For every sentence that makes a factual claim to a reader, find its

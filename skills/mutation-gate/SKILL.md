@@ -3,7 +3,7 @@ name: mutation-gate
 description: Prove a repo's self-checks can fail, by applying recorded two-line breakages to each script and requiring its own check to catch them. Use when a review finds an assertion that could not fail, when a ticket names a rule as one that must be provable by mutation, when adopting the gate in a new repo ("add the mutation gate", "mutation test the scripts"), or when deciding whether a proposed gate entry has earned its place.
 origin: authored
 tags: [testing, mutation, ci, self-check, review]
-version: 1.0.0
+version: 1.0.1
 ---
 
 # Mutation gate
@@ -27,6 +27,11 @@ A gate entry is a code breakage of a script that the script's own `_demo()`
 must catch. A bad input that a check must reject is a broken-input case, an
 ordinary test beside the check. `fresh-eye` gives that shape and the rule for
 which survivor goes where. The incident rule below covers gate entries only.
+
+Entries come from tier 1 checks (`fresh-eye`, "Name the tier"). Tier 1 holds
+any check whose silent failure lets wrong output through, on CI or local. So
+a local guard that fails silently, e.g. `hooks/require-code-review.py`, can
+earn an entry.
 
 ## The rule for adding an entry
 
