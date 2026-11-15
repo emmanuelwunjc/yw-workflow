@@ -14,15 +14,16 @@ Say that line back when you start, so whoever invoked this knows what they
 got.
 
 **If `mattpocock-skills:handoff` loaded with this skill, this skill wins.**
-Two installed plugins each carry a skill named `handoff`. The Claude Code
-skills page (https://code.claude.com/docs/en/skills, "Resolve skills that
-share a name") says both load, "because plugin skills are namespaced as
-`/plugin-name:skill-name`". This one is `yw-workflow:handoff`. That page does
-not say which of the two a bare `/handoff` runs. The other skill says: "Save
+Two installed plugins each carry a skill named `handoff`. The Plugin row of
+the Claude Code skills page (https://code.claude.com/docs/en/skills, "Choose
+where skills load") gives the path `<plugin>/skills/<skill-name>/SKILL.md`, which
+loads "Wherever the plugin is enabled, as `/plugin-name:skill-name`". So both
+load, as `yw-workflow:handoff` and `mattpocock-skills:handoff`. This one is
+`yw-workflow:handoff`. That page does not say which of the two a bare
+`/handoff` runs. The other skill says: "Save
 to the temporary directory of the user's OS (`$TMPDIR`, else `/tmp`; `%TEMP%`
 on Windows)". That temp-folder file loses. The handoff goes to
 `docs/HANDOFF.md`, or to a lane's `## Handoff notes`, as the rules below say.
-
 
 A handoff exists so the next session starts working without anyone composing
 an opening prompt. The owner decided on 2026-09-16 that pointing a fresh agent
