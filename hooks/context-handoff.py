@@ -78,9 +78,9 @@ STATE_TTL_SECONDS = 7 * 24 * 3600
 # further back than this is missed, and the hook stays silent.
 TAIL_BYTES = 2 * 1024 * 1024
 
-WRITE = ("write the handoff now: load the handoff skill, then %s on a "
-         "docs/handoff-* branch, or a `## Handoff notes` section in the PR "
-         "body on a lane, per the repo's rules. If you hold a lane, rewrite "
+WRITE = ("write the handoff now: load the yw-workflow:handoff skill, then %s "
+         "on a docs/handoff-* branch, or a `## Handoff notes` section in the "
+         "PR body on a lane, per the repo's rules. If you hold a lane, rewrite "
          "its `## Next` with `python3 scripts/lane_claim.py write <N> \"<name>\" "
          "<file>`, then free it with `python3 scripts/lane_claim.py release "
          "<N> \"<name>\"`. Write a lane body only with `scripts/lane_claim.py "
@@ -88,9 +88,9 @@ WRITE = ("write the handoff now: load the handoff skill, then %s on a "
          "tell the owner. Then tell the user to start a fresh session."
          % HANDOFF)
 # A plain folder has no branch and no PR, so its text names neither.
-WRITE_FOLDER = ("write the handoff now: load the handoff skill, and ask the "
-                "user where it should live if that is not already clear. Then "
-                "tell the user to start a fresh session.")
+WRITE_FOLDER = ("write the handoff now: load the yw-workflow:handoff skill, and "
+                "ask the user where it should live if that is not already "
+                "clear. Then tell the user to start a fresh session.")
 WIND_DOWN = (
     "Context is at %(size)dk tokens, past the ~%(first)dk where reasoning "
     "stays sharp. Wind down now. Start no new work and spawn no new "

@@ -191,6 +191,8 @@ check("the notice says where the handoff goes",
       "handoff skill" in text and "docs/HANDOFF.md" in text
       and "## Handoff notes" in text, True)
 check("the notice ends with a fresh session", "fresh session" in text, True)
+check("the notice names the skill with its plugin prefix",
+      "load the yw-workflow:handoff skill" in text, True)
 check("the notice hands the lane off on its issue",
       STOP_RULE in text
       and '`python3 scripts/lane_claim.py write <N> "<name>" <file>`' in text
@@ -314,20 +316,32 @@ e.at(130_000, now=T0)
 reason = blocked(e.stop(T0 + 1))
 check("in a git repo the block says the notes may be in the PR body",
       "already in the PR body" in reason, True)
+e = Env()
+e.repo()
+e.at(130_000, now=T0)
+text = context(e.at(131_000, now=T0 + 15 * MIN)[1])
+check("in a git repo the deadline notice names the skill with its plugin prefix",
+      "load the yw-workflow:handoff skill" in text, True)
 
 # a plain folder: no repo, so no branch and no PR body either
 e = Env()
 text = context(e.at(130_000, now=T0)[1])
 check("in a plain folder the wind-down notice never mentions a PR body",
       "PR body" not in text and "docs/handoff-" not in text, True)
+check("in a plain folder the notice names the skill with its plugin prefix",
+      "load the yw-workflow:handoff skill" in text, True)
 reason = blocked(e.stop(T0 + 1))
 check("in a plain folder the block says it is no git repo",
       "not a git repo" in reason, True)
+check("in a plain folder the block names the skill with its plugin prefix",
+      "load the yw-workflow:handoff skill" in reason, True)
 check("in a plain folder the block never mentions a PR body",
       "PR body" not in reason and "docs/handoff-" not in reason, True)
 text = context(e.at(131_000, now=T0 + 15 * MIN)[1])
 check("in a plain folder the deadline notice says it is no git repo",
       "not a git repo" in text, True)
+check("in a plain folder the deadline notice names the skill with its plugin prefix",
+      "load the yw-workflow:handoff skill" in text, True)
 check("in a plain folder the deadline notice never mentions a PR body",
       "PR body" not in text and "docs/handoff-" not in text, True)
 
@@ -376,6 +390,8 @@ check("the Stop block exits 0 and keeps stderr empty", (r[0], r[2]), (0, ""))
 check("the reason repeats the instruction",
       "spawn no new subagents" in reason and "docs/HANDOFF.md" in reason
       and "## Handoff notes" in reason and "fresh session" in reason, True)
+check("the Stop block names the skill with its plugin prefix",
+      "load the yw-workflow:handoff skill" in reason, True)
 check("the reason lets a thread waiting on subagents stop again",
       "stop again and wait for them" in reason, True)
 check("Stop blocks once: the next Stop is allowed", silent(e.stop(T0 + 2)), True)
@@ -402,6 +418,8 @@ e.at(130_000, now=T0)
 reason = blocked(e.stop(T0 + 15 * MIN))
 check("Stop after the deadline blocks with the deadline instruction",
       "grace for running subagents is over" in reason and "TaskStop" in reason, True)
+check("the Stop block after the deadline names the skill with its plugin prefix",
+      "load the yw-workflow:handoff skill" in reason, True)
 check("and the deadline notice is not said a second time",
       silent(e.at(131_000, now=T0 + 16 * MIN)), True)
 
