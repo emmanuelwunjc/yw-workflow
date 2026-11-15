@@ -49,6 +49,17 @@
         ]
       }
     ],
+    "SessionStart": [
+      {
+        "matcher": "startup|clear",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/handoff-freshness.py"
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "hooks": [

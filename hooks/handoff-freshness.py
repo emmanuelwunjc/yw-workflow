@@ -75,6 +75,13 @@ file has the shape skills/handoff/SKILL.md describes. So it warns when:
     from this plugin to the repo top. A copy that git does not track warns
     too, because a fresh clone would not have it.
 
+The same script runs on SessionStart (issue #117), for a new session or a
+/clear only. There it runs only the shape check, offline, and never the
+branch checks. A problem goes out as additionalContext with one more step:
+run a `gh pr list` command that finds an open PR changing the file, and with
+none, migrate the file as the first task, before claiming a lane. So an old repo migrates when a session opens in it,
+and the session does not follow the old block for its whole first turn.
+
 Escape hatch: SKIP_HANDOFF_CHECK=1 in the environment, for all of it.
 """
 
@@ -126,6 +133,15 @@ LANE_WORD = re.compile(r"--label lane(?![\w-])")
 OLD_STEP = re.compile(r"^\s*\d+\.\s+read the last section", re.I)
 SHAPE_HELP = ("The shape, with the block to paste, is in the yw-workflow skill "
               "skills/handoff (invoke /yw-workflow:handoff).")
+# Added at SessionStart, so an old repo migrates before its first lane claim.
+# The session runs the command. The hook itself makes no network call.
+OPEN_PR_CMD = ("gh pr list --state open --limit 100 --json number,title,files "
+               "--jq '.[] | select(any(.files[]; .path == \"" + HANDOFF + "\")) "
+               "| \"#\\(.number) \\(.title)\"'")
+FIRST_TASK = (f"First run `{OPEN_PR_CMD}`. It prints a PR: a migration is "
+              f"open, so skip it. It prints nothing: migrate {HANDOFF} to this "
+              f"shape as your first task, before you claim a lane or start any "
+              f"other work.")
 
 
 def is_ancestor(a: str, b: str) -> bool:
@@ -304,7 +320,7 @@ def lane_notes(touched_handoff: bool, real: bool, ref: str, detached: bool) -> N
 
 def main() -> None:
     try:
-        json.loads(sys.stdin.read() or "{}")
+        event = json.loads(sys.stdin.read() or "{}").get("hook_event_name")
     except Exception:
         sys.exit(0)
 
@@ -314,9 +330,16 @@ def main() -> None:
     if not top:
         sys.exit(0)
 
-    for problem in shape_problems(top):
-        print(f"HANDOFF SHAPE: {problem}\n{SHAPE_HELP}\n"
-              f"Deliberate skip: SKIP_HANDOFF_CHECK=1\n", file=sys.stderr)
+    shape = "".join(f"HANDOFF SHAPE: {problem}\n{SHAPE_HELP}\n"
+                    f"Deliberate skip: SKIP_HANDOFF_CHECK=1\n\n"
+                    for problem in shape_problems(top))
+    if event == "SessionStart":
+        if shape:
+            print(json.dumps({"hookSpecificOutput": {
+                "hookEventName": event,
+                "additionalContext": shape + FIRST_TASK}}))
+        sys.exit(0)
+    print(shape, end="", file=sys.stderr)
 
     branch = git("branch", "--show-current").strip()
     names = trunks()
