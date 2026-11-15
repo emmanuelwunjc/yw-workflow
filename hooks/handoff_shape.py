@@ -11,8 +11,11 @@ skill describes. shape_problems() returns one string per problem:
     skills/handoff/SKILL.md (issue #118). The block runs from the
     `## Start here` line to the next `## ` heading. The plugin's block is read
     from the skill's fenced block, so no copy of its text lives here. Lines
-    after the plugin's last line are the repo's own and pass. The warning
-    names the first line that differs.
+    after the plugin's last line are the repo's own and pass. So if a later
+    plugin release removes its last step, an old repo keeps that step as its
+    own lines and passes. An empty block warns. The warning names the first
+    line that differs. A plugin skill that cannot be read, or has no fenced
+    block, gets one warning that the check did not run.
   - the block runs `gh issue list --label lane` past line 40 of the file,
     where a fresh session may stop reading (the block is pasted too low)
   - its first 40 lines still carry the old "end of a session" preamble
@@ -20,6 +23,8 @@ skill describes. shape_problems() returns one string per problem:
   - the block runs scripts/lane_claim.py and the repo top has no such file,
     or git does not track it, or it differs from the plugin's
     skills/handoff/lane_claim.py (issue #118). Each warning prints the fix.
+    A plugin script that cannot be read gets one warning that the check did
+    not run.
 
 Offline by design: it reads files and git only.
 """
@@ -79,11 +84,19 @@ def plugin_block() -> list[str] | None:
 def drift_problems(lines: list[str]) -> list[str]:
     """The repo's block must open with the plugin's, line for line. Lines after
     the plugin's last line are the repo's own, e.g. what the repo is."""
+    if not any(ln.strip() == START_HERE for ln in lines):
+        return []  # shape_problems already warns that the line is missing
     want = plugin_block()
+    if want is None:
+        return [f"cannot read the plugin's `{START_HERE}` block at {SKILL}, "
+                f"so the drift check did not run."]
     have = trimmed(block_lines(lines))
-    if want is None or not have:
-        return []
     end = "(the block ends here)"
+    if not have:  # trimmed() drops blank lines at the end, so blank is empty
+        first = next((ln for ln in want if ln), "")
+        return [f"{HANDOFF}'s `{START_HERE}` block differs from the plugin's: "
+                f"it is empty. Paste the current block from {SKILL}.\n"
+                f"  this file: {end}\n  plugin:    {first}"]
     for i, theirs in enumerate(want):
         mine = have[i][1] if i < len(have) else end
         if mine != theirs:
@@ -104,12 +117,12 @@ def late_problems(lines: list[str]) -> list[str]:
             f"Move the block to the top of the file."]
 
 
-def same_file(a: str, b: str) -> bool:
+def read_bytes(path: str) -> bytes | None:
     try:
-        with open(a, "rb") as fa, open(b, "rb") as fb:
-            return fa.read() == fb.read()
+        with open(path, "rb") as fh:
+            return fh.read()
     except OSError:
-        return True  # an unreadable plugin copy is no finding about the repo
+        return None
 
 
 def script_problems(top: str, lines: list[str]) -> list[str]:
@@ -129,7 +142,12 @@ def script_problems(top: str, lines: list[str]) -> list[str]:
         return [f"{LANE_SCRIPT} is not tracked, so a fresh clone or a cloud "
                 f"routine has no copy and every lane claim there fails. "
                 f"Commit it:\n  git -C '{top}' add {LANE_SCRIPT}"]
-    if not same_file(target, PLUGIN_SCRIPT):
+    plugin = read_bytes(PLUGIN_SCRIPT)
+    if plugin is None:
+        return [f"cannot read the plugin's {LANE_SCRIPT} at {PLUGIN_SCRIPT}, "
+                f"so the copy check did not run."]
+    mine = read_bytes(target)
+    if mine is not None and mine != plugin:  # an unreadable repo copy: no finding, as before
         return [f"{LANE_SCRIPT} differs from the plugin's copy, so a fix to the "
                 f"script has not reached this repo. Copy the current one and "
                 f"commit it:\n{copy}"]

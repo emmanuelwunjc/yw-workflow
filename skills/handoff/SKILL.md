@@ -327,16 +327,19 @@ it runs only the `HANDOFF SHAPE` check. All are addressed to the model and fix i
   the PR body and revert the file.
 - `HANDOFF STALE`: on trunk or a `docs/handoff-*` branch, the session
   committed real work and nothing touched the handoff. Run the handoff pass.
-- `HANDOFF SHAPE`: the file has no `## Start here` line, its first 40 lines
-  still say "end of a session" (the old preamble, which told the reader the
-  file was written at close), its block does not open with the block in
-  this skill (the warning names the first line that differs), its block
-  runs `gh issue list --label lane` past line 40, or a handoff-named
-  `.md` is tracked outside `docs/`, or the block runs
-  `scripts/lane_claim.py` and the repo has no such file, does not track
+- `HANDOFF SHAPE`: the file has a shape problem. One case is a file with
+  no `## Start here` line. Another is a file whose first 40 lines still say
+  "end of a session". That old preamble told the reader the file was
+  written at close. A third is a block that does not open with the block
+  in this skill. An empty block is in this case. The warning names the
+  first line that differs. A fourth is a block that runs
+  `gh issue list --label lane` past line 40. A fifth is a handoff-named
+  `.md` tracked outside `docs/`. The last is a block that runs
+  `scripts/lane_claim.py` when the repo has no such file, does not track
   it, or has a copy that differs from `skills/handoff/lane_claim.py`.
-  Paste the block, delete the preamble, fold the stray file in, copy the
-  script with the command the warning prints.
+  Paste the block, delete the preamble, fold the stray file in, and copy
+  the script with the command the warning prints. When the hook cannot
+  read this skill's block or its script, it says so and skips that check.
 
 `SKIP_HANDOFF_CHECK=1` silences all three, visibly, for a session that has a
 reason.

@@ -17,6 +17,8 @@ import shutil
 import tempfile
 import time
 
+from handoff_shape import FENCED
+
 HOOK = str(pathlib.Path(__file__).with_name("handoff-freshness.py"))
 
 SKILL = pathlib.Path(__file__).resolve().parent.parent / "skills" / "handoff" / "SKILL.md"
@@ -168,6 +170,19 @@ CUT = GOOD.replace(LAST_LINE + "\n", "", 1)
 CUT_LINE = GOOD.splitlines().index(LAST_LINE) + 1
 # a tracked copy of the script older than the plugin's
 SCRIPT_DRIFT = f"{SCRIPT} differs from the plugin's copy"
+# Round 1 of the #118 review: an empty Start here block is drift too, and
+# the warning names the plugin's first line as missing.
+EMPTY = "block differs from the plugin's: it is empty"
+FIRST_PLUGIN_LINE = "You are a fresh session. This file and the open `lane` issues are your"
+EMPTY_BLOCK = "# Handoff\n\n## Start here\n\n## Next\nx\n"
+BLANK_BLOCK = "# Handoff\n\n## Start here\n\n   \n\t\n\n## Next\nx\n"
+LAST_HEADING = "# Handoff\n\n## Start here"
+LANE_ABOVE_EMPTY = "# Handoff\n\ngh issue list --label lane\n\n## Start here\n\n## Next\nx\n"
+# trailing spaces and CRLF line ends are no drift
+TRAILING = GOOD.replace("   anything. Read the repo `CLAUDE.md`.\n",
+                        "   anything. Read the repo `CLAUDE.md`.   \n", 1)
+assert TRAILING != GOOD
+CRLF = GOOD.replace("\n", "\r\n")
 OLD_PREAMBLE = ("# Handoff\n\n## Start here\n\nWritten at the end of a session, "
                 "this file says where things stand.\n")
 
@@ -261,6 +276,22 @@ CASES = [
     ("the script named only below the block needs no copy",
      {"docs/HANDOFF.md": OLD_BLOCK + f"\n## 2026-09-17\n\nRun `python3 {SCRIPT}`.\n",
       SCRIPT: None}, ["docs/HANDOFF.md"], ["HANDOFF SHAPE"], [NO_SCRIPT]),
+    ("an empty block warns and names the plugin's first line",
+     {"docs/HANDOFF.md": EMPTY_BLOCK}, ["docs/HANDOFF.md"],
+     ["HANDOFF SHAPE", EMPTY, FIRST_PLUGIN_LINE], []),
+    ("a block of blank lines warns as empty",
+     {"docs/HANDOFF.md": BLANK_BLOCK}, ["docs/HANDOFF.md"],
+     ["HANDOFF SHAPE", EMPTY, FIRST_PLUGIN_LINE], []),
+    ("## Start here as the last line warns as empty",
+     {"docs/HANDOFF.md": LAST_HEADING}, ["docs/HANDOFF.md"],
+     ["HANDOFF SHAPE", EMPTY, FIRST_PLUGIN_LINE], ["has no `## Start here` line"]),
+    ("a lane list above an empty block warns",
+     {"docs/HANDOFF.md": LANE_ABOVE_EMPTY}, ["docs/HANDOFF.md"],
+     ["HANDOFF SHAPE", EMPTY], []),
+    ("trailing spaces in the block are no drift",
+     {"docs/HANDOFF.md": TRAILING}, ["docs/HANDOFF.md"], [], ["HANDOFF"]),
+    ("CRLF line ends are no drift",
+     {"docs/HANDOFF.md": CRLF}, ["docs/HANDOFF.md"], [], ["HANDOFF"]),
     ("preamble phrase past line 40 is body text, no warning",
      {"docs/HANDOFF.md": LATE_PREAMBLE}, ["docs/HANDOFF.md"], [], ["HANDOFF SHAPE"]),
 ]
@@ -744,6 +775,41 @@ def main():
             failures += 1
             print(f"FAIL helper {label}: exit={got.returncode}\n{got.stderr}")
 
+    # Round 1 of the #118 review: when the plugin's skill or script cannot be
+    # read, the hook says so in one warning each and does not crash.
+    no_block = "cannot read the plugin's `## Start here` block at "
+    no_copy = f"cannot read the plugin's {SCRIPT} at "
+    for label, skill_text, script, want, forbid in (
+            ("no skill file, no script", None, False, [no_block, no_copy], []),
+            ("a skill with no fenced block", "# Handoff skill\n", True, [no_block], [no_copy])):
+        with tempfile.TemporaryDirectory() as tmp:
+            hooks = pathlib.Path(tmp, "plugin", "hooks")
+            hooks.mkdir(parents=True)
+            for name in ("handoff-freshness.py", "handoff_shape.py", "handoff_touch.py"):
+                shutil.copy(pathlib.Path(HOOK).with_name(name), hooks / name)
+            skill_dir = pathlib.Path(tmp, "plugin", "skills", "handoff")
+            if skill_text is not None:
+                skill_dir.mkdir(parents=True)
+                (skill_dir / "SKILL.md").write_text(skill_text)
+            if script:
+                shutil.copy(PLUGIN_SCRIPT, skill_dir / "lane_claim.py")
+            repo = pathlib.Path(tmp, "repo")
+            repo.mkdir()
+            make_repo(repo, {"docs/HANDOFF.md": GOOD}, ["docs/HANDOFF.md"])
+            env = {k: v for k, v in os.environ.items() if k != "SKIP_HANDOFF_CHECK"}
+            got = subprocess.run([sys.executable, str(hooks / "handoff-freshness.py")],
+                                 input="{}", cwd=repo, env=env,
+                                 capture_output=True, text=True)
+        want = want + [str(skill_dir / "SKILL.md")]
+        if not script:
+            want.append(str(skill_dir / "lane_claim.py"))
+        missing = [w for w in want if w not in got.stderr]
+        present = [f for f in forbid if f in got.stderr]
+        if missing or present or got.returncode != 0 or "Traceback" in got.stderr:
+            failures += 1
+            print(f"FAIL unreadable plugin copy, {label}: exit={got.returncode} "
+                  f"missing={missing} unwanted={present}\n{got.stderr}")
+
     # Branch-aware freshness. Owner rule, 2026-09-21: lanes write notes in the
     # PR body's "## Handoff notes" section and never edit the handoff; a
     # docs/handoff-* branch (or trunk) is where the log gets written.
@@ -773,7 +839,7 @@ def main():
 
     # the block pinned above is the block the skill tells repos to paste, and
     # the block this repo's own handoff opens with
-    fenced = re.search(r"```\n(# Handoff\n.*?)```", SKILL.read_text(), re.S)
+    fenced = FENCED.search(SKILL.read_text())
     if not fenced or fenced.group(1) != BLOCK:
         failures += 1
         print("FAIL skills/handoff/SKILL.md fenced block differs from the pinned BLOCK")
