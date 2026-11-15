@@ -176,8 +176,9 @@ tell a check that was written to fail first from one written after the code.
   `CODING_STANDARDS.md` or `CONTRIBUTING.md` when the repo has them. If the
   Standards axis found no standards file, report that once, as a nit. Do not
   report that axis as clean.
-- The second reviewer starts its report with its own decision line: `BLOCK`
-  when either axis found a blocking finding, else `PASS`. Blocking means a
+- The second reviewer starts its report with its own decision line:
+  `BLOCK n` when either axis found a blocking finding, where n is the number
+  of blocking findings, else `PASS`. Blocking means a
   Standards "hard violation" of a documented standard, or a Spec requirement
   that is "missing or partial" or whose "implementation looks wrong". A
   "judgement call" and "scope creep" are nits. Its Standards and Spec verdicts
@@ -333,8 +334,9 @@ The second reviewer, for a change that builds or fixes code:
     repo has them. If the Standards axis found no standards file, report
     that once, as a nit. Do not report that axis as clean.
 
-    Start with one decision line: BLOCK if either axis found a blocking
-    finding, else PASS. Blocking means a Standards "hard violation" of a
+    Start with one decision line: BLOCK n if either axis found a blocking
+    finding, where n is the number of blocking findings, else PASS.
+    Blocking means a Standards "hard violation" of a
     documented standard, or a Spec requirement that is "missing or partial"
     or whose "implementation looks wrong". A "judgement call" and "scope
     creep" are nits. Then report the Standards and Spec verdicts. Read

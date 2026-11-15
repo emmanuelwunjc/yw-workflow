@@ -88,8 +88,11 @@ A spec stands alone. The worker sees nothing else. It holds:
 - for a builder, the line "End your report with a `## Handoff notes` section for the PR body, per `/yw-workflow:handoff`."
 - the last line, for a builder, fixer or documenter: "commit your work on your own branch before you return (on a detached HEAD, `git switch -c wip/<folder>` first), as a WIP commit if it is unfinished, and report the branch and SHA".
 
-A reviewer spec is the `fresh-eye` prompt skeleton, filled in for this branch.
-It ends with "Do not fix anything. Do not commit."
+A ticket that builds or fixes code gets two reviewer specs per round, both
+from `fresh-eye`. The first is its prompt skeleton, filled in for this branch.
+The second is the skeleton under "The second reviewer", which runs
+`mattpocock-skills:code-review`. Each ends with "Do not fix anything. Do not
+commit." Any other ticket gets the first spec only.
 
 ### 3. Run each ticket as a `ship-loop`
 
@@ -107,10 +110,16 @@ Each ticket gets its own branch, its own review and its own PR, so each merge
 is one reviewed commit. The owner chose this on 2026-11-13, over the combined
 PR for several small lanes in the owner's `CLAUDE.md`. A combined head would
 need a review of its own. This also replaces the one review per related group
-in `ship-loop` step 6. Builder, then a reviewer that did not write the change,
-then fixes, then a new reviewer at the fixed commit. Stop on a clean round, as
-`ship-loop` step 6 defines it. Tickets that touch different files run in
-parallel. Two to four at once, per `git-lanes`.
+in `ship-loop` step 6. Builder, then a review round by reviewers that did not
+write the change, then fixes, then a new round at the fixed commit. Stop on a
+clean round, as `ship-loop` step 6 defines it. Tickets that touch different
+files run in parallel. Two to four at once, per `git-lanes`.
+
+A round has the one or two reviewers from step 2, started at the same time on
+the same commit. When mattpocock-skills is not installed, start the first one
+only, and say so in the round's comment. Two verdicts make one decision line, by the
+rule in `fresh-eye` ("When a round has two reviewers"). The round is one entry
+on the `Rounds:` line, as `ship-loop` step 6 says.
 
 Who does what at the end:
 
@@ -119,7 +128,7 @@ Who does what at the end:
 | Push the branch and open the PR | the PM, once a review round is clean. Orca's brief tells each worker not to post to GitHub, so the PM does every GitHub step. It writes the PR body to a file outside the repo: the ticket link, the builder's `## Handoff notes`, the `Rounds:` line, and each finding left unfixed, with its reason. Then it runs `git -C "$MAIN" push -u origin <branch>` and `gh pr create --head <branch> --title "<title>" --body-file <file>` |
 | Each finding that is real but out of scope | the PM files it as a ticket with `gh issue create` before the merge, per `ship-loop` step 5, and names the ticket in the PR body |
 | Each review verdict | rounds before the PR opens are in its `Rounds:` line. The PM posts the clean verdict, and each later one, on the PR with `gh pr comment`, as `fresh-eye` says. The repo's review hook looks for it before a merge |
-| The `Rounds:` line in the PR body | the PM. It goes into the body file when the PR opens. A round after that goes in with `gh pr edit`. On the fallback path each round carries `subagent_tokens`. Orca reports no token count, so an Orca round is its verdict and count alone, e.g. `Rounds: BLOCK 2 · PASS` |
+| The `Rounds:` line in the PR body | the PM. It goes into the body file when the PR opens. A round after that goes in with `gh pr edit`. On the fallback path each round carries the sum of its reviewers' `subagent_tokens`, one or two. Orca reports no token count, so an Orca round is its verdict and count alone, e.g. `Rounds: BLOCK 2 · PASS` |
 | Merge | the PM, with `gh pr merge <number> --squash --match-head-commit <reviewed SHA>`, under the owner's standing authorization: a clean review and CI clean at the same commit. The SHA flag makes GitHub refuse a merge of any other commit |
 | The handoff pass after the merges | a documenter worker, in its own worktree like every worker, on a `docs/handoff-*` branch per `/yw-workflow:handoff`. It is reviewed like any other change |
 
@@ -164,6 +173,11 @@ hooks.
    command there." A reviewer's first line names a detached worktree at the
    SHA the builder reported. The worker is a full session with the
    `git-lanes` rules and the hooks, so the git commands are its job.
+   A round starts the first reviewer as a worker in its own detached worktree
+   at that SHA. No Orca doc or run shows that a worker can load
+   `mattpocock-skills:code-review` and start its sub-agents. So the PM starts
+   the code-review reviewer as a subagent, as on the fallback path, until an
+   Orca smoke run shows it works.
 4. Send fixes to the builder that wrote the code. Orca reopens a closed
    worker for it. `send` and `reply` take the text only as `--body`, and
    findings hold backticks and `$`. So write the text to a file outside the
@@ -206,13 +220,14 @@ A batch adds a Run and its Tasks to Orca's log, which `orca orchestration
 run-list` shows. It adds no repo, no workspace and no folder to Orca, so git
 removes all that the batch made.
 
-**Known gap, on both paths.** A reviewer keeps Bash, and an Orca worker has
-every tool, so the spec's "Do not fix anything. Do not commit." is a sentence
+**Known gap, on both paths.** Each reviewer keeps Bash. The code-review
+reviewer also has Write and Edit on the fallback path, and an Orca worker has
+every tool. So the spec's "Do not fix anything. Do not commit." is a sentence
 that nothing enforces. A reviewer also changes files in place for its
 mutation tests, inside its own worktree. Note the local branch tip before the
-review. When the review ends, the tip must be the same and
+round. When both reviews end, the tip must be the same and
 `git -C <builder worktree> status --short` must print nothing. Else throw that
-round away and start a new reviewer.
+round away and start all reviewers of that round again.
 
 Every Orca worker starts in the primary checkout. The PM and the other workers
 share that folder. The worker leaves it for its own worktree in its first
@@ -233,8 +248,12 @@ Use the Agent tool, one worktree per agent (`isolation: "worktree"`, per
 |---|---|
 | Builder | `yw-workflow:builder` |
 | Reviewer | `yw-workflow:reviewer` (no Write or Edit tool) |
+| Code-review reviewer | `general-purpose`, with the role first in its description, e.g. "Code review: PR 12". It needs the Skill and Agent tools that `yw-workflow:reviewer` lacks |
 | Fixer | `yw-workflow:fixer` |
 | Documenter (the handoff pass) | `yw-workflow:documenter` |
+
+Start both reviewers of a round in one turn, each with
+`isolation: "worktree"`.
 
 **The cost.** A subagent does not run SessionStart hooks, and the Stop hook
 does not check its output. So it starts without the rules those hooks inject,
