@@ -129,12 +129,14 @@ tell a check that was written to fail first from one written after the code.
   if there is none. Its sub-agents read only. Its Standards and Spec verdicts go
   under Agent-facing specifics, beside the mutation results.
 - Tell code-review where the tracker and the standards are. A reviewer worktree
-  is a fresh checkout, so it can lack `docs/agents/issue-tracker.md`, and
-  code-review stops to ask for setup when that file is missing. State the
-  tracker, e.g. "The tracker is GitHub Issues (`gh issue view <n>`)". Name the
-  repo's `CLAUDE.md` as a standards file, plus `CODING_STANDARDS.md` or
-  `CONTRIBUTING.md` when the repo has them. If the Standards axis found no
-  standards file, report that as a finding. Do not report that axis as clean.
+  is a fresh checkout, so it can lack `docs/agents/issue-tracker.md`. When that
+  file is missing, code-review tells the user to run
+  `/setup-matt-pocock-skills`. So tell it the tracker is given in the prompt.
+  The tracker line is filled in for the repo, e.g. GitHub Issues
+  (`gh issue view <n>`). Name the repo's `CLAUDE.md` as a standards file, plus
+  `CODING_STANDARDS.md` or `CONTRIBUTING.md` when the repo has them. If the
+  Standards axis found no standards file, report that once, as a nit. Do not
+  report that axis as clean.
 - If mattpocock-skills is not installed, say so in the verdict and skip that step.
 
 ## Reading the result
@@ -239,11 +241,14 @@ function, or line number, it belongs in Agent-facing specifics instead.
        diff and show the new test fails (for a fix, show the reproduction fails
        on the base and passes on the branch). Then check out the branch
        detached and run mattpocock-skills:code-review against the base, using
-       the ticket or PR body as the spec. Tell it: "The tracker is GitHub
-       Issues (`gh issue view <n>`). The standards files are CLAUDE.md, plus
-       CODING_STANDARDS.md or CONTRIBUTING.md when the repo has them."
-       Report its Standards and Spec verdicts. If the Standards axis found no
-       standards file, report that as a finding. Do not report it as clean.
+       the ticket or PR body as the spec. Tell it: "The tracker is <the
+       tracker line, filled in for the repo, e.g. GitHub Issues
+       (`gh issue view <n>`)>. The tracker is given here, so do not stop for
+       `/setup-matt-pocock-skills`. The standards files are the repo's
+       `CLAUDE.md`, plus `CODING_STANDARDS.md` or `CONTRIBUTING.md` when the
+       repo has them." Report its Standards and Spec verdicts. If the
+       Standards axis found no standards file, report that once, as a nit.
+       Do not report that axis as clean.
     8. For every sentence that makes a factual claim to a reader, find its
        source line (exact quote or the command that measures it, where it
        lives, date). Diff the sentence against the quote. Stronger than the
