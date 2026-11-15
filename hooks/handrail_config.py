@@ -90,9 +90,9 @@ VALUE_DEFAULTS = {
     },
     "handoff": {"path": "docs/HANDOFF.md"},
     # `first` and `step` are tokens of context. The wind-down notice is given
-    # at `first`, then again at each `step` past it. 120k is where mattpocock's
-    # ask-matt skill puts the end of the "smart zone"; the step is the owner's
-    # call, 2026-09-21. `grace_minutes` is how long running subagents may take
+    # at `first`, then again at each `step` past it. Both are the owner's
+    # call, 2026-09-21. docs/DECISIONS.md, 2026-11-15, records that ask-matt
+    # now says about 150k and that 120k stays. `grace_minutes` is how long running subagents may take
     # to finish after a notice, the owner's call on 2026-09-30.
     "context_handoff": {"first": 120000, "step": 100000, "grace_minutes": 15},
     "require_review": {

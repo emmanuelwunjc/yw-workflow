@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """Wind a session down and get its handoff written once its context is large.
 
-mattpocock's ask-matt skill puts the "smart zone" at about 120k tokens: "If a
-session approaches it ... /handoff and continue in a fresh thread". A session
+The line is 120k tokens, the owner's setting. docs/DECISIONS.md, 2026-11-15,
+records that mattpocock's ask-matt skill now gives about 150k. A session
 cannot see its own size, so it pushes on degraded. The owner decided on
 2026-09-30 that a warning is too weak: past the line the session lets its
 running subagents finish, for a bounded time, and writes the handoff either
-way. The threshold is a token count, because that is the unit the source
-gives. It is no percentage of any model's window.
+way. The threshold is a token count. It is no percentage of any model's
+window.
 
 This hook instructs and the model acts. It kills nothing itself. Three parts:
 
