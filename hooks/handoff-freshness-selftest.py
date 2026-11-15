@@ -135,10 +135,7 @@ CMD = "   gh issue list --label lane --state open"
 CMD_LINE = BLOCK.splitlines().index(next(l for l in BLOCK.splitlines() if l.startswith(CMD))) + 1
 assert CMD_LINE < 40, "the pinned block's lane list must sit inside the 40-line window"
 TAIL = "\n## 2026-09-16\n\nFirst task: x.\n"
-OTHER_LABEL = {lbl: GOOD.replace(CMD, CMD.replace("--label lane", "--label " + lbl), 1)
-               for lbl in ("lanes", "bug")}
-PROSE_ONLY = GOOD.replace(CMD, "   We stopped using `--label lane` here.", 1)
-PROSE_CMD = GOOD.replace(CMD, "   We used to run `gh issue list --label lane` here.", 1)
+OTHER_LABEL = GOOD.replace(CMD, CMD.replace("--label lane", "--label lanes"), 1)
 STEP2 = "2. Check that the repo has the label."
 LAST_STEP = GOOD.replace(STEP2, "2. Read the LAST section. It names the first task.", 1)
 OUTSIDE = ("# Handoff\n\ngh issue list --label lane --state open\n" + "\n" * 41
@@ -146,29 +143,31 @@ OUTSIDE = ("# Handoff\n\ngh issue list --label lane --state open\n" + "\n" * 41
 # the command in the dated section under the block, still inside 40 lines
 BELOW = OLD_BLOCK + "\n## 2026-09-16\n\ngh issue list --label lane\n"
 assert len(BELOW.splitlines()) <= 40
-LANE_XYZ = GOOD.replace(CMD, CMD.replace("--label lane", "--label lane-xyz"), 1)
-SUB_HEADING = GOOD.replace("1. Load skills", "### Note\n\n1. Load skills", 1)
-TICKED = GOOD.replace(CMD, "   `" + CMD.strip() + "`", 1)
-SECOND_LATE = BLOCK.replace("Judgment and reasoning only.",
-                            "\n" * 30 + CMD + "\n\nJudgment and reasoning only.", 1) + TAIL
-assert SECOND_LATE.splitlines().index(next(l for l in reversed(SECOND_LATE.splitlines())
-                                           if l.startswith(CMD))) >= 40
 H3_START = GOOD.replace("## Start here\n", "### Start here\n", 1)
 LATER_START = GOOD.replace("## Start here\n", "## Start here later\n", 1)
 # "1. Read the LAST section" in a dated section below the block is history
 OLD_STEP_BELOW = GOOD + "\n## 2026-09-17\n\n1. Read the LAST section of this file.\n"
-# a two-digit step that sends every session to the LAST section
-STEP12 = GOOD.replace("2. Check that the repo has the label.",
-                      "12. Read the LAST section. It names the first task.", 1)
-# an indented step inside the block still sends sessions to the LAST section
-INDENTED_STEP = GOOD.replace("1. Load skills", "   1. Read the LAST section. It names the first task.\n1. Load skills", 1)
 LATER_ONLY = "# Handoff\n\n## Start here later\n\nFirst task: x.\n"
-# pad inside the section so the lane list sits exactly at line 40, then 41
-AT = {n: BLOCK.replace("## Start here\n", "## Start here\n" + "\n" * (n - CMD_LINE), 1) + TAIL
+# pad above the block, which stays verbatim, so the lane list sits exactly
+# at line 40, then 41
+AT = {n: BLOCK.replace("## Start here\n", "\n" * (n - CMD_LINE) + "## Start here\n", 1) + TAIL
       for n in (40, 41)}
 OLD_SINGLE_TASK = OLD_BLOCK + "\n## 2026-09-16\n\nFirst task: x.\n"
 # the lane command only past the 40-line window is body text, not the block
 LATE_LANE = (OLD_BLOCK + "\n" * 40 + "gh issue list --label lane\n")
+# Issue #118: the block PR #90 replaced. Step 6 said "Start the first task it
+# names". No old-form pattern caught it, so only the comparison with the
+# plugin's block does. The warning names the first line that differs.
+STEP6 = "   unless it names another task it waits for. Start every `parallel`"
+OLD_STEP6 = GOOD.replace(STEP6, "   unless it names another task it waits for. Start the first task it names", 1)
+STEP6_LINE = GOOD.splitlines().index(STEP6) + 1
+DRIFT = "block differs from the plugin's"
+# a block cut short ends where the plugin's block goes on
+LAST_LINE = "within hours. Derive them with `gh issue list` and the scripts in the repo."
+CUT = GOOD.replace(LAST_LINE + "\n", "", 1)
+CUT_LINE = GOOD.splitlines().index(LAST_LINE) + 1
+# a tracked copy of the script older than the plugin's
+SCRIPT_DRIFT = f"{SCRIPT} differs from the plugin's copy"
 OLD_PREAMBLE = ("# Handoff\n\n## Start here\n\nWritten at the end of a session, "
                 "this file says where things stand.\n")
 
@@ -200,40 +199,38 @@ CASES = [
      {"docs/HANDOFF.md": NO_BLOCK}, [], ["HANDOFF SHAPE"], []),
     ("old single-first-task Start here block",
      {"docs/HANDOFF.md": OLD_SINGLE_TASK}, ["docs/HANDOFF.md"],
-     ["HANDOFF SHAPE", "has no line that runs", "skills/handoff"], []),
+     ["HANDOFF SHAPE", DRIFT, "skills/handoff"], []),
+    ("the step 6 before PR #90 warns and names its line",
+     {"docs/HANDOFF.md": OLD_STEP6}, ["docs/HANDOFF.md"],
+     ["HANDOFF SHAPE", f"{DRIFT}, first at line {STEP6_LINE}",
+      "Start the first task it names", STEP6.strip()], []),
+    ("a block cut short warns where the plugin's block goes on",
+     {"docs/HANDOFF.md": CUT}, ["docs/HANDOFF.md"],
+     ["HANDOFF SHAPE", f"{DRIFT}, first at line {CUT_LINE}", LAST_LINE], []),
+    ("a tracked script older than the plugin's warns with the copy",
+     {"docs/HANDOFF.md": GOOD, SCRIPT: PLUGIN_SCRIPT.read_text() + "# old\n"},
+     ["docs/HANDOFF.md", SCRIPT],
+     ["HANDOFF SHAPE", SCRIPT_DRIFT, f"cp '{PLUGIN_SCRIPT}' '"], [DRIFT]),
+    ("the repo's own lines after the plugin's block pass",
+     {"docs/HANDOFF.md": BLOCK + "\nWhat this repo is: x.\n" + TAIL},
+     ["docs/HANDOFF.md"], [], ["HANDOFF SHAPE"]),
+    ("a block and script that match the plugin warn nothing",
+     {"docs/HANDOFF.md": GOOD, SCRIPT: PLUGIN_SCRIPT.read_text()},
+     ["docs/HANDOFF.md", SCRIPT], [], ["HANDOFF"]),
     ("lane command past line 40 does not count as the block",
      {"docs/HANDOFF.md": LATE_LANE}, ["docs/HANDOFF.md"],
      ["HANDOFF SHAPE", "past line 40"], []),
+    # The old-form checks went in #118. The comparison catches these now.
     ("lane list for label lanes warns",
-     {"docs/HANDOFF.md": OTHER_LABEL["lanes"]}, ["docs/HANDOFF.md"],
-     ["HANDOFF SHAPE", "asks for label `lanes`"], []),
-    ("lane list for label bug warns",
-     {"docs/HANDOFF.md": OTHER_LABEL["bug"]}, ["docs/HANDOFF.md"],
-     ["HANDOFF SHAPE", "asks for label `bug`"], []),
-    ("--label lane only in prose warns",
-     {"docs/HANDOFF.md": PROSE_ONLY}, ["docs/HANDOFF.md"],
-     ["HANDOFF SHAPE", "only in prose"], []),
-    ("the whole lane command quoted mid-sentence is still prose",
-     {"docs/HANDOFF.md": PROSE_CMD}, ["docs/HANDOFF.md"],
-     ["HANDOFF SHAPE", "only in prose"], ["asks for label"]),
+     {"docs/HANDOFF.md": OTHER_LABEL}, ["docs/HANDOFF.md"],
+     ["HANDOFF SHAPE", DRIFT, "--label lanes"], []),
     ("a step that opens with Read the LAST section warns",
      {"docs/HANDOFF.md": LAST_STEP}, ["docs/HANDOFF.md"],
-     ["HANDOFF SHAPE", "sends every session to the LAST section"], []),
+     ["HANDOFF SHAPE", DRIFT, "2. Read the LAST section"], []),
     ("lane list above a Start here at line 45 warns",
-     {"docs/HANDOFF.md": OUTSIDE}, ["docs/HANDOFF.md"],
-     ["HANDOFF SHAPE", "outside its `## Start here` section"], []),
+     {"docs/HANDOFF.md": OUTSIDE}, ["docs/HANDOFF.md"], ["HANDOFF SHAPE", DRIFT], []),
     ("lane list under the next heading is outside the block",
-     {"docs/HANDOFF.md": BELOW}, ["docs/HANDOFF.md"],
-     ["HANDOFF SHAPE", "outside its `## Start here` section"], []),
-    ("lane list for label lane-xyz warns and names it",
-     {"docs/HANDOFF.md": LANE_XYZ}, ["docs/HANDOFF.md"],
-     ["HANDOFF SHAPE", "asks for label `lane-xyz`"], []),
-    ("a ### heading inside the block does not end it",
-     {"docs/HANDOFF.md": SUB_HEADING}, ["docs/HANDOFF.md"], [], ["HANDOFF SHAPE"]),
-    ("a command line in backticks counts",
-     {"docs/HANDOFF.md": TICKED}, ["docs/HANDOFF.md"], [], ["HANDOFF SHAPE"]),
-    ("the first command line decides, a second one past line 40 is fine",
-     {"docs/HANDOFF.md": SECOND_LATE}, ["docs/HANDOFF.md"], [], ["HANDOFF SHAPE"]),
+     {"docs/HANDOFF.md": BELOW}, ["docs/HANDOFF.md"], ["HANDOFF SHAPE", DRIFT], []),
     ("### Start here is no Start here line",
      {"docs/HANDOFF.md": H3_START}, ["docs/HANDOFF.md"],
      ["HANDOFF SHAPE", "has no `## Start here` line"], []),
@@ -245,17 +242,11 @@ CASES = [
     ("## Start here later alone gets only the missing-block warning",
      {"docs/HANDOFF.md": LATER_ONLY}, ["docs/HANDOFF.md"],
      ["has no `## Start here` line"], ["--label lane"]),
-    ("a two-digit step that opens with Read the LAST section warns",
-     {"docs/HANDOFF.md": STEP12}, ["docs/HANDOFF.md"],
-     ["HANDOFF SHAPE", "sends every session to the LAST section"], []),
-    ("an indented step that opens with Read the LAST section warns",
-     {"docs/HANDOFF.md": INDENTED_STEP}, ["docs/HANDOFF.md"],
-     ["HANDOFF SHAPE", "sends every session to the LAST section"], []),
     ("lane list at line 40 is inside the window",
      {"docs/HANDOFF.md": AT[40]}, ["docs/HANDOFF.md"], [], ["HANDOFF SHAPE"]),
     ("lane list at line 41 is past the window",
      {"docs/HANDOFF.md": AT[41]}, ["docs/HANDOFF.md"],
-     ["HANDOFF SHAPE", "at line 41, past line 40"], []),
+     ["HANDOFF SHAPE", "at line 41, past line 40"], [DRIFT]),
     ("missing block gets one warning, the lane one stays quiet",
      {"docs/HANDOFF.md": NO_BLOCK}, ["docs/HANDOFF.md"],
      ["## Start here"], ["--label lane"]),
@@ -355,10 +346,14 @@ def session_start_failures():
     # A shape problem: the Stop text, word for word, in additionalContext,
     # plus the first-task sentence. Nothing on stderr, exit 0. The old block
     # has two problems, so sending only the first one fails.
-    for label, handoff, count in (("no block", NO_BLOCK, 1),
-                                  ("old block", OLD_SINGLE_TASK, 2)):
+    # Issue #118: the block and script comparisons reach the session too.
+    old_script = {SCRIPT: PLUGIN_SCRIPT.read_text() + "# old\n"}
+    for label, extra, count, want in (
+            ("no block", {"docs/HANDOFF.md": NO_BLOCK}, 1, ""),
+            ("old block", {"docs/HANDOFF.md": OLD_PREAMBLE}, 2, DRIFT),
+            ("old script", {"docs/HANDOFF.md": GOOD, **old_script}, 1, SCRIPT_DRIFT)):
         with tempfile.TemporaryDirectory() as tmp:
-            make_repo(tmp, {"docs/HANDOFF.md": handoff}, ["docs/HANDOFF.md"])
+            make_repo(tmp, extra, list(extra))
             stop = run_hook(tmp, event="Stop")
             got = run_hook(tmp, event="SessionStart")
         try:
@@ -368,7 +363,8 @@ def session_start_failures():
         text = out.get("additionalContext", "")
         if (out.get("hookEventName") != "SessionStart" or got.returncode != 0
                 or got.stderr or stop.stderr.count("HANDOFF SHAPE") != count
-                or stop.stderr.strip() not in text or FIRST_TASK not in text):
+                or stop.stderr.strip() not in text or FIRST_TASK not in text
+                or want not in text):
             failures += 1
             print(f"FAIL SessionStart, {label} (exit {got.returncode}):"
                   f"\n--- stdout ---\n{got.stdout}\n--- stderr ---\n{got.stderr}")
@@ -417,7 +413,7 @@ def make_repo(tmp, files, tracked):
     it: None leaves it out, text writes it untracked unless listed."""
     git(tmp, "init", "-q")
     if SCRIPT not in files:
-        files, tracked = {SCRIPT: "x\n", **files}, [SCRIPT, *tracked]
+        files, tracked = {SCRIPT: PLUGIN_SCRIPT.read_text(), **files}, [SCRIPT, *tracked]
     for rel, text in files.items():
         if text is None:
             continue
