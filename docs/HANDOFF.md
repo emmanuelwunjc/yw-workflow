@@ -1202,7 +1202,7 @@ Waits on the owner: whether the migrated repos also get a
   Superseded 2026-11-15: #110 (issue #35) made the hook block the
   `Claude-Session` trailer. The owner decided the same day that the hook
   blocks `Co-Authored-By: Claude` too. Issue #108 carries that change and
-  has not merged yet.
+  has not merged yet (recount: `gh issue view 108 --json state`).
 - Trap: `require-code-review.py` blocks a whole Bash call that contains a
   merge while checks are pending, even after `gh pr checks --watch` in the
   same call. Wait for the checks in one call, merge in the next.
@@ -1227,11 +1227,14 @@ Waits on the owner:
 - Remove the global `~/.claude/skills/pm` symlink, which shadows the new
   `pm` skill.
 - Add a `pm` row to the "Where things live" table in `~/CLAUDE.md`.
-- Whether the migrated repos also get a `.github/workflows/guards.yml`,
-  carried over from 2026-09-16.
+- ~~Whether the migrated repos also get a `.github/workflows/guards.yml`,
+  carried over from 2026-09-16.~~ Superseded 2026-11-15: the owner decided
+  they get none. See the 2026-11-15 pass.
 - A grilling for #101: which review levels fit which changes, and the cost
   limit of one review loop.
-- Whether `no-ai-attribution.py` should also block commit trailers (#100).
+- ~~Whether `no-ai-attribution.py` should also block commit trailers (#100).~~
+  Superseded 2026-11-15: the owner decided it blocks both, `Claude-Session`
+  and `Co-Authored-By: Claude`. See the 2026-11-15 pass.
 
 ## 2026-11-15: handoff pass
 
@@ -1242,9 +1245,14 @@ Waits on the owner:
   disclaimer line that the triage skill writes.
 - Decided by the owner 2026-11-15: the attribution hook blocks both commit
   trailers, `Claude-Session` and `Co-Authored-By: Claude`. This answers the
-  question from the 2026-11-13 pass (comment on #100). Issue #108 adds the
-  `Co-Authored-By` block. It waits for the EdSim change that drops the
-  EdSim test which expects that trailer to pass.
+  question from the 2026-11-13 pass. Earlier the same day, a comment on
+  #100 said `Co-Authored-By` stays allowed. That changed because EdSim was
+  the only reason to allow it, and EdSim PR #814 dropped that rule. Issue
+  #108 adds the `Co-Authored-By` block on `fix/108-coauthor`. It needs its
+  first review (recount: `gh issue view 108 --json state`).
+- Decided by the owner 2026-11-15: the migrated repos get no
+  `.github/workflows/guards.yml`. This answers the question carried over
+  from 2026-09-16.
 - #111 (issue #38) tells `fresh-eye` where `code-review` finds the issue
   tracker and the repo standards. Issue #41 moves that step to its own
   reviewer and takes these lines with it.
@@ -1261,17 +1269,18 @@ Waits on the owner:
 
 ### Next
 
-Open work is in the `lane` issues (list them with step 3's command). Lane
-#47 item 3 has these tickets left: #40 (being built at this pass), then
-#41, after #40. #108 (block `Co-Authored-By: Claude`) waits
-for the EdSim change that drops its trailer test. #96 and #97 have not
-changed since the 2026-11-13 pass.
+Open work is in the `lane` issues. Each issue's `## Next` holds its task
+order. List them with `gh issue list --label lane --state open`:
+
+- #47: this repo's backlog, the attribution hook tickets and the
+  lane-claim follow-ups.
+- #96: the README workflow diagram. One task is left, after `hardcore`
+  merges.
+- #97: the `hardcore` skill that replaces `harden`.
 
 Waits on the owner:
 - Remove the global `~/.claude/skills/pm` symlink, which shadows the new
   `pm` skill.
 - Add a `pm` row to the "Where things live" table in `~/CLAUDE.md`.
-- Whether the migrated repos also get a `.github/workflows/guards.yml`,
-  carried over from 2026-09-16.
 - A grilling for #101: which review levels fit which changes, and the cost
   limit of one review loop.
