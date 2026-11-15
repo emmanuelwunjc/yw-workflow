@@ -1284,3 +1284,45 @@ Waits on the owner:
 - Add a `pm` row to the "Where things live" table in `~/CLAUDE.md`.
 - A grilling for #101: which review levels fit which changes, and the cost
   limit of one review loop.
+
+## 2026-11-15: second handoff pass
+
+- #115 (issue #40) makes the context-handoff hook name
+  `yw-workflow:handoff` in every notice, because two plugins ship a skill
+  named `handoff`. `~/CLAUDE.md` already names `yw-workflow:handoff`, so
+  the edit its notes asked for is done. Its selftest is over the
+  300-line limit: issue #128.
+- #116 (issue #108) makes `hooks/no-ai-attribution.py` block the Claude
+  co-author trailer. Trap: do not quote a sample trailer with its address
+  in a PR body or a doc. The CI scan of the PR body blocks it.
+- #119 (issue #106) stops calling 120k the end of the smart zone.
+- #122 (issue #41) gives the builder the Skill tool and runs code-review
+  as a second reviewer. One check waits for the plugin update (lane #47).
+  A scope-creep finding from code-review is a nit. The fixer chose this.
+  The owner may overrule it.
+- #124 adds two review tiers to `fresh-eye`. Silent local guards moved to
+  tier 1 on 2026-11-15. The comment on #98 and `docs/DECISIONS.md` hold
+  the corrected evidence numbers. The #98 body still holds the old ones.
+- #126 (issue #75) gives the documenter `Bash`, so a docs task that must
+  measure a claim or commit can go to it again.
+- #127 (issue #117) runs the handoff shape check at session start. It
+  replaces the old lane #47 items to sweep all repos. Its file
+  `hooks/handoff-freshness.py` is over the 300-line limit. Issue #118
+  cuts it.
+- Trap: the Agent tool's `isolation: "worktree"` fails when the session
+  runs from a folder that is not a git repo, e.g. a parent folder of
+  several clones. Make the reviewer worktree by hand with
+  `git worktree add --detach`.
+
+### Next
+
+Open work is in the `lane` issues. List them with
+`gh issue list --label lane --state open`. Lane #47 holds this repo's
+backlog. Lane #96 waits for lane #97 (the `hardcore` skill).
+
+Waits on the owner:
+- Remove the global `~/.claude/skills/pm` symlink, which shadows the new
+  `pm` skill.
+- Add a `pm` row to the "Where things live" table in `~/CLAUDE.md`.
+- A grilling for #101: which review levels fit which changes, and the cost
+  limit of one review loop.
