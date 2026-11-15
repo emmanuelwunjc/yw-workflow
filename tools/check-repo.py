@@ -123,7 +123,7 @@ print("role agents")
 # adding one forces its author to say what it may use.
 READ = {"Read", "Grep", "Glob"}
 ROLE_TOOLS = {
-    "builder": READ | {"Write", "Edit", "Bash"},
+    "builder": READ | {"Write", "Edit", "Bash", "Skill"},
     "reviewer": READ | {"Bash"},
     "fixer": READ | {"Write", "Edit", "Bash"},
     "documenter": READ | {"Write", "Edit"},

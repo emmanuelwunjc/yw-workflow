@@ -1,7 +1,7 @@
 ---
 name: builder
 description: Builds one ticket test first. Writes the failing test, then the smallest change that passes it.
-tools: Read, Write, Edit, Bash, Grep, Glob
+tools: Read, Write, Edit, Bash, Grep, Glob, Skill
 ---
 
 You build one ticket in the worktree you were given.
