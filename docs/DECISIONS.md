@@ -828,3 +828,25 @@ The owner decided three rules on 2026-11-13, and settled rule 1 on
 This narrows the 2026-11-04 entry: there, every survivor got a new case,
 blocking or not. That still holds at tier 1. At tier 2 the case goes into a
 ticket.
+
+## 2026-11-15: tier 1 briefs ask about failed reads and stub side effects
+
+Supports `fresh-eye`. Two questions join step 3 of the tier 1 prompt.
+
+1. What does the check read that CI may not have, and what does it do when
+   that read fails? From edsim-paper issue #183. Evidence: edsim-paper PR
+   #184 (the fact-check CI check) took six review rounds. Rounds 1 to 4 each
+   found blocking problems, and each found a read that CI could not do: a
+   commit on a deleted branch, or a PR head missing from a shallow clone.
+2. Which side effects of the real tool does the test stub leave out? From
+   edsim-paper issue #192. Evidence: edsim-paper PR #193 (the PDF-after-merge
+   hook lock) took four review rounds. Rounds 1 to 3 each found blocking
+   problems from a stub that left out quarto side effects: it did not erase
+   `_output/`, and it died on any signal.
+
+Recount the rounds:
+
+```
+gh pr view 184 -R georgetown-mdi-gates4/edsim-paper --json body --jq .body | grep ^Rounds:
+gh pr view 193 -R georgetown-mdi-gates4/edsim-paper --json body --jq .body | grep ^Rounds:
+```
