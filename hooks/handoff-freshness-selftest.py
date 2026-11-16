@@ -687,6 +687,23 @@ def main():
             print(f"FAIL from a subfolder, script {label}: missing={missing} "
                   f"unwanted={present}\n--- stderr ---\n{got.stderr}")
 
+    # Round 2 of the #118 review: a tracked repo copy the hook cannot read is
+    # a finding of its own. Root reads a mode-000 file, so root skips this.
+    if os.geteuid() != 0:
+        with tempfile.TemporaryDirectory() as tmp:
+            make_repo(tmp, {"docs/HANDOFF.md": GOOD}, ["docs/HANDOFF.md"])
+            target = pathlib.Path(tmp, SCRIPT)
+            target.chmod(0)
+            try:
+                got = run_hook(tmp)
+            finally:
+                target.chmod(0o644)
+        want = f"cannot read {SCRIPT} in this repo"
+        if want not in got.stderr or got.returncode != 0:
+            failures += 1
+            print(f"FAIL an unreadable repo copy of the script: exit={got.returncode} "
+                  f"missing={want!r}\n--- stderr ---\n{got.stderr}")
+
     # the escape hatch silences the shape check as well as the freshness one
     with tempfile.TemporaryDirectory() as tmp:
         make_repo(tmp, {"docs/HANDOFF.md": NO_BLOCK}, ["docs/HANDOFF.md"])
@@ -779,9 +796,19 @@ def main():
     # read, the hook says so in one warning each and does not crash.
     no_block = "cannot read the plugin's `## Start here` block at "
     no_copy = f"cannot read the plugin's {SCRIPT} at "
+    # Round 2: a fence with no Start here line, an empty block, or a skill
+    # that is not UTF-8 is a failed read too. Each runs against a stale
+    # repo block, so a silent pass would hide real drift.
+    fence = "# Handoff skill\n\n```\n# Handoff\n\n%s```\n"
     for label, skill_text, script, want, forbid in (
             ("no skill file, no script", None, False, [no_block, no_copy], []),
-            ("a skill with no fenced block", "# Handoff skill\n", True, [no_block], [no_copy])):
+            ("a skill with no fenced block", "# Handoff skill\n", True, [no_block], [no_copy]),
+            ("a fence with no Start here line", fence % "Some text.\n", True,
+             [no_block], [no_copy, DRIFT]),
+            ("a fence with an empty block", fence % "## Start here\n\n", True,
+             [no_block], [no_copy, DRIFT]),
+            ("a skill that is not UTF-8", b"```\n# Handoff\n\xff\xfe\n```\n", True,
+             [no_block], [no_copy, "Traceback"])):
         with tempfile.TemporaryDirectory() as tmp:
             hooks = pathlib.Path(tmp, "plugin", "hooks")
             hooks.mkdir(parents=True)
@@ -790,12 +817,13 @@ def main():
             skill_dir = pathlib.Path(tmp, "plugin", "skills", "handoff")
             if skill_text is not None:
                 skill_dir.mkdir(parents=True)
-                (skill_dir / "SKILL.md").write_text(skill_text)
+                (skill_dir / "SKILL.md").write_bytes(
+                    skill_text if isinstance(skill_text, bytes) else skill_text.encode())
             if script:
                 shutil.copy(PLUGIN_SCRIPT, skill_dir / "lane_claim.py")
             repo = pathlib.Path(tmp, "repo")
             repo.mkdir()
-            make_repo(repo, {"docs/HANDOFF.md": GOOD}, ["docs/HANDOFF.md"])
+            make_repo(repo, {"docs/HANDOFF.md": OLD_STEP6}, ["docs/HANDOFF.md"])
             env = {k: v for k, v in os.environ.items() if k != "SKIP_HANDOFF_CHECK"}
             got = subprocess.run([sys.executable, str(hooks / "handoff-freshness.py")],
                                  input="{}", cwd=repo, env=env,

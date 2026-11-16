@@ -340,6 +340,7 @@ it runs only the `HANDOFF SHAPE` check. All are addressed to the model and fix i
   Paste the block, delete the preamble, fold the stray file in, and copy
   the script with the command the warning prints. When the hook cannot
   read this skill's block or its script, it says so and skips that check.
+  It also warns when it cannot read the repo's own copy of the script.
 
 `SKIP_HANDOFF_CHECK=1` silences all three, visibly, for a session that has a
 reason.

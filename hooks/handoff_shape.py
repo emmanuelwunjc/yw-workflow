@@ -14,8 +14,9 @@ skill describes. shape_problems() returns one string per problem:
     after the plugin's last line are the repo's own and pass. So if a later
     plugin release removes its last step, an old repo keeps that step as its
     own lines and passes. An empty block warns. The warning names the first
-    line that differs. A plugin skill that cannot be read, or has no fenced
-    block, gets one warning that the check did not run.
+    line that differs. A plugin skill that cannot be read or decoded, or
+    whose fenced block has no Start here block or an empty one, gets one
+    warning that the check did not run.
   - the block runs `gh issue list --label lane` past line 40 of the file,
     where a fresh session may stop reading (the block is pasted too low)
   - its first 40 lines still carry the old "end of a session" preamble
@@ -24,7 +25,7 @@ skill describes. shape_problems() returns one string per problem:
     or git does not track it, or it differs from the plugin's
     skills/handoff/lane_claim.py (issue #118). Each warning prints the fix.
     A plugin script that cannot be read gets one warning that the check did
-    not run.
+    not run. A repo copy that cannot be read gets its own warning.
 
 Offline by design: it reads files and git only.
 """
@@ -72,13 +73,16 @@ def trimmed(block: list[tuple[int, str]]) -> list[tuple[int, str]]:
 
 
 def plugin_block() -> list[str] | None:
-    """The plugin's current block, read from SKILL.md. None when unreadable."""
+    """The plugin's current block, read from SKILL.md. None when the file
+    cannot be read or decoded, or its fence has no block, or an empty one:
+    comparing with nothing would pass every repo block."""
     try:
         with open(SKILL, encoding="utf-8") as fh:
             m = FENCED.search(fh.read())
-    except OSError:
+    except (OSError, ValueError):
         return None
-    return [ln for _, ln in trimmed(block_lines(m.group(1).splitlines()))] if m else None
+    block = [ln for _, ln in trimmed(block_lines(m.group(1).splitlines()))] if m else []
+    return block or None
 
 
 def drift_problems(lines: list[str]) -> list[str]:
@@ -147,7 +151,11 @@ def script_problems(top: str, lines: list[str]) -> list[str]:
         return [f"cannot read the plugin's {LANE_SCRIPT} at {PLUGIN_SCRIPT}, "
                 f"so the copy check did not run."]
     mine = read_bytes(target)
-    if mine is not None and mine != plugin:  # an unreadable repo copy: no finding, as before
+    if mine is None:
+        return [f"cannot read {LANE_SCRIPT} in this repo at {target}, so the "
+                f"copy check did not run and a lane claim may fail. Fix its "
+                f"permissions, or copy the current one:\n{copy}"]
+    if mine != plugin:
         return [f"{LANE_SCRIPT} differs from the plugin's copy, so a fix to the "
                 f"script has not reached this repo. Copy the current one and "
                 f"commit it:\n{copy}"]
