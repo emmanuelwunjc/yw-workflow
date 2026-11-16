@@ -17,10 +17,15 @@ issues and made a dozen judgment calls before anyone asked whether a handoff
 existed. It did not. So this is the mechanism, per CLAUDE.md's own rule that a
 broken rule gets a hook rather than a stronger sentence.
 
-WARNS, does not block. Blocking a Stop on a documentation rule would strand
-real work over a doc, and some sessions legitimately commit nothing worth
-handing off (a one-line typo fix, a revert). The warning is addressed to the
-model, which can act on it in the same turn.
+WARNS, and never holds a session back for good. Some sessions legitimately
+commit nothing worth handing off (a one-line typo fix, a revert). At Stop the
+warnings go out as one JSON object on stdout, as Stop
+hookSpecificOutput.additionalContext (issue #125). Claude Code shows it as
+"Stop hook feedback" and the model gets one more turn to act on it. Stderr
+would reach nobody: Claude never sees stderr from a hook that exits 0. Each
+warning tag (HANDOFF SHAPE, NOTES, STALE) goes out once per session, recorded
+by session_id in SENT_FILE in the git dir, and never while stop_hook_active
+is true, so the hook cannot loop or repeat a warning on every turn.
 
 Fires on Stop, in a git repo. What it checks depends on the branch.
 
@@ -101,6 +106,10 @@ STOP_RULE = ("Write a lane body only with `scripts/lane_claim.py write` or "
 EXIT_RULE = ("Any other exit, e.g. no `scripts/lane_claim.py` or a failed "
              "`gh`: change nothing, stop, and tell the owner.")
 
+# Per-worktree record, in the git dir, of which warning tags each session
+# has been sent at Stop, so each one continues a session's turn only once.
+SENT_FILE = "handoff-freshness-sent"
+
 SHAPE_HELP = ("The shape, with the block to paste, is in the yw-workflow skill "
               "skills/handoff (invoke /yw-workflow:handoff).")
 # Added at SessionStart, so an old repo migrates before its first lane claim.
@@ -157,7 +166,7 @@ def lane_base(branch: str, names: set[str]) -> tuple[str, list[str]]:
     return (keep[0][2] if keep else ""), [ref for _, ref, _ in keep]
 
 
-def lane_notes(touched_handoff: bool, real: bool, ref: str, detached: bool) -> None:
+def lane_notes(touched_handoff: bool, real: bool, ref: str, detached: bool) -> str:
     who = "these commits" if detached else "this branch"
     edited = (f"Lanes do not edit {HANDOFF}: {who} touched it, and every "
               f"concurrent lane that does hits a merge conflict there. Move "
@@ -168,10 +177,8 @@ def lane_notes(touched_handoff: bool, real: bool, ref: str, detached: bool) -> N
               f"itself edits {HANDOFF}, and this warning is expected there.\n\n"
               if touched_handoff else "")
     if not real:
-        print(f"HANDOFF NOTES: {edited}Deliberate skip: SKIP_HANDOFF_CHECK=1\n",
-              file=sys.stderr)
-        return
-    print(
+        return f"HANDOFF NOTES: {edited}Deliberate skip: SKIP_HANDOFF_CHECK=1\n"
+    return (
         f"HANDOFF NOTES: this lane changes real files.\n\n"
         f"{edited}"
         f"Write what the next session needs in a `{NOTES_HEADING}` section of "
@@ -179,14 +186,37 @@ def lane_notes(touched_handoff: bool, real: bool, ref: str, detached: bool) -> N
         f"and why, what was deliberately not done, which alternative lost, what "
         f"trap cost time. No test counts, no SHAs. After merge, a handoff pass "
         f"on a {HANDOFF_BRANCH_PREFIX}* branch copies it into {HANDOFF}.\n"
-        f"Deliberate skip: SKIP_HANDOFF_CHECK=1\n",
-        file=sys.stderr,
+        f"Deliberate skip: SKIP_HANDOFF_CHECK=1\n"
     )
+
+
+def stop_once(session: str, warnings: list[str]) -> list[str]:
+    """The warnings whose tag (HANDOFF SHAPE, NOTES, STALE) this session has
+    not been sent yet, and records them as sent. No session id: all of them."""
+    tag = lambda w: w.split(":", 1)[0]
+    if not session:
+        return warnings
+    path = os.path.join(git("rev-parse", "--absolute-git-dir").strip(), SENT_FILE)
+    try:
+        with open(path) as f:
+            sent = set(f.read().split("\n"))
+    except OSError:
+        sent = set()
+    new = [w for w in warnings if f"{session} {tag(w)}" not in sent]
+    try:
+        # ponytail: one line per session and tag, never trimmed; trim it if
+        # the file ever gets big
+        with open(path, "a") as f:
+            f.writelines(f"{session} {t}\n" for t in dict.fromkeys(map(tag, new)))
+    except OSError:
+        pass
+    return new
 
 
 def main() -> None:
     try:
-        event = json.loads(sys.stdin.read() or "{}").get("hook_event_name")
+        data = json.loads(sys.stdin.read() or "{}")
+        event = data.get("hook_event_name")
     except Exception:
         sys.exit(0)
 
@@ -196,23 +226,36 @@ def main() -> None:
     if not top:
         sys.exit(0)
 
-    shape = "".join(f"HANDOFF SHAPE: {problem}\n{SHAPE_HELP}\n"
-                    f"Deliberate skip: SKIP_HANDOFF_CHECK=1\n\n"
-                    for problem in shape_problems(top))
+    shape = [f"HANDOFF SHAPE: {problem}\n{SHAPE_HELP}\n"
+             f"Deliberate skip: SKIP_HANDOFF_CHECK=1\n\n"
+             for problem in shape_problems(top)]
     if event == "SessionStart":
         if shape:
             print(json.dumps({"hookSpecificOutput": {
                 "hookEventName": event,
-                "additionalContext": shape + FIRST_TASK}}))
+                "additionalContext": "".join(shape) + FIRST_TASK}}))
         sys.exit(0)
-    print(shape, end="", file=sys.stderr)
+    # Stop. A warning reaches the model only as JSON on stdout (issue #125):
+    # Claude never sees stderr from a hook that exits 0. While a Stop hook
+    # already keeps the turn going, say nothing, so this never loops.
+    if data.get("stop_hook_active"):
+        sys.exit(0)
+    warnings = stop_once(str(data.get("session_id") or ""),
+                         shape + [w for w in [branch_warning()] if w])
+    if warnings:
+        print(json.dumps({"hookSpecificOutput": {
+            "hookEventName": "Stop", "additionalContext": "".join(warnings)}}))
+    sys.exit(0)
 
+
+def branch_warning() -> str:
+    """HANDOFF NOTES on a lane, HANDOFF STALE on trunk, or "" for neither."""
     branch = git("branch", "--show-current").strip()
     names = trunks()
     if branch not in names and not branch.startswith(HANDOFF_BRANCH_PREFIX):
         base, refs = lane_base(branch, names)
         if not base:
-            sys.exit(0)
+            return ""
         files = git("diff", "--name-only", f"{base}..HEAD").splitlines()
         real = bool(branch) and any(not f.endswith(DOC_SUFFIXES) for f in files)
         # Edited only if the handoff differs from EVERY trunk ref. The closest
@@ -221,9 +264,7 @@ def main() -> None:
         touched = bool(refs) and all(
             git("diff", "--name-only", ref, "HEAD", "--", HANDOFF).strip()
             for ref in refs)
-        if touched or real:
-            lane_notes(touched, real, refs[0], not branch)
-        sys.exit(0)
+        return lane_notes(touched, real, refs[0], not branch) if touched or real else ""
 
     # Trunk or a handoff branch: commits made in roughly this session.
     # Wall-clock is the only signal available here, so it is deliberately
@@ -241,7 +282,7 @@ def main() -> None:
     # A commit in the window that touched the handoff, or an uncommitted edit
     # to it (the session is mid-update), means it is being kept.
     if real_work < MIN_COMMITS or touched_since("8.hours"):
-        sys.exit(0)
+        return ""
 
     exists = bool(git("ls-files", HANDOFF).strip())
     if exists:
@@ -253,7 +294,7 @@ def main() -> None:
         what = (f"{HANDOFF} does not exist yet. Create it in a handoff pass "
                 f"on a {HANDOFF_BRANCH_PREFIX}* branch")
 
-    print(
+    return (
         f"HANDOFF STALE: {real_work} commits of real work this session and "
         f"nothing touched {HANDOFF}.\n\n"
         f"CLAUDE.md Section 6: the handoff is written down AS WORK HAPPENS. "
@@ -271,10 +312,8 @@ def main() -> None:
         f"done, which alternative was rejected and why, what trap cost time. "
         f"No test counts, no SHAs, no issue counts.\n\n"
         f"Reorganize only at a real milestone, not on every touch.\n"
-        f"Deliberate skip: SKIP_HANDOFF_CHECK=1\n",
-        file=sys.stderr,
+        f"Deliberate skip: SKIP_HANDOFF_CHECK=1\n"
     )
-    sys.exit(0)
 
 
 if __name__ == "__main__":

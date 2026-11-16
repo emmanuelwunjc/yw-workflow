@@ -362,12 +362,27 @@ def git(cwd, *args):
                    cwd=cwd, check=True, capture_output=True)
 
 
-def run_hook(cwd, env_extra=None, event=None):
+def stop_text(got):
+    """What a Stop run tells the model (issue #125): the additionalContext of
+    one Stop JSON object on stdout. Claude never sees stderr from a hook that
+    exits 0, so text there counts as nothing."""
+    try:
+        out = json.loads(got.stdout)["hookSpecificOutput"]
+    except Exception:
+        return ""
+    if out.get("hookEventName") != "Stop" or got.returncode != 0:
+        return ""
+    return out.get("additionalContext", "")
+
+
+def run_hook(cwd, env_extra=None, event=None, extra=None):
     env = {k: v for k, v in os.environ.items() if k != "SKIP_HANDOFF_CHECK"}
     env.update(env_extra or {})
-    data = json.dumps({"hook_event_name": event} if event else {})
-    return subprocess.run([sys.executable, HOOK], input=data, cwd=cwd, env=env,
-                          capture_output=True, text=True)
+    data = dict({"hook_event_name": event} if event else {}, **(extra or {}))
+    got = subprocess.run([sys.executable, HOOK], input=json.dumps(data), cwd=cwd,
+                         env=env, capture_output=True, text=True)
+    got.warn = stop_text(got)
+    return got
 
 
 def session_start_failures():
@@ -393,8 +408,8 @@ def session_start_failures():
             out = {}
         text = out.get("additionalContext", "")
         if (out.get("hookEventName") != "SessionStart" or got.returncode != 0
-                or got.stderr or stop.stderr.count("HANDOFF SHAPE") != count
-                or stop.stderr.strip() not in text or FIRST_TASK not in text
+                or got.stderr or stop.warn.count("HANDOFF SHAPE") != count
+                or stop.warn.strip() not in text or FIRST_TASK not in text
                 or want not in text):
             failures += 1
             print(f"FAIL SessionStart, {label} (exit {got.returncode}):"
@@ -417,8 +432,8 @@ def session_start_failures():
         if got.returncode != 0 or got.stdout != "#7 migrate\n":
             failures += 1
             print(f"FAIL open-PR jq printed (exit {got.returncode}):\n{got.stdout}{got.stderr}")
-    # The Stop run keeps its old output: stderr only, no first-task sentence.
-    if stop.stdout or FIRST_TASK in stop.stderr or stop.returncode != 0:
+    # The Stop run carries no first-task sentence, and nothing on stderr.
+    if not stop.warn or stop.stderr or FIRST_TASK in stop.warn or stop.returncode != 0:
         failures += 1
         print(f"FAIL Stop output changed:\n{stop.stdout}\n{stop.stderr}")
     # A correct block prints nothing. No handoff prints nothing, even with
@@ -436,6 +451,60 @@ def session_start_failures():
             failures += 1
             print(f"FAIL SessionStart, {label}, printed (exit {got.returncode}):"
                   f"\n{got.stdout}{got.stderr}")
+    return failures
+
+
+def stop_channel_failures():
+    """Issue #125: each Stop warning reaches the model as Stop
+    additionalContext JSON on stdout, nothing on stderr, exit 0. It is sent
+    once per session per warning, and never when stop_hook_active is true."""
+    def shape(tmp):
+        make_repo(tmp, {"docs/HANDOFF.md": NO_BLOCK}, ["docs/HANDOFF.md"])
+
+    def notes(tmp):
+        make_repo(tmp, {"docs/HANDOFF.md": GOOD}, ["docs/HANDOFF.md"])
+        git(tmp, "commit", "-q", "-m", "base")
+        git(tmp, "checkout", "-q", "-b", "feat/x")
+        pathlib.Path(tmp, "a.py").write_text("1\n")
+        git(tmp, "add", "a.py")
+        git(tmp, "commit", "-q", "-m", "a")
+
+    def stale(tmp):
+        # the handoff commit sits before the 8-hour window
+        make_repo(tmp, {"docs/HANDOFF.md": GOOD}, ["docs/HANDOFF.md"])
+        stamp = "@%d +0000" % (int(time.time()) - 2 * 24 * 3600)
+        subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t",
+                        "commit", "-q", "-m", "handoff"], cwd=tmp, check=True,
+                       capture_output=True, env=dict(os.environ, GIT_AUTHOR_DATE=stamp,
+                                                     GIT_COMMITTER_DATE=stamp))
+        for name in ("a.py", "b.py"):
+            pathlib.Path(tmp, name).write_text("1\n")
+            git(tmp, "add", name)
+            git(tmp, "commit", "-q", "-m", name)
+
+    failures = 0
+    for tag, setup in (("HANDOFF SHAPE", shape), ("HANDOFF NOTES", notes),
+                       ("HANDOFF STALE", stale)):
+        with tempfile.TemporaryDirectory() as tmp:
+            setup(tmp)
+            first = run_hook(tmp, event="Stop",
+                             extra={"session_id": "s1", "stop_hook_active": False})
+            looping = run_hook(tmp, event="Stop",
+                               extra={"session_id": "s0", "stop_hook_active": True})
+            again = run_hook(tmp, event="Stop",
+                             extra={"session_id": "s1", "stop_hook_active": False})
+            other = run_hook(tmp, event="Stop",
+                             extra={"session_id": "s2", "stop_hook_active": False})
+        for label, got, want in (("first Stop", first, True),
+                                 ("stop_hook_active", looping, False),
+                                 ("same session again", again, False),
+                                 ("a new session", other, True)):
+            ok = (got.returncode == 0 and not got.stderr
+                  and (tag in got.warn if want else not got.stdout))
+            if not ok:
+                failures += 1
+                print(f"FAIL {tag} channel, {label}: exit={got.returncode}"
+                      f"\n--- stdout ---\n{got.stdout}\n--- stderr ---\n{got.stderr}")
     return failures
 
 
@@ -658,14 +727,14 @@ def main():
         with tempfile.TemporaryDirectory() as tmp:
             make_repo(tmp, files, tracked)
             got = run_hook(tmp)
-        err = got.stderr
+        err = got.warn
         missing = [w for w in want if w not in err]
         present = [f for f in forbid if f in err]
         # warn only, never block: a Stop hook that exits non-zero strands work
         if missing or present or got.returncode != 0:
             failures += 1
             print(f"FAIL {name}: exit={got.returncode} missing={missing} "
-                  f"unwanted={present}\n--- stderr ---\n{err}")
+                  f"unwanted={present}\n--- told the model ---\n{err}")
 
     # Round 9: run from a subfolder, the hook checks the script at the repo
     # top, and the copy command it prints targets the repo top.
@@ -680,12 +749,12 @@ def main():
             top = subprocess.run(["git", "rev-parse", "--show-toplevel"], cwd=tmp,
                                  capture_output=True, text=True).stdout.strip()
             got = run_hook(sub)
-        missing = [w.format(top=top) for w in want if w.format(top=top) not in got.stderr]
-        present = [f for f in forbid if f in got.stderr]
+        missing = [w.format(top=top) for w in want if w.format(top=top) not in got.warn]
+        present = [f for f in forbid if f in got.warn]
         if missing or present or got.returncode != 0:
             failures += 1
             print(f"FAIL from a subfolder, script {label}: missing={missing} "
-                  f"unwanted={present}\n--- stderr ---\n{got.stderr}")
+                  f"unwanted={present}\n--- told the model ---\n{got.warn}")
 
     # Round 2 of the #118 review: a tracked repo copy the hook cannot read is
     # a finding of its own. Root reads a mode-000 file, so root skips this.
@@ -699,18 +768,18 @@ def main():
             finally:
                 target.chmod(0o644)
         want = f"cannot read {SCRIPT} in this repo"
-        if want not in got.stderr or got.returncode != 0:
+        if want not in got.warn or got.returncode != 0:
             failures += 1
             print(f"FAIL an unreadable repo copy of the script: exit={got.returncode} "
-                  f"missing={want!r}\n--- stderr ---\n{got.stderr}")
+                  f"missing={want!r}\n--- told the model ---\n{got.warn}")
 
     # the escape hatch silences the shape check as well as the freshness one
     with tempfile.TemporaryDirectory() as tmp:
         make_repo(tmp, {"docs/HANDOFF.md": NO_BLOCK}, ["docs/HANDOFF.md"])
         got = run_hook(tmp, {"SKIP_HANDOFF_CHECK": "1"})
-    if got.stderr or got.returncode != 0:
+    if got.stdout or got.stderr or got.returncode != 0:
         failures += 1
-        print(f"FAIL SKIP_HANDOFF_CHECK=1 still printed (exit {got.returncode}):\n{got.stderr}")
+        print(f"FAIL SKIP_HANDOFF_CHECK=1 still printed (exit {got.returncode}):\n{got.warn}")
 
     # the pre-existing freshness warning still fires: two commits of real work,
     # nothing touching the handoff
@@ -721,9 +790,9 @@ def main():
         git(tmp, "add", "b.py")
         git(tmp, "commit", "-q", "-m", "two")
         got = run_hook(tmp)
-    if "HANDOFF STALE" not in got.stderr or got.returncode != 0:
+    if "HANDOFF STALE" not in got.warn or got.returncode != 0:
         failures += 1
-        print(f"FAIL freshness warning did not fire cleanly (exit {got.returncode}):\n{got.stderr}")
+        print(f"FAIL freshness warning did not fire cleanly (exit {got.returncode}):\n{got.warn}")
 
     # The "handoff was kept" branch: two commits of real work, and the handoff
     # touched by a commit in the window, or edited and not yet committed, or
@@ -748,9 +817,9 @@ def main():
             if edit:
                 pathlib.Path(tmp, "docs/HANDOFF.md").write_text(GOOD + "\nmore\n")
             got = run_hook(tmp)
-        if ("HANDOFF STALE" in got.stderr) != want or got.returncode != 0:
+        if ("HANDOFF STALE" in got.warn) != want or got.returncode != 0:
             failures += 1
-            print(f"FAIL {label}: want stale={want} (exit {got.returncode}):\n{got.stderr}")
+            print(f"FAIL {label}: want stale={want} (exit {got.returncode}):\n{got.warn}")
 
     # A handoff commit on an unmerged branch is no handoff on trunk. Trunk is
     # judged by its own history only, so this still warns.
@@ -767,10 +836,10 @@ def main():
         git(tmp, "commit", "-q", "-m", "unmerged pass")
         git(tmp, "checkout", "-q", "-")
         got = run_hook(tmp)
-    if "HANDOFF STALE" not in got.stderr or got.returncode != 0:
+    if "HANDOFF STALE" not in got.warn or got.returncode != 0:
         failures += 1
         print(f"FAIL handoff only on an unmerged branch still warns on trunk "
-              f"(exit {got.returncode}):\n{got.stderr}")
+              f"(exit {got.returncode}):\n{got.warn}")
 
     # A missing or broken handoff_touch.py must never crash the Stop hook.
     for label, helper in (("missing", None), ("raises", "raise RuntimeError('x')\n")):
@@ -790,7 +859,7 @@ def main():
                                  capture_output=True, text=True)
         if got.returncode != 0 or got.stderr or got.stdout:
             failures += 1
-            print(f"FAIL helper {label}: exit={got.returncode}\n{got.stderr}")
+            print(f"FAIL helper {label}: exit={got.returncode}\n{got.warn}")
 
     # Round 1 of the #118 review: when the plugin's skill or script cannot be
     # read, the hook says so in one warning each and does not crash.
@@ -830,15 +899,16 @@ def main():
             got = subprocess.run([sys.executable, str(hooks / "handoff-freshness.py")],
                                  input="{}", cwd=repo, env=env,
                                  capture_output=True, text=True)
+            got.warn = stop_text(got)
         want = want + [str(skill_dir / "SKILL.md")]
         if not script:
             want.append(str(skill_dir / "lane_claim.py"))
-        missing = [w for w in want if w not in got.stderr]
-        present = [f for f in forbid if f in got.stderr]
+        missing = [w for w in want if w not in got.warn]
+        present = [f for f in forbid if f in got.warn]
         if missing or present or got.returncode != 0 or "Traceback" in got.stderr:
             failures += 1
             print(f"FAIL unreadable plugin copy, {label}: exit={got.returncode} "
-                  f"missing={missing} unwanted={present}\n{got.stderr}")
+                  f"missing={missing} unwanted={present}\n{got.warn}")
 
     # Branch-aware freshness. Owner rule, 2026-09-21: lanes write notes in the
     # PR body's "## Handoff notes" section and never edit the handoff; a
@@ -846,15 +916,16 @@ def main():
     for name, first, steps, want, forbid in BRANCH_CASES:
         with tempfile.TemporaryDirectory() as tmp:
             got = run_hook(build(tmp, first, steps))
-        missing = [w for w in want if w not in got.stderr]
-        present = [f for f in forbid if f in got.stderr]
+        missing = [w for w in want if w not in got.warn]
+        present = [f for f in forbid if f in got.warn]
         if missing or present or got.returncode != 0:
             failures += 1
             print(f"FAIL {name}: exit={got.returncode} missing={missing} "
-                  f"unwanted={present}\n--- stderr ---\n{got.stderr}")
+                  f"unwanted={present}\n--- told the model ---\n{got.warn}")
 
     failures += check_lane_jq()
     failures += session_start_failures()
+    failures += stop_channel_failures()
 
     # the stop rule, word for word, in the block and in the skill's rules
     flat = lambda text: " ".join(text.split())

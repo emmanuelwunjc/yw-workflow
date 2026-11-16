@@ -318,9 +318,16 @@ What the next session needs: decisions and why, traps that cost time, what was d
 
 ## When the hook warns
 
-`hooks/handoff-freshness.py` runs on every Stop and prints one of three
+`hooks/handoff-freshness.py` runs on every Stop and can send three
 warnings. It also runs when a session starts or after `/clear`, and there
-it runs only the `HANDOFF SHAPE` check. All are addressed to the model and fix in the same turn.
+it runs only the `HANDOFF SHAPE` check. All are addressed to the model.
+
+- When a session starts or after `/clear`: `HANDOFF SHAPE` is in the
+  session's context before the first prompt. Act on it before other work.
+- At the end of a turn: any of the three arrives as Stop hook feedback,
+  and the turn continues so you can act on it. Each warning comes once per
+  session. It does not come again on later turns, so act on it the first
+  time.
 
 - `HANDOFF NOTES`: a lane committed real work. Write its `## Handoff notes`
   in the PR body. If the lane touched `docs/HANDOFF.md`, move those lines to
