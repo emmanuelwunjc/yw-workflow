@@ -52,7 +52,7 @@ Why once per session per warning: gating on `stop_hook_active` alone stops a
 loop inside one turn, but the warning would come again at the end of every
 later turn. The hook cannot see a PR body offline, so a lane that already
 wrote its `## Handoff notes` would get HANDOFF NOTES on every turn. The hook
-records `<session_id> <key>` in `handoff-freshness-sent` in the worktree's
+(through `hooks/handoff_sent.py`) records `<session_id> <key>` in `handoff-freshness-sent` in the worktree's
 git dir and sends each key once per session. The key names the variant: one
 per `HANDOFF SHAPE` problem, `NOTES/real` (write your notes), `NOTES/edited`
 (you edited the handoff), `NOTES/real+edited`, and `STALE`. The full text
@@ -61,8 +61,9 @@ with each commit. Round 1 of the review keyed on the tag alone, so the edited
 warning never arrived after the notes ask (fixed in round 2). The hook also
 stays silent while `stop_hook_active` is true, as the docs ask. SessionStart
 writes no record, so a shape problem sent there comes once more at the first
-Stop. A record that cannot be read or written sends the warnings at every
-Stop.
+Stop. With no session id in the input, or a record that cannot be read or
+written, the warnings come at every Stop. With no session id, no record is
+written.
 
 The cost: a model that ignores the first warning does not hear it again in
 that session. On a lane, `NOTES/real` fires at the first Stop after the first
@@ -73,7 +74,8 @@ second reminder from this hook.
 Check: `./hooks/handoff-freshness-selftest.py` (the `stop_channel_failures`
 cases). A hook that prints the warnings to stderr and exits 0 fails them.
 The `stop_once_failures` cases fail a hook that keys the record on the tag
-alone, keys it on the shared git dir, or writes it into the working tree.
+alone, keys it on the shared git dir, writes it into the working tree, or
+writes one when the input has no session id.
 
 ## 2026-11-15: a general copy of the goal tracker code lives here
 

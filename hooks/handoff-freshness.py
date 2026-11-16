@@ -19,16 +19,9 @@ broken rule gets a hook rather than a stronger sentence.
 
 WARNS, and never holds a session back for good. Some sessions legitimately
 commit nothing worth handing off (a one-line typo fix, a revert). At Stop the
-warnings go out as one JSON object on stdout, as Stop
-hookSpecificOutput.additionalContext (issue #125). Claude Code shows it as
-"Stop hook feedback" and the model gets one more turn to act on it. Stderr
-would reach nobody: Claude never sees stderr from a hook that exits 0. Each
-variant (one per SHAPE problem, NOTES/real, NOTES/edited, NOTES/real+edited,
-STALE) goes out once per session per worktree, recorded by session_id in
-SENT_FILE in the worktree's git dir. Nothing goes out while stop_hook_active
-is true, so the hook cannot loop. SessionStart records nothing, so a SHAPE
-problem sent there comes once more at the first Stop. With no session_id, or
-a record that cannot be read or written, the warnings come at every Stop.
+warnings go out as Stop hookSpecificOutput.additionalContext JSON on stdout,
+once per session per warning variant, through handoff_sent.py (issue #125).
+The full rule, and why, is in docs/DECISIONS.md, 2026-11-16.
 
 Fires on Stop, in a git repo. What it checks depends on the branch.
 
@@ -87,6 +80,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 try:
     from handoff_touch import HANDOFF, git, touched_since
     from handoff_shape import START_HERE, shape_problems
+    from handoff_sent import send_once
 except Exception:  # a missing or broken helper: no check, and never a crash
     sys.exit(0)
 
@@ -108,10 +102,6 @@ STOP_RULE = ("Write a lane body only with `scripts/lane_claim.py write` or "
 # Step 5's rule for an exit that is no refusal, word for word. Self-tested.
 EXIT_RULE = ("Any other exit, e.g. no `scripts/lane_claim.py` or a failed "
              "`gh`: change nothing, stop, and tell the owner.")
-
-# Per-worktree record, in the git dir, of which warning tags each session
-# has been sent at Stop, so each one continues a session's turn only once.
-SENT_FILE = "handoff-freshness-sent"
 
 SHAPE_HELP = ("The shape, with the block to paste, is in the yw-workflow skill "
               "skills/handoff (invoke /yw-workflow:handoff).")
@@ -191,37 +181,6 @@ def lane_notes(touched_handoff: bool, real: bool, ref: str, detached: bool) -> s
         f"on a {HANDOFF_BRANCH_PREFIX}* branch copies it into {HANDOFF}.\n"
         f"Deliberate skip: SKIP_HANDOFF_CHECK=1\n"
     )
-
-
-def send_once(session: str, warnings: list[tuple[str, str]]) -> None:
-    """Print, as one Stop additionalContext, each (key, text) warning whose key
-    this session has not been sent, then record those keys. A key names the
-    variant (e.g. NOTES/real, one SHAPE problem), never the full text, since
-    STALE's commit count changes on each commit. No session id, no git dir,
-    or a record that cannot be read or written: nothing is held back."""
-    gitdir = git("rev-parse", "--absolute-git-dir").strip() if session else ""
-    path = os.path.join(gitdir, SENT_FILE) if gitdir else ""
-    sent: set[str] = set()
-    if path:
-        try:
-            with open(path) as f:
-                sent = set(f.read().split("\n"))
-        except OSError:
-            pass
-    new = [(k, t) for k, t in warnings if f"{session} {k}" not in sent]
-    if not new:
-        return
-    print(json.dumps({"hookSpecificOutput": {
-        "hookEventName": "Stop",
-        "additionalContext": "".join(t for _, t in new)}}), flush=True)
-    if path:
-        try:
-            # ponytail: one line per session and key, never trimmed. Trim it
-            # if the file ever gets big.
-            with open(path, "a") as f:
-                f.writelines(f"{session} {k}\n" for k, _ in new)
-        except OSError:
-            pass
 
 
 def main() -> None:

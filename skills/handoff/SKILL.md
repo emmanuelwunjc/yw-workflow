@@ -326,11 +326,9 @@ it runs only the `HANDOFF SHAPE` check. All are addressed to the model.
   session's context before the first prompt. Act on it before other work.
 - At the end of a turn: any of the three arrives as Stop hook feedback,
   and the turn continues so you can act on it. Each problem comes once per
-  session in each worktree, so act on it the first time. A different
-  problem under the same name still comes, e.g. `HANDOFF NOTES` about an
-  edit to `docs/HANDOFF.md` after `HANDOFF NOTES` about the PR body.
-  A `HANDOFF SHAPE` problem from the session start comes once more at the
-  first Stop. When the hook cannot keep its record, it comes at every Stop.
+  session, so act on it the first time. A different problem under the same
+  name still comes, e.g. a handoff edit after the PR-body ask. The full rule
+  is in yw-workflow `docs/DECISIONS.md`, 2026-11-16.
 
 - `HANDOFF NOTES`: a lane committed real work. Write its `## Handoff notes`
   in the PR body. If the lane touched `docs/HANDOFF.md`, move those lines to

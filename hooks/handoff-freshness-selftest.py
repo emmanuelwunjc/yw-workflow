@@ -575,6 +575,14 @@ def stop_once_failures():
     check("first worktree", "HANDOFF SHAPE" in first.warn, first)
     check("second worktree, same session", "HANDOFF SHAPE" in second.warn, second)
 
+    # no session id: the warning arrives on every Stop, and no record is written
+    with tempfile.TemporaryDirectory() as tmp:
+        make_repo(tmp, {"docs/HANDOFF.md": NO_BLOCK}, ["docs/HANDOFF.md"])
+        runs = [run_hook(tmp, event="Stop") for _ in range(2)]
+        record = pathlib.Path(tmp, ".git", "handoff-freshness-sent").exists()
+    for n, got in enumerate(runs, 1):
+        check(f"no session id, Stop {n}", "HANDOFF SHAPE" in got.warn and not record, got)
+
     # a record that cannot be read, or a git dir that cannot be written:
     # the warning arrives on every Stop, exit 0. Root ignores the modes.
     if os.geteuid() != 0:
@@ -597,10 +605,7 @@ def stop_once_failures():
     # A failed `git rev-parse --absolute-git-dir` gives "": the warnings still
     # go out, and no record lands in the working tree.
     sys.path.insert(0, os.path.dirname(HOOK))
-    import importlib.util
-    spec = importlib.util.spec_from_file_location("freshness", HOOK)
-    hook = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(hook)
+    import handoff_sent as hook
     with tempfile.TemporaryDirectory() as tmp:
         cwd = os.getcwd()
         os.chdir(tmp)
@@ -994,7 +999,8 @@ def main():
         with tempfile.TemporaryDirectory() as tmp:
             hooks = pathlib.Path(tmp, "plugin", "hooks")
             hooks.mkdir(parents=True)
-            for name in ("handoff-freshness.py", "handoff_shape.py", "handoff_touch.py"):
+            for name in ("handoff-freshness.py", "handoff_shape.py", "handoff_touch.py",
+                         "handoff_sent.py"):
                 shutil.copy(pathlib.Path(HOOK).with_name(name), hooks / name)
             skill_dir = pathlib.Path(tmp, "plugin", "skills", "handoff")
             if skill_text is not None:
