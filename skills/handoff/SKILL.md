@@ -325,9 +325,12 @@ it runs only the `HANDOFF SHAPE` check. All are addressed to the model.
 - When a session starts or after `/clear`: `HANDOFF SHAPE` is in the
   session's context before the first prompt. Act on it before other work.
 - At the end of a turn: any of the three arrives as Stop hook feedback,
-  and the turn continues so you can act on it. Each warning comes once per
-  session. It does not come again on later turns, so act on it the first
-  time.
+  and the turn continues so you can act on it. Each problem comes once per
+  session in each worktree, so act on it the first time. A different
+  problem under the same name still comes, e.g. `HANDOFF NOTES` about an
+  edit to `docs/HANDOFF.md` after `HANDOFF NOTES` about the PR body.
+  A `HANDOFF SHAPE` problem from the session start comes once more at the
+  first Stop. When the hook cannot keep its record, it comes at every Stop.
 
 - `HANDOFF NOTES`: a lane committed real work. Write its `## Handoff notes`
   in the PR body. If the lane touched `docs/HANDOFF.md`, move those lines to

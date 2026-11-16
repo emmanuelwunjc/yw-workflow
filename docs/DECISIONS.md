@@ -41,9 +41,10 @@ The channel per warning:
   gets one more turn to act on it.
 
 Why Stop `additionalContext` and not `decision: "block"`: both keep the turn
-going, and both reach the model. The docs reserve `block` for a hook error
-and `additionalContext` for guidance from a hook that works as designed. These
-warnings are guidance. The user sees "Stop hook feedback" and no error notice.
+going, and both reach the model. The docs say `additionalContext` "is shown
+in the transcript as hook feedback rather than a hook error", and tell a hook
+that works as designed and gives guidance to use it. These warnings are
+guidance. The user sees "Stop hook feedback" and no error notice.
 SessionStart cannot carry the Stop warnings: NOTES and STALE depend on commits
 made during the session.
 
@@ -51,13 +52,28 @@ Why once per session per warning: gating on `stop_hook_active` alone stops a
 loop inside one turn, but the warning would come again at the end of every
 later turn. The hook cannot see a PR body offline, so a lane that already
 wrote its `## Handoff notes` would get HANDOFF NOTES on every turn. The hook
-records `<session_id> <tag>` in `handoff-freshness-sent` in the worktree's
-git dir and sends each tag once per session. It also stays silent while
-`stop_hook_active` is true, as the docs ask. The cost: a model that ignores
-the first warning does not hear it again in that session.
+records `<session_id> <key>` in `handoff-freshness-sent` in the worktree's
+git dir and sends each key once per session. The key names the variant: one
+per `HANDOFF SHAPE` problem, `NOTES/real` (write your notes), `NOTES/edited`
+(you edited the handoff), `NOTES/real+edited`, and `STALE`. The full text
+cannot be the key, because the STALE text holds a commit count that changes
+with each commit. Round 1 of the review keyed on the tag alone, so the edited
+warning never arrived after the notes ask (fixed in round 2). The hook also
+stays silent while `stop_hook_active` is true, as the docs ask. SessionStart
+writes no record, so a shape problem sent there comes once more at the first
+Stop. A record that cannot be read or written sends the warnings at every
+Stop.
+
+The cost: a model that ignores the first warning does not hear it again in
+that session. On a lane, `NOTES/real` fires at the first Stop after the first
+commit that changes a real file, often before a PR exists, and not again for
+that variant. A session that has no PR to write in at that time gets no
+second reminder from this hook.
 
 Check: `./hooks/handoff-freshness-selftest.py` (the `stop_channel_failures`
 cases). A hook that prints the warnings to stderr and exits 0 fails them.
+The `stop_once_failures` cases fail a hook that keys the record on the tag
+alone, keys it on the shared git dir, or writes it into the working tree.
 
 ## 2026-11-15: a general copy of the goal tracker code lives here
 

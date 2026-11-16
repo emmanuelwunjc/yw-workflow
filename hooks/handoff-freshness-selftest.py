@@ -508,6 +508,117 @@ def stop_channel_failures():
     return failures
 
 
+def stop_once_failures():
+    """Round 1 of the #125 review: the once-per-session record is keyed on
+    each warning's variant, so a different message under the same tag still
+    arrives, and a record that cannot be read or written never hides one."""
+    stop = lambda cwd: run_hook(cwd, event="Stop", extra={"session_id": "s1"})
+    commit = lambda tmp, rel, text: (pathlib.Path(tmp, rel).write_text(text),
+                                     git(tmp, "add", rel),
+                                     git(tmp, "commit", "-q", "-m", rel))
+    edited = "Lanes do not edit"
+    failures = 0
+
+    def check(label, ok, got):
+        nonlocal failures
+        if not ok or got.returncode != 0:
+            failures += 1
+            print(f"FAIL once per session, {label}: exit={got.returncode}"
+                  f"\n--- told the model ---\n{got.warn}\n--- stderr ---\n{got.stderr}")
+
+    def lane(tmp, handoff=GOOD):
+        make_repo(tmp, {"docs/HANDOFF.md": handoff}, ["docs/HANDOFF.md"])
+        git(tmp, "commit", "-q", "-m", "base")
+        git(tmp, "checkout", "-q", "-b", "feat/x")
+
+    # NOTES "write your notes", then NOTES "you edited the handoff"
+    with tempfile.TemporaryDirectory() as tmp:
+        lane(tmp)
+        commit(tmp, "a.py", "1\n")
+        first = stop(tmp)
+        commit(tmp, "docs/HANDOFF.md", GOOD + "\nlane edit\n")
+        second = stop(tmp)
+    check("NOTES first variant", NOTES_ASK in first.warn, first)
+    check("NOTES edited variant after the first", edited in second.warn, second)
+
+    # one SHAPE problem, then a different one
+    with tempfile.TemporaryDirectory() as tmp:
+        make_repo(tmp, {"docs/HANDOFF.md": NO_BLOCK}, ["docs/HANDOFF.md"])
+        first = stop(tmp)
+        pathlib.Path(tmp, "old-handoff.md").write_text("x\n")
+        git(tmp, "add", "old-handoff.md")
+        second = stop(tmp)
+    check("SHAPE first problem", "HANDOFF SHAPE" in first.warn, first)
+    check("SHAPE second problem", "old-handoff.md" in second.warn
+          and "has no `## Start here`" not in second.warn, second)
+
+    # SHAPE sent first, then NOTES created in the same session
+    with tempfile.TemporaryDirectory() as tmp:
+        lane(tmp, NO_BLOCK)
+        first = stop(tmp)
+        commit(tmp, "a.py", "1\n")
+        second = stop(tmp)
+    check("SHAPE before NOTES", "HANDOFF SHAPE" in first.warn
+          and "HANDOFF NOTES" not in first.warn, first)
+    check("NOTES after SHAPE", "HANDOFF NOTES" in second.warn
+          and "HANDOFF SHAPE" not in second.warn, second)
+
+    # two worktrees, one session id: each worktree has its own record
+    with tempfile.TemporaryDirectory() as tmp:
+        main_tree = pathlib.Path(tmp, "main")
+        main_tree.mkdir()
+        make_repo(main_tree, {"docs/HANDOFF.md": NO_BLOCK}, ["docs/HANDOFF.md"])
+        git(main_tree, "commit", "-q", "-m", "base")
+        git(main_tree, "worktree", "add", "-q", "../wt", "-b", "wt")
+        first = stop(main_tree)
+        second = stop(pathlib.Path(tmp, "wt"))
+    check("first worktree", "HANDOFF SHAPE" in first.warn, first)
+    check("second worktree, same session", "HANDOFF SHAPE" in second.warn, second)
+
+    # a record that cannot be read, or a git dir that cannot be written:
+    # the warning arrives on every Stop, exit 0. Root ignores the modes.
+    if os.geteuid() != 0:
+        for label, lock in (("unreadable record", "record"), ("read-only git dir", "gitdir")):
+            with tempfile.TemporaryDirectory() as tmp:
+                make_repo(tmp, {"docs/HANDOFF.md": NO_BLOCK}, ["docs/HANDOFF.md"])
+                gitdir = pathlib.Path(tmp, ".git")
+                record = gitdir / "handoff-freshness-sent"
+                if lock == "record":
+                    record.write_text("")
+                target = record if lock == "record" else gitdir
+                target.chmod(0o000 if lock == "record" else 0o555)
+                try:
+                    runs = [stop(tmp), stop(tmp)]
+                finally:
+                    target.chmod(0o755 if lock == "gitdir" else 0o644)
+            for n, got in enumerate(runs, 1):
+                check(f"{label}, Stop {n}", "HANDOFF SHAPE" in got.warn, got)
+
+    # A failed `git rev-parse --absolute-git-dir` gives "": the warnings still
+    # go out, and no record lands in the working tree.
+    sys.path.insert(0, os.path.dirname(HOOK))
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("freshness", HOOK)
+    hook = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(hook)
+    with tempfile.TemporaryDirectory() as tmp:
+        cwd = os.getcwd()
+        os.chdir(tmp)
+        real_git, hook.git = hook.git, lambda *a: ""
+        out = __import__("io").StringIO()
+        real_out, sys.stdout = sys.stdout, out
+        try:
+            hook.send_once("s1", [("STALE", "HANDOFF STALE: x\n")])
+        finally:
+            sys.stdout, hook.git = real_out, real_git
+            os.chdir(cwd)
+        leaked = os.listdir(tmp)
+    if "HANDOFF STALE" not in out.getvalue() or leaked:
+        failures += 1
+        print(f"FAIL empty git dir: printed={out.getvalue()!r} wrote={leaked}")
+    return failures
+
+
 def make_repo(tmp, files, tracked):
     """Every repo has the script the block runs, tracked, unless files names
     it: None leaves it out, text writes it untracked unless listed."""
@@ -926,6 +1037,7 @@ def main():
     failures += check_lane_jq()
     failures += session_start_failures()
     failures += stop_channel_failures()
+    failures += stop_once_failures()
 
     # the stop rule, word for word, in the block and in the skill's rules
     flat = lambda text: " ".join(text.split())
