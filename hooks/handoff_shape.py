@@ -14,9 +14,9 @@ skill describes. shape_problems() returns one string per problem:
     after the plugin's last line are the repo's own and pass. So if a later
     plugin release removes its last step, an old repo keeps that step as its
     own lines and passes. An empty block warns. The warning names the first
-    line that differs. A plugin skill that cannot be read or decoded, or
-    whose fenced block has no Start here block or an empty one, gets one
-    warning that the check did not run.
+    line that differs. A plugin skill that cannot be read or decoded gets
+    one warning that the check did not run. So does a skill whose fenced
+    block has no Start here block or an empty one.
   - the block runs `gh issue list --label lane` past line 40 of the file,
     where a fresh session may stop reading (the block is pasted too low)
   - its first 40 lines still carry the old "end of a session" preamble

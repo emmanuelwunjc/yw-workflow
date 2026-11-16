@@ -798,7 +798,9 @@ def main():
     no_copy = f"cannot read the plugin's {SCRIPT} at "
     # Round 2: a fence with no Start here line, an empty block, or a skill
     # that is not UTF-8 is a failed read too. Each runs against a stale
-    # repo block, so a silent pass would hide real drift.
+    # repo block. So the forbid list catches a hook that both warns and
+    # compares. The bad byte sits inside a well-formed Start here block, so
+    # a lenient decode would read a block and give no warning.
     fence = "# Handoff skill\n\n```\n# Handoff\n\n%s```\n"
     for label, skill_text, script, want, forbid in (
             ("no skill file, no script", None, False, [no_block, no_copy], []),
@@ -807,8 +809,8 @@ def main():
              [no_block], [no_copy, DRIFT]),
             ("a fence with an empty block", fence % "## Start here\n\n", True,
              [no_block], [no_copy, DRIFT]),
-            ("a skill that is not UTF-8", b"```\n# Handoff\n\xff\xfe\n```\n", True,
-             [no_block], [no_copy, "Traceback"])):
+            ("a skill that is not UTF-8", b"```\n# Handoff\n\n## Start here\n\nYou are \xff here.\n```\n", True,
+             [no_block], [no_copy, DRIFT, "Traceback"])):
         with tempfile.TemporaryDirectory() as tmp:
             hooks = pathlib.Path(tmp, "plugin", "hooks")
             hooks.mkdir(parents=True)
