@@ -1391,3 +1391,48 @@ Waits on the owner:
 - Add a `pm` row to the "Where things live" table in `~/CLAUDE.md`.
 - A grilling for #101: which review levels fit which changes, and the cost
   limit of one review loop.
+
+## 2026-11-16: second handoff pass
+
+- #58 (issue #58) adds a session start hook that lists local branches
+  with unpushed work and no PR. A branch with an open or merged PR is
+  hidden only when its tip is the PR head or an ancestor of it. A failed
+  git read prints "Could not check local branches..." and never passes
+  as "nothing unpushed". GitHub detection is a substring match on the
+  remote URL, marked `ponytail:`: a GitHub Enterprise host without
+  "github" in its name prints nothing. check-repo now fails on two keys
+  for one event in `hooks/hooks.json`. Follow-ups on the same hook: #148,
+  #151, #152.
+- #128 splits the context-handoff self-test into three files named for
+  the CI loop. Trap: a self-test named outside the CI glob passes a local
+  run of the same loop, because the loop never finds it. check-repo now
+  catches a misnamed file (#154 holds the ways it can still pass while
+  running nothing). Trap: a reviewer ran another session's script from a
+  shared scratch folder, `/private/tmp/claude-504/scr`, and it changed a
+  file in an EdSim worktree. Give each agent only its own session
+  scratchpad.
+- #125 sends the handoff hook's Stop warnings to the model as Stop
+  `additionalContext`, once per session per warning variant, recorded
+  under the git dir by `hooks/handoff_sent.py`. The rule is in
+  `docs/DECISIONS.md` (2026-11-16). It took five rounds: from round 3 on,
+  the code was correct and each round found a part of the promise with no
+  test. The general fix is housekeeping #159, and the nits are #161.
+  Trap: a code-review reviewer stopped on a progress note and never sent
+  a verdict, and the coordinator waited on nothing. Tell each reviewer to
+  wait for its sub-agents and send the full verdict. Trap: "never run a
+  script you did not write" made one reviewer skip the repo's own
+  self-test. Say the repo's self-tests are allowed.
+- Owner decisions 2026-11-16: the global `~/.claude/skills/pm` link is
+  removed, and `~/CLAUDE.md` has a `pm` row. The grilling for #101 (review
+  cost) is the first task of the next session on lane #47.
+- Trap: a session keeps the skill list of the plugin version it started
+  with. A linkja session on 1.18.0 had no `goal-tracker` skill, read
+  "tracker style" as the lane format, and reshaped a lane issue. #157
+  (warn when the installed plugin is behind) and #160 (say a lane issue
+  is not the goal tracker) cover it.
+
+### Next
+
+Open work is in the `lane` issues. List them with
+`gh issue list --label lane --state open`. Lane #47 holds this repo's
+backlog. Its first task is the grilling for #101.
