@@ -1,0 +1,16 @@
+# The label-to-layer map of a goal tracker. Copy it to .github/tracker-layers.yml.
+# tracker: the issue number of the top issue. Set it before the first run:
+#   the script refuses to run while it is empty.
+# Then one line per slice label, with the exact title of its layer issue.
+# tracker_sync.py finds each layer at run time: the direct sub-issue of the
+# tracker with that title. No layer numbers live here, so the migration can be
+# run again safely.
+# The script reads one `key: value` pair per line and ignores indentation, so
+# the `layers:` line below is only a heading for a reader.
+tracker:
+layers:
+  "slice:core": "Layer: Core"
+  "slice:docs": "Layer: Docs"
+  "slice:tests": "Layer: Tests"
+  "slice:release": "Layer: Release"
+  "slice:tooling": "Layer: Tooling"

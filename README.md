@@ -1,11 +1,11 @@
 # yw-workflow
 
-Twelve skills and seven hooks that make an engineering workflow mechanical
+Thirteen skills and seven hooks that make an engineering workflow mechanical
 instead of remembered.
 
 ## Install
 
-Pick one. Both serve the same twelve skills, and installing both leaves
+Pick one. Both serve the same thirteen skills, and installing both leaves
 duplicates that drift apart.
 
 ```bash
@@ -111,6 +111,7 @@ Skills for any stage:
 | `need-me` | yw | You want only what waits on you. |
 | `pm` | yw | You want status, or one chat that runs the agents. |
 | `mutation-gate` | yw | A check must prove it can fail. |
+| `goal-tracker` | yw | A goal with a date and several parts needs one progress page. |
 | `eli5`, `eli5-text` | yw | A topic needs the plain version. |
 | `wait-what` | matt | The last message did not land. |
 | `domain-modeling` | matt | A term needs one meaning in `GLOSSARY.md`. |
@@ -131,6 +132,7 @@ Each one carries a one-line summary at the top.
 | **harden** | Gives a repo the CI and branch protection that make its review gate real. |
 | **mutation-gate** | Proves each self-check can fail, by breaking the code it covers and requiring it to notice. |
 | **handoff** | Keeps `docs/HANDOFF.md` and the `lane` issues in the shape that lets a fresh session start from them alone. |
+| **goal-tracker** | One pinned issue shows how far a goal is, and a script keeps its progress bars current with no hand edits. |
 | **eli5** | Explains a topic to someone with zero background, as a page of big pictures and few words. |
 | **eli5-text** | Explains a topic to someone with zero background, in the conversation, with nothing to open. |
 | **pm** | Gives you one chat that reports status and runs builder and reviewer agents, through Orca when it is installed and subagents when not. |

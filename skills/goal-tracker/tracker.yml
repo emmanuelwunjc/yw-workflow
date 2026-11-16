@@ -1,0 +1,36 @@
+# Keeps a goal tracker in layers, one per slice: label. Optional: without it,
+# run `python3 tools/tracker_sync.py --sync` by hand.
+# Copy it to .github/workflows/tracker.yml. Ask the owner first: it spends
+# Actions minutes on each of the five issue events below.
+# The logic and its cases: tools/tracker_sync.py. The label -> layer map:
+# .github/tracker-layers.yml.
+name: tracker
+
+on:
+  issues:
+    types: [opened, labeled, unlabeled, closed, reopened]
+
+permissions:
+  contents: read
+  issues: write
+
+# One run at a time, so two runs cannot race on one layer. GitHub keeps only
+# the newest pending run in the group and cancels older pending ones. Each run
+# syncs the whole tracker whatever its event, so a cancelled run loses nothing.
+concurrency:
+  group: tracker
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # Stdlib python3 and gh come with the runner. No event data enters the
+      # script: it reads the current state of the tracker from the API.
+      - name: Put every issue under its layer and set each layer open or closed
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 tools/tracker_sync.py --sync
