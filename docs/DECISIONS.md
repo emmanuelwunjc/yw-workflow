@@ -7,6 +7,77 @@ moving tool version does not rot them.
 A decision is superseded, never deleted. Mark it with the date and what
 replaced it.
 
+## 2026-11-16: handoff-freshness sends its Stop warnings as Stop additionalContext, once per session
+
+Supports `hooks/handoff-freshness.py` (#125, with the boxes merged from #22).
+Checked on Claude Code 2.1.325. Source:
+https://code.claude.com/docs/en/hooks, read 2026-11-16 with
+`curl -s https://code.claude.com/docs/en/hooks.md`. The lines it rests on:
+
+- Exit code 0: "Claude never sees stderr from a hook that exits 0."
+- Exit code 0: "UserPromptSubmit, UserPromptExpansion, SessionStart, and
+  PostModelSwitch: Claude Code adds plain-text stdout as context that Claude
+  can see and act on."
+- Stop decision control, `hookSpecificOutput.additionalContext`: "Non-error
+  feedback for Claude. The conversation continues so Claude can act on it, but
+  unlike `decision: "block"` it is shown in the transcript as hook feedback
+  rather than a hook error".
+- Stop decision control: "Use `additionalContext` when the hook is working as
+  designed and giving Claude guidance ... It keeps the conversation going
+  through the same loop protections as `decision: "block"`, namely the
+  `stop_hook_active` input and the 8-consecutive-continuation cap".
+- Stop input: "The `stop_hook_active` field is `true` when Claude Code is
+  already continuing as a result of a stop hook."
+
+So the old Stop output, text on stderr and exit 0, reached nobody. The
+`skills/handoff` line "fix in the same turn" was untrue.
+
+The channel per warning:
+
+- `HANDOFF SHAPE` at SessionStart: `additionalContext`, unchanged since #117.
+  The model reads it before the first prompt.
+- `HANDOFF SHAPE`, `HANDOFF NOTES` and `HANDOFF STALE` at Stop: one JSON
+  object on stdout with `hookSpecificOutput.additionalContext`. The model
+  gets one more turn to act on it.
+
+Why Stop `additionalContext` and not `decision: "block"`: both keep the turn
+going, and both reach the model. The docs say `additionalContext` "is shown
+in the transcript as hook feedback rather than a hook error", and tell a hook
+that works as designed and gives guidance to use it. These warnings are
+guidance. The user sees "Stop hook feedback" and no error notice.
+SessionStart cannot carry the Stop warnings: NOTES and STALE depend on commits
+made during the session.
+
+Why once per session per warning: gating on `stop_hook_active` alone stops a
+loop inside one turn, but the warning would come again at the end of every
+later turn. The hook cannot see a PR body offline, so a lane that already
+wrote its `## Handoff notes` would get HANDOFF NOTES on every turn. The hook
+(through `hooks/handoff_sent.py`) records `<session_id> <key>` in
+`handoff-freshness-sent` in the worktree's git dir and sends each key once
+per session. The key names the variant: one
+per `HANDOFF SHAPE` problem, `NOTES/real` (write your notes), `NOTES/edited`
+(you edited the handoff), `NOTES/real+edited`, and `STALE`. The full text
+cannot be the key, because the STALE text holds a commit count that changes
+with each commit. Round 1 of the review keyed on the tag alone, so the edited
+warning never arrived after the notes ask (fixed in round 2). The hook also
+stays silent while `stop_hook_active` is true, as the docs ask. SessionStart
+writes no record, so a shape problem sent there comes once more at the first
+Stop. With no session id in the input, or a record that cannot be read or
+written, the warnings come at every Stop. With no session id, no record is
+written.
+
+The cost: a model that ignores the first warning does not hear it again in
+that session. On a lane, `NOTES/real` fires at the first Stop after the first
+commit that changes a real file, often before a PR exists, and not again for
+that variant. A session that has no PR to write in at that time gets no
+second reminder from this hook.
+
+Check: `./hooks/handoff-freshness-selftest.py` (the `stop_channel_failures`
+cases). A hook that prints the warnings to stderr and exits 0 fails them.
+The `stop_once_failures` cases fail a hook that keys the record on the tag
+alone, keys it on the shared git dir, writes it into the working tree, or
+writes one when the input has no session id.
+
 ## 2026-11-15: a general copy of the goal tracker code lives here
 
 Supports `skills/goal-tracker/` (#132). Owner decision after review round 1:
