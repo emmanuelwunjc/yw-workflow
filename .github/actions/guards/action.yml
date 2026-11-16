@@ -82,17 +82,29 @@ runs:
         # attacker-controlled text and inlining it into the script is an
         # injection.
         PR_BODY: ${{ github.event.pull_request.body }}
+        PR: ${{ github.event.pull_request.number }}
+        GH_TOKEN: ${{ github.token }}
       run: |
         set -euo pipefail
         printf '%s' "$PR_BODY" > "$YW_TMP/yw-pr-body.txt"
-        # The PR body plus changed prose, never every changed file. A guard, a
-        # test, or a script that quotes the banned footer on purpose is source,
-        # and scanning it reports the rule's own documentation as a violation.
-        # This repo's own hooks are exactly that case.
-        "$YW_HOOKS/no-ai-attribution.py" scan "$YW_TMP/yw-pr-body.txt"
+        # The messages git wrote on the PR's commits (#109). A squash merge
+        # carries them into main. This catches what the hook misses: some
+        # messages read with git commit -F, a trailer key alias, a folded
+        # trailer. The API needs no fetch depth. It lists at most 250 commits.
+        gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR/commits" \
+          --jq '.[].commit.message' > "$YW_TMP/yw-commits.txt"
+        # Every scan runs and the step fails after, so one finding never hides
+        # another. The PR body plus changed prose, never every changed file. A
+        # guard, a test, or a script that quotes the banned footer on purpose
+        # is source, and scanning it reports the rule's own documentation as a
+        # violation. This repo's own hooks are exactly that case.
+        status=0
+        "$YW_HOOKS/no-ai-attribution.py" scan "$YW_TMP/yw-pr-body.txt" \
+          "$YW_TMP/yw-commits.txt" || status=1
         if [ -s "$YW_TMP/yw-prose.txt" ]; then
-          xargs -a "$YW_TMP/yw-prose.txt" -d '\n' "$YW_HOOKS/no-ai-attribution.py" scan
+          xargs -a "$YW_TMP/yw-prose.txt" -d '\n' "$YW_HOOKS/no-ai-attribution.py" scan || status=1
         fi
+        exit "$status"
 
     - name: review-gate
       shell: bash

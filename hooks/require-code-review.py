@@ -227,6 +227,26 @@ LITERAL_REPO = re.compile(r"^[\w.-]+(/[\w.-]+){1,2}$|^https?://[\w./:@-]+$")
 LITERAL_HOST = re.compile(r"^[\w.-]+(:\d+)?$")
 
 
+def shell_assignments(raw: list) -> list:
+    """The words of one simple command that leave a variable set in the shell,
+    in order: every word of a command made only of `NAME=value` words, or the
+    words after `export`. Any other command leaves none, so this returns [].
+
+    no-ai-attribution.py loads this too, so both hooks read `export` the same
+    way. A `NAME=value` in front of another command binds to that command only.
+    """
+    words = list(raw)
+    while words and words[0] in SHELL_PREFIXES:
+        words.pop(0)
+    if words and all(ASSIGNMENT.match(w) for w in words):
+        return words
+    while words and ASSIGNMENT.match(words[0]):
+        words.pop(0)
+    if words and os.path.basename(words[0]) == "export":
+        return words[1:]
+    return []
+
+
 def _join_lines(cmd: str) -> str:
     """The shell removes a backslash-newline before anything sees the words."""
     return cmd.replace("\\\n", " ")
@@ -373,7 +393,7 @@ def walk_targets(cmd: str, cwd, env=None, cwd_why="") -> list:
             cwd_why = ("`%s` leaves the shell in a directory that cannot be "
                        "read from the command text" % " ".join(words))
         elif name == "export":
-            for w in words[1:]:
+            for w in shell_assignments(raw):
                 key, _, value = w.partition("=")
                 if key in TRACKED_ENV:
                     env[key] = value
