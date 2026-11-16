@@ -30,7 +30,8 @@ beside the other skills.
 
 Every unit of work starts as a written ticket, agent-ready, so it can feed a
 test-first loop without a conversation. It has four parts, each a heading in
-this repo's issue template, `.github/ISSUE_TEMPLATE/ticket.md`:
+this plugin's issue template, `.github/ISSUE_TEMPLATE/ticket.md` in the
+yw-workflow repo:
 
 - **Reproduction.** The literal commands and the observed wrong output.
 - **Acceptance criteria.** Checkable boxes, each objectively true or false, so
@@ -39,8 +40,9 @@ this repo's issue template, `.github/ISSUE_TEMPLATE/ticket.md`:
 - **Mutation check.** Whether one is expected, i.e. reverting the fix must
   fail something.
 
-`tools/check-repo.py` fails when these bullets and the template headings name
-different parts.
+The plugin's own check, `tools/check-repo.py` in the yw-workflow repo, fails
+when these bullets and the template headings name different parts. Other repos
+hold no copy of the template. Their `docs/agents/issue-tracker.md` points here.
 
 A ticket without an acceptance criterion is a wish. Write the demand down when
 it is given, then build it. Doing it in the other order is how a set of demands

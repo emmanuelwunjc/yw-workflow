@@ -851,27 +851,30 @@ gh pr view 184 -R georgetown-mdi-gates4/edsim-paper --json body --jq .body | gre
 gh pr view 193 -R georgetown-mdi-gates4/edsim-paper --json body --jq .body | grep ^Rounds:
 ```
 
-## 2026-11-15: other repos copy the ticket template
+## 2026-11-15: other repos get the tracker doc, and no copy of the ticket template
 
-Supports `ship-loop`. Issue #130 added `.github/ISSUE_TEMPLATE/ticket.md`
-here. Each repo that runs the ship loop gets its own copy of that file, and
-its own `docs/agents/issue-tracker.md` that points at it.
+Supports `ship-loop`. Decided by the owner in the review of #130 (see the
+owner comment on #136). Issue #130 added `.github/ISSUE_TEMPLATE/ticket.md`
+in this repo. Other repos get only `docs/agents/issue-tracker.md`. That file
+points at ship-loop step 1 in the plugin. Other repos get no copy of the
+template.
 
-Why a copy per repo:
+Why:
 
-1. GitHub shows a template only in the repo that holds it. The tickets for
-   most work are in other repos, e.g. edsim-paper.
-2. A shared default from an organization `.github` repo does not fit. GitHub
-   says that repo "must be **public**", and that a repo with its own
-   `.github/ISSUE_TEMPLATE` folder uses none of the defaults. Source:
-   https://docs.github.com/en/communities/setting-up-your-project-for-healthy-contributions/creating-a-default-community-health-file
-   Also, the repos are in more than one owner account.
-3. An agent that runs `gh issue create --body` never sees the template. It
-   reads `docs/agents/issue-tracker.md`, so that file has to be in each repo
-   too.
+1. A copy drifts from ship-loop step 1. `tools/check-repo.py` compares the
+   template with step 1 only in this repo, so nothing would catch a stale
+   copy elsewhere.
+2. An agent that runs `gh issue create --body` never sees a template. It
+   reads `docs/agents/issue-tracker.md`, so that file is the one that has to
+   be in each repo.
+3. Ship-loop step 1 loads in every repo that runs the ship loop, because it
+   is part of the plugin. So one source serves all repos.
 
-The cost: a copy can drift from ship-loop step 1. `tools/check-repo.py`
-compares the two only in this repo. A copy is correct on the day it is made.
+The cost: the GitHub web form in another repo shows no ticket template. A
+person who opens a ticket there by hand writes the four parts without it.
 
-Not done here: the copy step itself. It goes into the repo-setup skill after
-lane #97 merges, because #97 deletes `skills/harden`.
+The template stays here, because this repo can check it.
+
+Not done here: the step that puts `docs/agents/issue-tracker.md` into
+another repo. It goes into the repo-setup skill after lane #97 merges,
+because #97 deletes `skills/harden`.

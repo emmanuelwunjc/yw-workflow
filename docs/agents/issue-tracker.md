@@ -2,19 +2,19 @@
 
 Issues and specs for this repo live as GitHub issues. Use the `gh` CLI for all operations.
 
-To read ticket 130: `gh issue view 130`.
+To read a ticket: `gh issue view <n>`.
 
 ## Ticket format
 
-Write every ticket in the format of `.github/ISSUE_TEMPLATE/ticket.md`. It has four headings: Reproduction, Acceptance criteria, Verification, Mutation check. They are the four parts of `skills/ship-loop/SKILL.md`, step 1, and `tools/check-repo.py` fails when the two differ.
+Write every ticket in the format of step 1 of the yw-workflow plugin's ship-loop skill (`/yw-workflow:ship-loop`). It has four parts, each a heading: Reproduction, Acceptance criteria, Verification, Mutation check.
 
-The template shows in the GitHub web form. `gh issue create --body` does not apply it, so put the four headings in the body yourself. Run each command in the ticket in the terminal where the work will run, and paste its output.
+The plugin keeps the same four headings in its own issue template, `.github/ISSUE_TEMPLATE/ticket.md` in the yw-workflow repo. The plugin's check, `tools/check-repo.py` in that repo, fails when the template and step 1 differ. Other repos hold no copy of the template, so put the four headings in the body yourself. `gh issue create --body` applies no template in any repo. Run each command in the ticket in the terminal where the work will run, and paste its output.
 
 ## Conventions
 
 - **Create an issue**: `gh issue create --title "..." --body "..."`. Use a heredoc for multi-line bodies.
 - **Read an issue**: `gh issue view <number> --comments`, filtering comments by `jq` and also fetching labels.
-- **List issues**: `gh issue list --state open --json number,title,body,labels,comments --jq '[.[] | {number, title, body, labels: [.labels[].name], comments: [.comments[].body]}]'` with appropriate `--label` and `--state` filters.
+- **List issues**: `gh issue list --state open --limit 100 --json number,title,body,labels,comments --jq '[.[] | {number, title, body, labels: [.labels[].name], comments: [.comments[].body]}]'` with appropriate `--label` and `--state` filters.
 - **Make an issue a sub-issue of a parent**: `gh issue create --parent <parent> ...`, or `gh issue edit <parent> --add-sub-issue <child>` afterwards (`gh` 2.94+). Older `gh`: `gh api --method POST repos/<owner>/<repo>/issues/<parent>/sub_issues -F sub_issue_id=<child-db-id>` (database id, as in **Blocking** below). Without sub-issues, put `Part of #<parent>` at the top of the child body.
 - **Comment on an issue**: `gh issue comment <number> --body "..."`
 - **Apply / remove labels**: `gh issue edit <number> --add-label "..."` / `--remove-label "..."`

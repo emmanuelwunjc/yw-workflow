@@ -296,10 +296,11 @@ ticket_parts = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(ticket_parts)
 tmpl_path = ROOT / ticket_parts.TEMPLATE
 check(ticket_parts.TEMPLATE + " exists", tmpl_path.exists())
-for problem in ticket_parts.problems(
-        tmpl_path.read_text() if tmpl_path.exists() else "",
-        (ROOT / ticket_parts.SHIP_LOOP).read_text()):
-    check("ticket parts match", False, problem)
+part_problems = ticket_parts.problems(
+    tmpl_path.read_text() if tmpl_path.exists() else "",
+    (ROOT / ticket_parts.SHIP_LOOP).read_text())
+check("template headings and ship-loop step 1 bullets name the same parts",
+      not part_problems, "; ".join(part_problems))
 
 # 2. manifests parse
 print("manifests")
