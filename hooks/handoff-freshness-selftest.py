@@ -415,6 +415,16 @@ def session_start_failures():
             failures += 1
             print(f"FAIL SessionStart, {label} (exit {got.returncode}):"
                   f"\n--- stdout ---\n{got.stdout}\n--- stderr ---\n{got.stderr}")
+    # SessionStart with a session id and a shape problem writes no record,
+    # so the first Stop of that session still sends the warning.
+    with tempfile.TemporaryDirectory() as tmp:
+        make_repo(tmp, {"docs/HANDOFF.md": NO_BLOCK}, ["docs/HANDOFF.md"])
+        got = run_hook(tmp, event="SessionStart", extra={"session_id": "s1"})
+        record = pathlib.Path(tmp, ".git", SENT_FILE)
+        kept = record.read_text() if record.exists() else ""
+    if "s1 " in kept or "HANDOFF SHAPE" not in got.stdout:
+        failures += 1
+        print(f"FAIL SessionStart wrote a Stop record: {kept!r}\n{got.stdout}")
     # The skip switch silences SessionStart too.
     with tempfile.TemporaryDirectory() as tmp:
         make_repo(tmp, {"docs/HANDOFF.md": NO_BLOCK}, ["docs/HANDOFF.md"])
@@ -544,6 +554,18 @@ def stop_once_failures():
     check("NOTES first variant", NOTES_ASK in first.warn, first)
     check("NOTES edited variant after the first", edited in second.warn, second)
 
+    # the other order: NOTES "you edited the handoff", then real work
+    # (key NOTES/real+edited differs from NOTES/edited, so it is sent again)
+    with tempfile.TemporaryDirectory() as tmp:
+        lane(tmp)
+        commit(tmp, "docs/HANDOFF.md", GOOD + "\nlane edit\n")
+        first = stop(tmp)
+        commit(tmp, "a.py", "1\n")
+        second = stop(tmp)
+    check("NOTES edited variant first", edited in first.warn
+          and NOTES_ASK not in first.warn, first)
+    check("NOTES real variant after the edited one", NOTES_ASK in second.warn, second)
+
     # one SHAPE problem, then a different one
     with tempfile.TemporaryDirectory() as tmp:
         make_repo(tmp, {"docs/HANDOFF.md": NO_BLOCK}, ["docs/HANDOFF.md"])
@@ -649,7 +671,9 @@ def stop_once_failures():
     class Broken:
         def write(self, _):
             raise OSError("closed")
-        flush = write
+
+        def flush(self):
+            raise OSError("closed")
     with tempfile.TemporaryDirectory() as tmp:
         make_repo(tmp, {}, [])
         cwd = os.getcwd()
