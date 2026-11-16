@@ -89,10 +89,15 @@ def unpushed_reach():
 
 
 def on_github():
-    """Raw remote URLs, before any insteadOf rewrite, name GitHub."""
-    # ponytail: a substring test. A GitHub Enterprise host without "github"
-    # in its name reads as off GitHub; match the host list if one ever exists.
-    return "github" in git("config", "--get-regexp", r"^remote\..*\.url$").lower()
+    """Raw remote URLs, before any insteadOf rewrite, name GitHub. Each output
+    line is "key URL". Only the URL counts, so a remote named github that
+    points elsewhere does not."""
+    # ponytail: a substring test on the URL. A GitHub Enterprise host without
+    # "github" in its name reads as off GitHub, and a URL with "github" only in
+    # its path (e.g. gitlab.com/github-mirror/x) reads as on GitHub. Parse the
+    # host and match a host list if either ever matters.
+    return any("github" in line.partition(" ")[2].lower()
+               for line in git("config", "--get-regexp", r"^remote\..*\.url$").splitlines())
 
 
 def main():

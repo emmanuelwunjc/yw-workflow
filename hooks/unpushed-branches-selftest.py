@@ -11,8 +11,11 @@ merged PR at the tip, closed unmerged PR, merged PR then one more commit,
 open PR then one more commit, an open PR whose head only local main holds,
 pushed then ahead, ahead of its upstream but on another remote branch, a
 review-round chain, two branches on one tip, an upstream gone from the
-remote, and `develop`, which origin/HEAD names. Other repos: 12 ahead branches for the 10-line cap, no remote, a remote off GitHub,
-a git that fails on rev-list, and a folder outside any repo.
+remote, and `develop`, which origin/HEAD names. Other repos: 12, then exactly
+10, ahead branches for the 10-line cap, no remote, a remote off GitHub (also
+one named `github` that points at GitLab), a git that fails on rev-list or
+only on for-each-ref, and a folder outside any repo. One direct call of
+handoff_touch.git(check=True) with no git on PATH.
 
 Run: ./hooks/unpushed-branches-selftest.py
 """
@@ -240,6 +243,13 @@ def main():
             "git rev-list exited 128: fatal: boom"])
         expect("git rev-list fails: exit 0", code, 0)
 
+        fails_refs = ('case " $* " in *" for-each-ref "*) echo "fatal: bad ref" >&2; exit 128;; esac\n'
+                      'exec %s "$@"\n' % GIT)
+        code, out = run_hook(c, bin_dir(root, prs, fails_refs))
+        expect("git for-each-ref fails, rev-list works: one line says why", out, [
+            "Could not check local branches for unpushed work: "
+            "git for-each-ref exited 128: fatal: bad ref"])
+
         many = clone(root, origin, "many")
         for i in range(1, 13):  # feat/b12 is newest
             sh(many, "git", "switch", "-q", "-c", "feat/b%02d" % i, "main")
@@ -248,6 +258,11 @@ def main():
         expect("12 qualify: newest 10, then the count of the rest", out, [HEADING] + [
             "  feat/b%02d: 1 ahead, no upstream. work %d" % (i, i) for i in range(12, 2, -1)
         ] + ["  ... and 2 more"])
+
+        sh(many, "git", "branch", "-q", "-D", "feat/b01", "feat/b02")
+        code, out = run_hook(many, bin_dir(root, "echo '[]'\n"))
+        expect("exactly 10 qualify: all 10, no count line", out, [HEADING] + [
+            "  feat/b%02d: 1 ahead, no upstream. work %d" % (i, i) for i in range(12, 2, -1)])
 
         lone = os.path.join(root, "no-remote")
         sh(root, "git", "init", "-q", "-b", "main", lone)
@@ -264,12 +279,28 @@ def main():
         commit(off, "x work")
         code, out = run_hook(off, bin_dir(root, prs))
         expect("remote is not on GitHub: no output", out, [])
+        sh(off, "git", "remote", "add", "github", "https://gitlab.com/t/t.git")
+        code, out = run_hook(off, bin_dir(root, prs))
+        expect("remote named github that points at GitLab: no output", out, [])
 
         outside = os.path.join(root, "not-a-repo")
         os.mkdir(outside)
         code, out = run_hook(outside, bin_dir(root, prs))
         expect("outside a git repo: no output", out, [])
         expect("outside a git repo: exit 0", code, 0)
+
+        # git() with check=True, when git cannot start: raises, never returns "".
+        sys.path.insert(0, str(pathlib.Path(HOOK).parent))
+        from handoff_touch import git
+        saved, os.environ["PATH"] = os.environ["PATH"], bin_dir(root, None, "")
+        os.remove(os.path.join(os.environ["PATH"], "git"))
+        try:
+            got = "returned %r" % git("status", check=True)
+        except RuntimeError as exc:
+            got = str(exc).split(":")[0]
+        finally:
+            os.environ["PATH"] = saved
+        expect("git() check=True, no git on PATH: raises RuntimeError", got, "git status")
     finally:
         shutil.rmtree(root, ignore_errors=True)
 
