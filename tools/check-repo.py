@@ -10,7 +10,8 @@ Checks, each one because something actually broke:
   1. The repo's own prose obeys the two writing rules its own guard enforces.
      Four real violations shipped into skill text before this existed.
   2. Manifests parse. A broken marketplace.json makes the plugin uninstallable
-     and nothing else notices.
+     and nothing else notices. hooks.json names no key twice in one object,
+     since json.loads keeps the last and drops the rest without a word.
   3. Hook scripts are executable IN THE GIT INDEX. A hook that loses its exec
      bit fails silently at the exact moment it should block something.
   4. Every command in hooks.json resolves to a file that exists.
@@ -311,6 +312,15 @@ for rel in (".claude-plugin/marketplace.json", ".claude-plugin/plugin.json",
         check(rel + " parses", True)
     except Exception as exc:  # noqa: BLE001 - report any parse failure the same way
         check(rel + " parses", False, str(exc))
+spec = importlib.util.spec_from_file_location(
+    "json_dupes", ROOT / "tools" / "json_dupes.py")
+json_dupes = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(json_dupes)
+try:
+    dupes = json_dupes.duplicate_keys((ROOT / "hooks" / "hooks.json").read_text())
+except ValueError:
+    dupes = []  # the parse check above already failed
+check("hooks/hooks.json names no key twice in one object", not dupes, "; ".join(dupes))
 
 # 3. the exec bit as git records it, which is what a fresh clone gets
 print("hook permissions (git index, not the local filesystem)")

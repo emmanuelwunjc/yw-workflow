@@ -24,14 +24,24 @@ import subprocess
 HANDOFF = "docs/HANDOFF.md"
 
 
-def git(*args: str) -> str:
+def git(*args: str, check: bool = False) -> str:
+    """git's stdout, or "" when it fails or takes over 15s. With check=True a
+    failure raises RuntimeError with the reason instead, for a caller that
+    must tell "nothing found" from "could not look"."""
     try:
         out = subprocess.run(
             ["git", *args], capture_output=True, text=True, timeout=15
         )
-        return out.stdout if out.returncode == 0 else ""
-    except Exception:
+    except Exception as exc:
+        if check:
+            raise RuntimeError("git %s: %s" % (args[0], exc)) from exc
         return ""
+    if out.returncode == 0:
+        return out.stdout
+    if check:
+        raise RuntimeError("git %s exited %d: %s"
+                           % (args[0], out.returncode, out.stderr.strip()))
+    return ""
 
 
 def touched_since(since: str, all_refs: bool = False) -> bool:
