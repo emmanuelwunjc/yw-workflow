@@ -40,9 +40,9 @@ yw-workflow repo:
 - **Mutation check.** Whether one is expected, i.e. reverting the fix must
   fail something.
 
+In any repo, write the ticket with these four parts, each as a `## ` heading.
 The plugin's own check, `tools/check-repo.py` in the yw-workflow repo, fails
-when these bullets and the template headings name different parts. Other repos
-hold no copy of the template. Their `docs/agents/issue-tracker.md` points here.
+when these bullets and the template headings name different parts.
 
 A ticket without an acceptance criterion is a wish. Write the demand down when
 it is given, then build it. Doing it in the other order is how a set of demands

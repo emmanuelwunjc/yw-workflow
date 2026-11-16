@@ -34,4 +34,8 @@ def problems(template_text, ship_loop_text):
         out.append("found no parts in ship-loop step 1")
     out += ["template lacks: " + p for p in step if p not in tmpl]
     out += ["ship-loop step 1 lacks: " + p for p in tmpl if p not in step]
+    # membership alone passes a part named twice, so count each one too
+    out += ["template names twice: " + p for p in set(tmpl) if tmpl.count(p) > 1]
+    out += ["ship-loop step 1 names twice: " + p
+            for p in set(step) if step.count(p) > 1]
     return out
