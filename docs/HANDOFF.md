@@ -1394,7 +1394,7 @@ Waits on the owner:
 
 ## 2026-11-16: second handoff pass
 
-- #58 (issue #58) adds a session start hook that lists local branches
+- #58 (PR #153) adds a session start hook that lists local branches
   with unpushed work and no PR. A branch with an open or merged PR is
   hidden only when its tip is the PR head or an ancestor of it. A failed
   git read prints "Could not check local branches..." and never passes
@@ -1403,7 +1403,7 @@ Waits on the owner:
   "github" in its name prints nothing. check-repo now fails on two keys
   for one event in `hooks/hooks.json`. Follow-ups on the same hook: #148,
   #151, #152.
-- #128 splits the context-handoff self-test into three files named for
+- #128 (PR #155) splits the context-handoff self-test into three files named for
   the CI loop. Trap: a self-test named outside the CI glob passes a local
   run of the same loop, because the loop never finds it. check-repo now
   catches a misnamed file (#154 holds the ways it can still pass while
@@ -1411,7 +1411,7 @@ Waits on the owner:
   shared scratch folder, `/private/tmp/claude-504/scr`, and it changed a
   file in an EdSim worktree. Give each agent only its own session
   scratchpad.
-- #125 sends the handoff hook's Stop warnings to the model as Stop
+- #125 (PR #162) sends the handoff hook's Stop warnings to the model as Stop
   `additionalContext`, once per session per warning variant, recorded
   under the git dir by `hooks/handoff_sent.py`. The rule is in
   `docs/DECISIONS.md` (2026-11-16). It took five rounds: from round 3 on,
@@ -1426,7 +1426,7 @@ Waits on the owner:
   removed, and `~/CLAUDE.md` has a `pm` row. The grilling for #101 (review
   cost) is the first task of the next session on lane #47.
 - Trap: a session keeps the skill list of the plugin version it started
-  with. A linkja session on 1.18.0 had no `goal-tracker` skill, read
+  with. A session in another repo, on 1.18.0, had no `goal-tracker` skill, read
   "tracker style" as the lane format, and reshaped a lane issue. #157
   (warn when the installed plugin is behind) and #160 (say a lane issue
   is not the goal tracker) cover it.
