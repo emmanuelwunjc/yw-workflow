@@ -188,8 +188,7 @@ def _message_files(command, cwd):
     then carries nothing in its own text (#109). The walk follows `cd`,
     `git -C` and `NAME=value` assignments made earlier in the command. A file
     that does not exist yet, or sits in a folder the text does not settle, is
-    skipped: the command text is still checked, and CI scans the commit
-    messages git wrote.
+    skipped, and the command text is still checked.
     """
     review = _review_hook()
     if review is None:
@@ -241,8 +240,8 @@ def scan(paths):
     """CI mode: check files instead of a Bash command.
 
     The hook stops a publish at the moment it is typed. That only covers this
-    laptop, so CI re-checks the artefacts themselves: the PR body, and any file
-    in the diff.
+    laptop. What CI scans with this function is in the "CI gate" section of
+    docs/HOOKS.md.
 
     Returns the number of files with at least one finding.
     """
