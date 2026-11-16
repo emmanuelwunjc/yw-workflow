@@ -21,6 +21,7 @@ CASES = [
     # name, JSON text, problem text it must contain
     ("valid, one key name in two objects",
      '{"hooks": {"Stop": [{"matcher": "a"}], "SessionStart": [{"matcher": "a"}]}}', None),
+    ("valid, two keys that differ only in case", '{"a": 1, "A": 2}', None),
     ("duplicate key at the top", '{"hooks": {}, "hooks": {}}', "duplicate key: hooks"),
     ("duplicate key two levels down",
      '{"hooks": {"SessionStart": [], "Stop": [], "SessionStart": []}}',
