@@ -17,6 +17,7 @@ import shutil
 import tempfile
 import time
 
+from handoff_sent import SENT_FILE
 from handoff_shape import FENCED
 
 HOOK = str(pathlib.Path(__file__).with_name("handoff-freshness.py"))
@@ -454,6 +455,21 @@ def session_start_failures():
     return failures
 
 
+def stale_repo(tmp):
+    """Trunk with two commits of real work, the handoff commit before the
+    8-hour window: a Stop here prints HANDOFF STALE."""
+    make_repo(tmp, {"docs/HANDOFF.md": GOOD}, ["docs/HANDOFF.md"])
+    stamp = "@%d +0000" % (int(time.time()) - 2 * 24 * 3600)
+    subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t",
+                    "commit", "-q", "-m", "handoff"], cwd=tmp, check=True,
+                   capture_output=True, env=dict(os.environ, GIT_AUTHOR_DATE=stamp,
+                                                 GIT_COMMITTER_DATE=stamp))
+    for name in ("a.py", "b.py"):
+        pathlib.Path(tmp, name).write_text("1\n")
+        git(tmp, "add", name)
+        git(tmp, "commit", "-q", "-m", name)
+
+
 def stop_channel_failures():
     """Issue #125: each Stop warning reaches the model as Stop
     additionalContext JSON on stdout, nothing on stderr, exit 0. It is sent
@@ -469,22 +485,9 @@ def stop_channel_failures():
         git(tmp, "add", "a.py")
         git(tmp, "commit", "-q", "-m", "a")
 
-    def stale(tmp):
-        # the handoff commit sits before the 8-hour window
-        make_repo(tmp, {"docs/HANDOFF.md": GOOD}, ["docs/HANDOFF.md"])
-        stamp = "@%d +0000" % (int(time.time()) - 2 * 24 * 3600)
-        subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t",
-                        "commit", "-q", "-m", "handoff"], cwd=tmp, check=True,
-                       capture_output=True, env=dict(os.environ, GIT_AUTHOR_DATE=stamp,
-                                                     GIT_COMMITTER_DATE=stamp))
-        for name in ("a.py", "b.py"):
-            pathlib.Path(tmp, name).write_text("1\n")
-            git(tmp, "add", name)
-            git(tmp, "commit", "-q", "-m", name)
-
     failures = 0
     for tag, setup in (("HANDOFF SHAPE", shape), ("HANDOFF NOTES", notes),
-                       ("HANDOFF STALE", stale)):
+                       ("HANDOFF STALE", stale_repo)):
         with tempfile.TemporaryDirectory() as tmp:
             setup(tmp)
             first = run_hook(tmp, event="Stop",
@@ -558,10 +561,29 @@ def stop_once_failures():
         first = stop(tmp)
         commit(tmp, "a.py", "1\n")
         second = stop(tmp)
+        third = stop(tmp)
     check("SHAPE before NOTES", "HANDOFF SHAPE" in first.warn
           and "HANDOFF NOTES" not in first.warn, first)
     check("NOTES after SHAPE", "HANDOFF NOTES" in second.warn
           and "HANDOFF SHAPE" not in second.warn, second)
+    # the record keeps both keys, so neither comes back
+    check("Stop 3 after SHAPE and NOTES", not third.stdout, third)
+
+    # STALE once: another commit changes its count, never its key
+    with tempfile.TemporaryDirectory() as tmp:
+        stale_repo(tmp)
+        first = stop(tmp)
+        commit(tmp, "c.py", "1\n")
+        second = stop(tmp)
+    check("STALE first Stop", "HANDOFF STALE" in first.warn, first)
+    check("STALE after one more commit", not second.stdout, second)
+
+    # a record with a bad byte reads as nothing held back, never a crash
+    with tempfile.TemporaryDirectory() as tmp:
+        make_repo(tmp, {"docs/HANDOFF.md": NO_BLOCK}, ["docs/HANDOFF.md"])
+        pathlib.Path(tmp, ".git", SENT_FILE).write_bytes(b"s1 \xff\n")
+        got = stop(tmp)
+    check("record with a bad byte", "HANDOFF SHAPE" in got.warn and not got.stderr, got)
 
     # two worktrees, one session id: each worktree has its own record
     with tempfile.TemporaryDirectory() as tmp:
@@ -579,7 +601,7 @@ def stop_once_failures():
     with tempfile.TemporaryDirectory() as tmp:
         make_repo(tmp, {"docs/HANDOFF.md": NO_BLOCK}, ["docs/HANDOFF.md"])
         runs = [run_hook(tmp, event="Stop") for _ in range(2)]
-        record = pathlib.Path(tmp, ".git", "handoff-freshness-sent").exists()
+        record = pathlib.Path(tmp, ".git", SENT_FILE).exists()
     for n, got in enumerate(runs, 1):
         check(f"no session id, Stop {n}", "HANDOFF SHAPE" in got.warn and not record, got)
 
@@ -590,7 +612,7 @@ def stop_once_failures():
             with tempfile.TemporaryDirectory() as tmp:
                 make_repo(tmp, {"docs/HANDOFF.md": NO_BLOCK}, ["docs/HANDOFF.md"])
                 gitdir = pathlib.Path(tmp, ".git")
-                record = gitdir / "handoff-freshness-sent"
+                record = gitdir / SENT_FILE
                 if lock == "record":
                     record.write_text("")
                 target = record if lock == "record" else gitdir
@@ -621,6 +643,30 @@ def stop_once_failures():
     if "HANDOFF STALE" not in out.getvalue() or leaked:
         failures += 1
         print(f"FAIL empty git dir: printed={out.getvalue()!r} wrote={leaked}")
+
+    # The print fails (e.g. a closed pipe): the key is not recorded, so the
+    # warning is sent at the next Stop. Record first and it is lost for good.
+    class Broken:
+        def write(self, _):
+            raise OSError("closed")
+        flush = write
+    with tempfile.TemporaryDirectory() as tmp:
+        make_repo(tmp, {}, [])
+        cwd = os.getcwd()
+        os.chdir(tmp)
+        real_out, sys.stdout = sys.stdout, Broken()
+        try:
+            hook.send_once("s1", [("STALE", "HANDOFF STALE: x\n")])
+        except OSError:
+            pass
+        finally:
+            sys.stdout = real_out
+            os.chdir(cwd)
+        record = pathlib.Path(tmp, ".git", SENT_FILE)
+        kept = record.read_text() if record.exists() else ""
+    if "s1 STALE" in kept:
+        failures += 1
+        print(f"FAIL failed print: the key was recorded anyway: {kept!r}")
     return failures
 
 

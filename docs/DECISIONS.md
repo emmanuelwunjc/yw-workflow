@@ -52,8 +52,9 @@ Why once per session per warning: gating on `stop_hook_active` alone stops a
 loop inside one turn, but the warning would come again at the end of every
 later turn. The hook cannot see a PR body offline, so a lane that already
 wrote its `## Handoff notes` would get HANDOFF NOTES on every turn. The hook
-(through `hooks/handoff_sent.py`) records `<session_id> <key>` in `handoff-freshness-sent` in the worktree's
-git dir and sends each key once per session. The key names the variant: one
+(through `hooks/handoff_sent.py`) records `<session_id> <key>` in
+`handoff-freshness-sent` in the worktree's git dir and sends each key once
+per session. The key names the variant: one
 per `HANDOFF SHAPE` problem, `NOTES/real` (write your notes), `NOTES/edited`
 (you edited the handoff), `NOTES/real+edited`, and `STALE`. The full text
 cannot be the key, because the STALE text holds a commit count that changes
