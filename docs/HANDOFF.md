@@ -1314,6 +1314,51 @@ Waits on the owner:
   several clones. Make the reviewer worktree by hand with
   `git worktree add --detach`.
 
+
+## 2026-11-16: handoff pass
+
+- #134 (issues #120, #121) has the pm skill start both reviewers in each
+  round, and count a defect both find once. The Orca path has not yet run
+  a code-review reviewer: the first Orca batch that builds code tests it.
+  Trap: a documenter from the installed plugin 1.18.0 has no shell, so it
+  cannot commit. Its edits were copied into a fixer's worktree.
+- #138 (issue #109) makes `hooks/no-ai-attribution.py` read commit
+  message files. Only the "CI gate" section of `docs/HOOKS.md` says what
+  CI scans. Hook docstrings and hook rows point there. Keep it that way:
+  every round that put a CI claim elsewhere found it wrong. Direction
+  changed twice: after round 3 the hook stopped parsing shell forms, and
+  after round 6 the hook row stopped making a CI claim. Trap: in an agent
+  sandbox, `hooks/git-safety-guard-selftest.sh` fails 6 cases under the
+  default `TMPDIR`. Set `TMPDIR` to the session scratchpad.
+- #143 (issue #130) puts the issue template and tracker doc in the
+  ship-loop four-part form, checked by `tools/check-repo.py`. Owner
+  decision 2026-11-15 (#136): other repos get only
+  `docs/agents/issue-tracker.md`, and no copy of the template.
+  `hooks/ticket-parts-selftest.py` runs check-repo on a repo copy, which
+  needs one commit and an `origin/main` ref. Trap: text a plugin skill
+  loads must be true in another repo. Three rounds each found one more
+  sentence true only here (housekeeping #141).
+- #146 (issue #132) adds the goal tracker skill, with a general public
+  copy of a private repo's sync code. Never push the older local branches
+  `feat/132-goal-tracker*`: they hold private detail. The map reader
+  accepts one strict line form and refuses the rest. Do not add YAML
+  forms back one at a time. Traps: `Path.read_text` turns a lone `\r`
+  into a line end, and a layer a crashed migration left unlinked was
+  missing from the state map.
+- #147 (issue #118) makes the handoff hook compare a repo's Start here
+  block and `scripts/lane_claim.py` with the plugin's copies. A failed
+  read always warns and never passes. Bad UTF-8 in the skill means "check
+  did not run", because a lenient decode would report drift that does
+  not exist. Four local repos warn today and need a migration of their
+  `docs/HANDOFF.md`: reimburse, sals-day-in-life-dryrun,
+  slack-task-tracker and twenty. #85 closed with it, and #48 is narrowed
+  to its `--demo` box.
+- Trap: the CI review gate can run before the verdict comment lands.
+  Post the verdict comment, then `gh run rerun <id> --failed`.
+- Trap: a plain git merge of `hooks/hooks.json` can leave two
+  `SessionStart` keys with no conflict marker. JSON keeps the last one,
+  and the other hook stops running with no error. Issue #58 adds a check.
+
 ### Next
 
 Open work is in the `lane` issues. List them with
