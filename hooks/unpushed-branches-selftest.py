@@ -26,7 +26,7 @@ import tempfile
 import time
 
 HOOK = str(pathlib.Path(__file__).with_name("unpushed-branches.py"))
-HEADING = "Local branches with commits no remote has and no open or merged PR:"
+HEADING = "Local branches with commits that no remote and no open or merged PR has:"
 GITHUB_URL = "https://github.com/t/t.git"
 GIT = shutil.which("git")
 failures = []

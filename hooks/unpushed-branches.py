@@ -35,7 +35,7 @@ from handoff_touch import git  # noqa: E402
 
 # EdSim: 1000 PRs took about 1s, so a lower limit could mark every branch "PR unknown".
 GH_TIMEOUT = 3
-HEADING = "Local branches with commits no remote has and no open or merged PR:"
+HEADING = "Local branches with commits that no remote and no open or merged PR has:"
 FAILED = "Could not check local branches for unpushed work: %s"
 TRUNKS = {"main", "master"}
 MAX_LINES = 10
