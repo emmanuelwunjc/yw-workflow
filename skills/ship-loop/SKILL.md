@@ -322,6 +322,9 @@ ticket, if the loop took three or more fix rounds (step 7).
   rather than work: `/yw-workflow:wayfinder` charts it first. This skill builds what is
   already decided.
 - A ticket is not agent-ready, or the goal is ambiguous: `/yw-workflow:grill` before step 1.
+- The backlog serves one goal with a target date and more than one part:
+  `/yw-workflow:goal-tracker` sets up a pinned issue whose progress bars
+  update with no hand edits.
 - Anyone else may be in the repo: `/yw-workflow:git-lanes` for step 2. It is the
   deep version of the rule stated there.
 - Step 4 is `/yw-workflow:fresh-eye`, always, and again on the fix. A round that

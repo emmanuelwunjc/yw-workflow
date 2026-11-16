@@ -7,6 +7,26 @@ moving tool version does not rot them.
 A decision is superseded, never deleted. Mark it with the date and what
 replaced it.
 
+## 2026-11-15: a general copy of the goal tracker code lives here
+
+Supports `skills/goal-tracker/` (#132). Owner decision after review round 1:
+copy the sync code into yw-workflow. The reason: yw-workflow is public and
+edsim-paper is private (`gh repo view <repo> --json visibility` printed
+`PUBLIC` and `PRIVATE` on 2026-11-15). A public reader could not open a link
+to the private code.
+
+The copy is general, and it is now the source that other repos copy:
+`skills/goal-tracker/tracker_sync.py`, `tracker.yml`, `tracker-layers.yml`,
+and the test `test_tracker_sync.py`. edsim-paper keeps its own copy. The
+two may differ on purpose: edsim-paper has paper words and its own tracker
+number, and the general copy has neither.
+
+No drift check. Public CI cannot read a private repo, so a check against
+edsim-paper cannot run there. CI runs the test through
+`hooks/goal-tracker-selftest.py`. It covers the pure functions of the script:
+the map file reader, the label pairs, finding the layers and the sync plan.
+It does not cover the GitHub calls.
+
 ## 2026-09-21: owner's calls before the build, sources before sentences, a Rounds line
 
 Supports `ship-loop` and `fresh-eye`. The owner read one day of review-loop
