@@ -1316,8 +1316,14 @@ Waits on the owner:
 
 ## 2026-11-16: handoff pass
 
-- #134 (issues #120, #121) has `pm`, `fresh-eye` and `ship-loop` start
-  both reviewers in each round, and count a defect both find once. The
+- #137 adds two questions to `fresh-eye` tier 1 briefs: what does a
+  check do when a read fails, and which side effects of the real tool
+  does a test stub leave out. Its next step closes in another repo, so
+  no lane here carries it.
+- #134 (issues #120, #121) has `pm` start both reviewers in each round
+  for a ticket that builds or fixes code. `fresh-eye` has the code-review
+  reviewer report `BLOCK n`, and `ship-loop` step 6 counts a defect both
+  reviewers find once. The
   Orca path has not yet run a code-review reviewer: the first Orca batch
   that builds code tests the subagent route in step 3. Trap: a documenter
   from the installed plugin 1.18.0 has no shell, so it cannot commit. Its
@@ -1333,7 +1339,8 @@ Waits on the owner:
   agent sandbox, `hooks/git-safety-guard-selftest.sh` fails 6 cases under
   the default `TMPDIR`. Set `TMPDIR` to the session scratchpad.
 - #143 (issue #130) puts the issue template and tracker doc in the
-  ship-loop four-part form, checked by `tools/check-repo.py`. Ship-loop
+  ship-loop four-part form. `tools/check-repo.py` checks that the
+  template headings match ship-loop step 1. Ship-loop
   step 1 now tells an agent in any repo to write the four parts as `## `
   headings. Owner decision 2026-11-15 (#136): other repos get only
   `docs/agents/issue-tracker.md`, and no copy of the template. The copy
@@ -1349,8 +1356,9 @@ Waits on the owner:
   public repo holds no issue numbers or details of the private repo. So
   before the first push of a branch here, check every commit, not only
   the tip, for private detail. Never push the older local branches
-  `feat/132-goal-tracker*`: they hold it. The map reader accepts one
-  strict line form and refuses the rest. Do not add YAML forms back one
+  `feat/132-goal-tracker*` other than the merged `-r4`: they hold it.
+  The map reader accepts a fixed set of strict line forms and refuses
+  the rest. Do not add YAML forms back one
   at a time. Traps: `Path.read_text` turns a lone `\r` into a line end, so
   the reader decodes bytes with `utf-8-sig` and splits on `\n` only. A
   layer a crashed migration left unlinked was missing from the state
