@@ -14,12 +14,15 @@ Checks, each one because something actually broke:
      since json.loads keeps the last and drops the rest without a word.
   3. Hook scripts are executable IN THE GIT INDEX. A hook that loses its exec
      bit fails silently at the exact moment it should block something.
+  3b. Every file in hooks/ with "selftest" in its name matches the glob CI
+     runs, read from ci.yml. A self-test outside it never runs in CI.
   4. Every command in hooks.json resolves to a file that exists.
   5. The plugin version differs from the last tag's, if there is one, because
      `claude plugin update` keys off the version and a stale one is
      uninstallable in place.
 """
 
+import fnmatch
 import importlib.util
 import json
 import pathlib
@@ -335,6 +338,22 @@ for line in listing:
     path = rest.split("\t", 1)[-1]
     if path.endswith((".py", ".sh")):
         check(path + " is executable", mode == "100755", "mode " + mode)
+
+# 3b. CI finds the self-tests by a glob, so a self-test named outside it never
+# runs in CI and nothing says so (yw-workflow #128: three split files named
+# context-handoff-selftest-<topic>.py held 130 cases that ran locally and
+# never in CI).
+# The glob is read from ci.yml, so this check and CI cannot disagree.
+print("every self-test matches the CI glob")
+ci = (ROOT / ".github" / "workflows" / "ci.yml").read_text()
+ci_glob = re.search(r"for t in \./(hooks/\S+);", ci)
+check("ci.yml has the self-test loop 'for t in ./hooks/<glob>;'", bool(ci_glob))
+if ci_glob:
+    for line in listing:
+        path = line.split("\t", 1)[-1]
+        if "selftest" in path.split("/")[-1]:
+            check("%s matches CI glob %s" % (path, ci_glob.group(1)),
+                  fnmatch.fnmatch(path, ci_glob.group(1)))
 
 # 4. every wired command points at something real
 print("hooks.json commands resolve")
