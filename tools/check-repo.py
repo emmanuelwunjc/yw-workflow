@@ -287,6 +287,21 @@ blurb_counts &= ({str(k) for k in WORDS} | set(WORDS.values()))
 check("marketplace.json states the right count, if it states one",
       not (blurb_counts - right), "found: " + ", ".join(sorted(blurb_counts)))
 
+# 1e. The issue template and ship-loop step 1 name the ticket parts twice, so
+# they drift apart unless something compares them (yw-workflow #130).
+print("ticket template agrees with ship-loop step 1")
+spec = importlib.util.spec_from_file_location(
+    "ticket_parts", ROOT / "tools" / "ticket_parts.py")
+ticket_parts = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(ticket_parts)
+tmpl_path = ROOT / ticket_parts.TEMPLATE
+check(ticket_parts.TEMPLATE + " exists", tmpl_path.exists())
+part_problems = ticket_parts.problems(
+    tmpl_path.read_text() if tmpl_path.exists() else "",
+    (ROOT / ticket_parts.SHIP_LOOP).read_text())
+check("template headings and ship-loop step 1 bullets name the same parts",
+      not part_problems, "; ".join(part_problems))
+
 # 2. manifests parse
 print("manifests")
 for rel in (".claude-plugin/marketplace.json", ".claude-plugin/plugin.json",

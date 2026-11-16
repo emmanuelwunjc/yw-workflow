@@ -850,3 +850,31 @@ Recount the rounds:
 gh pr view 184 -R georgetown-mdi-gates4/edsim-paper --json body --jq .body | grep ^Rounds:
 gh pr view 193 -R georgetown-mdi-gates4/edsim-paper --json body --jq .body | grep ^Rounds:
 ```
+
+## 2026-11-15: other repos get the tracker doc, and no copy of the ticket template
+
+Supports `ship-loop`. Decided by the owner in the review of #130 (see the
+owner comment on #136). Issue #130 added `.github/ISSUE_TEMPLATE/ticket.md`
+in this repo. Other repos get only `docs/agents/issue-tracker.md`. That file
+points at ship-loop step 1 in the plugin. Other repos get no copy of the
+template.
+
+Why:
+
+1. A copy drifts from ship-loop step 1. `tools/check-repo.py` compares the
+   template with step 1 only in this repo, so nothing would catch a stale
+   copy elsewhere.
+2. An agent that runs `gh issue create --body` never sees a template. It
+   reads `docs/agents/issue-tracker.md`, so that file is the one that has to
+   be in each repo.
+3. Ship-loop step 1 loads in every repo that runs the ship loop, because it
+   is part of the plugin. So one source serves all repos.
+
+The cost: the GitHub web form in another repo shows no ticket template. A
+person who opens a ticket there by hand writes the four parts without it.
+
+The template stays here, because this repo can check it.
+
+Not done here: the step that puts `docs/agents/issue-tracker.md` into
+another repo. It goes into the repo-setup skill after lane #97 merges,
+because #97 deletes `skills/harden`.
