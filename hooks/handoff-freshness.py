@@ -53,27 +53,10 @@ when ALL of these hold:
   - the handoff was not modified in the working tree either
 
 A second check runs on the same Stop whenever the cwd is a git repo, whatever
-the commit count. The owner decided on 2026-09-16 that pointing a fresh agent
-at docs/HANDOFF.md is the whole prompt. Since 2026-11-10 its Start here
-block sends the session on to one open `lane` issue. That only works if the
-file has the shape skills/handoff/SKILL.md describes. So it warns when:
-  - docs/HANDOFF.md exists and has no "## Start here" line
-  - its first 40 lines still carry the old "end of a session" preamble, which
-    told the reader the file was written at close and contradicts the block
-  - it has the block, and the block lacks a command line that runs
-    `gh issue list --label lane` within the first 40 lines of the file. The
-    block runs from the `## Start here` line to the next `## ` heading. Or a
-    numbered step of the block opens with "Read the LAST section". Both are
-    the block before 2026-11-10, which gave every session the same first
-    task, so two sessions on two lanes both took one. Offline by design: the
-    hook reads the file only.
-  - a file named like a handoff (HANDOFF.md, AGENT_HANDOFF.md, *handoff*.md,
-    any case) is tracked anywhere outside docs/, because two handoffs means
-    the next session reads the wrong one
-  - the block runs scripts/lane_claim.py and the repo top has no such file,
-    so every claim would fail. The warning prints the command that copies it
-    from this plugin to the repo top. A copy that git does not track warns
-    too, because a fresh clone would not have it.
+the commit count: the shape check in handoff_shape.py. It warns when the
+file lacks the Start here block, when that block or scripts/lane_claim.py
+differs from the plugin's current copy (issue #118), and on a few other
+shape problems that module lists.
 
 The same script runs on SessionStart (issue #117), for a new session or a
 /clear only. There it runs only the shape check, offline, and never the
@@ -89,13 +72,13 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import subprocess
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 try:
     from handoff_touch import HANDOFF, git, touched_since
+    from handoff_shape import START_HERE, shape_problems
 except Exception:  # a missing or broken helper: no check, and never a crash
     sys.exit(0)
 
@@ -118,19 +101,6 @@ STOP_RULE = ("Write a lane body only with `scripts/lane_claim.py write` or "
 EXIT_RULE = ("Any other exit, e.g. no `scripts/lane_claim.py` or a failed "
              "`gh`: change nothing, stop, and tell the owner.")
 
-START_HERE = "## Start here"
-OLD_PREAMBLE = ("end of a session", "end of the session")
-PREAMBLE_LINES = 40
-LANE_LIST = "gh issue list --label lane"
-# The block runs this script. A repo copies it from the plugin (review round 8).
-LANE_SCRIPT = "scripts/lane_claim.py"
-PLUGIN_SCRIPT = os.path.join(os.path.dirname(os.path.dirname(
-    os.path.abspath(__file__))), "skills", "handoff", "lane_claim.py")
-# a command line, maybe in backticks, for exactly the label `lane`
-LANE_CMD = re.compile(r"^\s*`?gh issue list --label lane(?![\w-])")
-ANY_LIST = re.compile(r"gh issue list --label ([^\s`']+)")
-LANE_WORD = re.compile(r"--label lane(?![\w-])")
-OLD_STEP = re.compile(r"^\s*\d+\.\s+read the last section", re.I)
 SHAPE_HELP = ("The shape, with the block to paste, is in the yw-workflow skill "
               "skills/handoff (invoke /yw-workflow:handoff).")
 # Added at SessionStart, so an old repo migrates before its first lane claim.
@@ -150,110 +120,6 @@ def is_ancestor(a: str, b: str) -> bool:
                               capture_output=True, timeout=15).returncode == 0
     except Exception:
         return False
-
-
-def block_lines(lines: list[str]) -> list[tuple[int, str]]:
-    """(1-based number, line) from the Start here line to the next `## `
-    heading. Empty when the file has no block."""
-    start = next((i for i, ln in enumerate(lines) if ln.strip() == START_HERE), None)
-    if start is None:
-        return []
-    end = next((i for i in range(start + 1, len(lines))
-                if lines[i].startswith("## ")), len(lines))
-    return list(enumerate(lines[start + 1:end], start + 2))
-
-
-def script_problems(top: str, lines: list[str]) -> list[str]:
-    """The block runs scripts/lane_claim.py, so the repo must have it, at its
-    top and tracked, since a fresh clone or a cloud routine has only what git
-    tracks."""
-    if not any(LANE_SCRIPT in ln for _, ln in block_lines(lines)):
-        return []
-    target = os.path.join(top, LANE_SCRIPT)
-    if not os.path.isfile(target):
-        return [f"{HANDOFF}'s `{START_HERE}` block runs {LANE_SCRIPT}, and "
-                f"this repo has no {LANE_SCRIPT}, so every lane claim fails. "
-                f"Copy it from the plugin and commit it:\n"
-                f"  mkdir -p '{os.path.dirname(target)}' && "
-                f"cp '{PLUGIN_SCRIPT}' '{target}'"]
-    if not git("-C", top, "ls-files", "--", LANE_SCRIPT).strip():
-        return [f"{LANE_SCRIPT} is not tracked, so a fresh clone or a cloud "
-                f"routine has no copy and every lane claim there fails. "
-                f"Commit it:\n  git -C '{top}' add {LANE_SCRIPT}"]
-    return []
-
-
-def lane_problems(lines: list[str]) -> list[str]:
-    """The Start here block must list the open `lane` issues. Silent when the
-    file has no block, which the missing-block warning already covers."""
-    if not any(ln.strip() == START_HERE for ln in lines):
-        return []
-    section = block_lines(lines)
-    fix = (f"Paste the current block, whose step runs `{LANE_LIST}` so each "
-           f"session claims one open lane.")
-    problems = []
-    hits = [n for n, ln in section if LANE_CMD.match(ln)]
-    if hits and hits[0] > PREAMBLE_LINES:
-        why = (f"runs `{LANE_LIST}` at line {hits[0]}, past line {PREAMBLE_LINES}, "
-               f"where a fresh session may stop reading.")
-    elif hits:
-        why = ""
-    elif any(LANE_CMD.match(ln) for ln in lines):
-        why = (f"has `{LANE_LIST}` in the file, but outside its `{START_HERE}` "
-               f"section, so the block never tells a session to run it.")
-    elif other := [m.group(1) for _, ln in section
-                   for m in ANY_LIST.finditer(ln) if m.group(1) != "lane"]:
-        why = f"asks for label `{other[0]}` where the lane list needs `lane`."
-    elif any(LANE_WORD.search(ln) for _, ln in section):
-        why = (f"says `--label lane` only in prose, with no command line that "
-               f"runs `{LANE_LIST}`.")
-    else:
-        why = (f"has no line that runs `{LANE_LIST}`. That is the block before "
-               f"2026-11-10, which gave every session one first task.")
-    if why:
-        problems.append(f"{HANDOFF}'s `{START_HERE}` block {why} {fix}")
-    old = next((n for n, ln in section if OLD_STEP.match(ln)), None)
-    if old:
-        problems.append(
-            f"{HANDOFF}'s `{START_HERE}` block, line {old}, opens a step with "
-            f"\"Read the LAST section\". That sends every session to the LAST "
-            f"section, so two sessions take the same first task. {fix}")
-    return problems
-
-
-def shape_problems(top: str) -> list[str]:
-    """Each string is one warning; empty means the handoff has the right shape."""
-    problems = []
-    handoff = os.path.join(top, HANDOFF)
-    if os.path.isfile(handoff):
-        try:
-            with open(handoff, encoding="utf-8", errors="replace") as fh:
-                lines = fh.read().splitlines()
-        except OSError:
-            lines = []
-        if not any(ln.strip() == START_HERE for ln in lines):
-            problems.append(
-                f"{HANDOFF} has no `{START_HERE}` line. A fresh session starts from "
-                f"that block, which sends it to one open `lane` issue, so paste "
-                f"the Start here block at the top, above everything else.")
-        problems += lane_problems(lines) + script_problems(top, lines)
-        head = "\n".join(lines[:PREAMBLE_LINES]).lower()
-        hit = next((p for p in OLD_PREAMBLE if p in head), None)
-        if hit:
-            problems.append(
-                f"{HANDOFF} still says \"{hit}\" in its first {PREAMBLE_LINES} "
-                f"lines. That preamble told the reader the file was written at "
-                f"close; the file is written as work happens. Delete it.")
-    tracked = git("-C", top, "ls-files", "-z").split("\0")
-    stray = [f for f in tracked
-             if "handoff" in os.path.basename(f).lower()
-             and f.lower().endswith(".md")
-             and not f.startswith("docs/")]
-    if stray:
-        problems.append(
-            f"handoff-named files tracked outside docs/: {', '.join(sorted(stray))}. "
-            f"The one handoff lives at {HANDOFF}. Fold these into it and delete them.")
-    return problems
 
 
 def trunks() -> set[str]:
