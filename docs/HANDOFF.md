@@ -1314,6 +1314,71 @@ Waits on the owner:
   several clones. Make the reviewer worktree by hand with
   `git worktree add --detach`.
 
+## 2026-11-16: handoff pass
+
+- #137 adds two questions to `fresh-eye` tier 1 briefs: what does a
+  check do when a read fails, and which side effects of the real tool
+  does a test stub leave out. Its next step closes in another repo, so
+  no lane here carries it.
+- #134 (issues #120, #121) has `pm` start both reviewers in each round
+  for a ticket that builds or fixes code. `fresh-eye` has the code-review
+  reviewer report `BLOCK n`, and `ship-loop` step 6 counts a defect both
+  reviewers find once. The
+  Orca path has not yet run a code-review reviewer: the first Orca batch
+  that builds code tests the subagent route in step 3. Trap: a documenter
+  from the installed plugin 1.18.0 has no shell, so it cannot commit. Its
+  edits were copied into a fixer's worktree.
+- #138 (issue #109) makes `hooks/no-ai-attribution.py` read commit
+  message files. Only the "CI gate" section of `docs/HOOKS.md` says what
+  CI scans. Hook docstrings and hook rows point there. Keep it that way:
+  every round that put a CI claim elsewhere found it wrong. Direction
+  changed twice: after round 3 the hook stopped parsing shell forms and
+  relies on the CI scan for the rest, and after round 6 the hook row
+  stopped making a CI claim. The pattern (a sentence says more than its
+  source) is housekeeping #102, which records this case. Trap: in an
+  agent sandbox, `hooks/git-safety-guard-selftest.sh` fails 6 cases under
+  the default `TMPDIR`. Set `TMPDIR` to the session scratchpad.
+- #143 (issue #130) puts the issue template and tracker doc in the
+  ship-loop four-part form. `tools/check-repo.py` checks that the
+  template headings match ship-loop step 1. Ship-loop
+  step 1 now tells an agent in any repo to write the four parts as `## `
+  headings. Owner decision 2026-11-15 (#136): other repos get only
+  `docs/agents/issue-tracker.md`, and no copy of the template. The copy
+  step is #136, after lane #97. `hooks/ticket-parts-selftest.py` runs
+  check-repo on a repo copy, which needs one commit and an `origin/main`
+  ref. `tools/check-repo.py` is over the size limit
+  (`wc -l tools/check-repo.py`): cut it in a task that restructures the
+  file (lane #47). Trap: text a plugin skill loads must be true in
+  another repo. Three rounds each found one more sentence true only here
+  (housekeeping #141).
+- #146 (issue #132) adds the goal tracker skill, with a general public
+  copy of a private repo's sync code. Owner decision 2026-11-15: this
+  public repo holds no issue numbers or details of the private repo. So
+  before the first push of a branch here, check every commit, not only
+  the tip, for private detail. Never push the older local branches
+  `feat/132-goal-tracker*` other than the merged `-r4`: they hold it.
+  The map reader accepts a fixed set of strict line forms and refuses
+  the rest. Do not add YAML forms back one
+  at a time. Traps: `Path.read_text` turns a lone `\r` into a line end, so
+  the reader decodes bytes with `utf-8-sig` and splits on `\n` only. A
+  layer a crashed migration left unlinked was missing from the state
+  map, so `--migrate` crashed: layer states now also come from the
+  labeled issues.
+- #147 (issue #118) makes the handoff hook compare a repo's Start here
+  block and `scripts/lane_claim.py` with the plugin's copies. A failed
+  read always warns and never passes. Bad UTF-8 in the skill means "check
+  did not run", because a lenient decode would report drift that does
+  not exist. Local repos whose `docs/HANDOFF.md` predates it warn at
+  session start and need a migration (lane #47). To see which, start a
+  session in each repo. #85 closed with it, and #48 is narrowed to its
+  `--demo` box.
+- Trap: the CI review gate can run before the verdict comment lands.
+  Post the verdict comment, then `gh run rerun <id> --failed`.
+- Trap: a plain git merge of `hooks/hooks.json` can leave two
+  `SessionStart` keys with no conflict marker. JSON keeps the last one,
+  and the other hook stops running with no error. The open branch for
+  issue #58 adds a check-repo check for it.
+
 ### Next
 
 Open work is in the `lane` issues. List them with
