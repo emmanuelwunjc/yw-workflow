@@ -5,6 +5,8 @@ Each case feeds a snapshot of the tracker to a pure function and asserts the
 exact API calls. No network. The issue numbers are made up for the cases.
 hooks/goal-tracker-selftest.py runs this file, so CI runs it too.
 """
+import contextlib
+import io
 import sys
 import tempfile
 from pathlib import Path
@@ -209,6 +211,27 @@ def test_migration_reuses_attaches_or_creates_each_layer():
     assert create == ["slice:tests", "slice:release", "slice:tooling"], create
 
 
+def test_orphan_layer_found_by_the_migration_goes_through_sync():
+    # A crashed run made layer 206 and did not link it. The tracker's children,
+    # read before the link, do not hold it, so its state comes from the labeled issues.
+    orphan = issue(206, ["slice:docs"], "closed", "Layer: Docs")
+    work = issue(301, ["slice:docs"])
+    kids = [layer_issue(lb) for lb in LAYERS if lb != "slice:docs"]
+    issues = [orphan, work] + filler_issues(202)
+    layers, links, _ = tracker_sync.plan_layers(CONFIG, kids, issues, TRACKER)
+    made = []
+    saved = tracker_sync.children_of, tracker_sync.run
+    tracker_sync.children_of = lambda repo, n: [i for i in issues if i["number"] == 500 + n]
+    tracker_sync.run = lambda repo, call, dry_run, note="": made.append(call)
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            tracker_sync.sync("o/r", CONFIG, TRACKER, layers, kids, issues, True)
+    finally:
+        tracker_sync.children_of, tracker_sync.run = saved
+    assert links == [add(TRACKER, 206)], links
+    assert made == [add(206, 301), state(206, "open")], made
+
+
 def test_label_pairs_parse_and_reject_unknown_labels():
     assert tracker_sync.parse_label_pairs(["301=slice:tooling", "302=slice:docs"], CONFIG) == {
         301: "slice:tooling", 302: "slice:docs"}
@@ -239,45 +262,6 @@ def test_template_as_shipped_has_no_tracker_number():
         raise AssertionError("the template must refuse to run until tracker: is set")
 
 
-def test_tracker_that_is_no_positive_number_is_refused():
-    for value in ("0", "-3", "abc"):
-        try:
-            tracker_sync.load_config(map_file(f'tracker: {value}\n"slice:core": "Layer: Core"\n'))
-        except ValueError as err:
-            assert "tracker" in str(err), err
-        else:
-            raise AssertionError(f"tracker: {value} must raise ValueError")
-
-
-def test_map_file_reads_one_pair_per_line_and_ignores_nesting():
-    text = ('tracker: 12\nlayers:\n  "slice:core": "Layer: Core"\n'
-            '    slice:release-notes: Layer: Release notes\n')
-    tracker, config = tracker_sync.load_config(map_file(text))
-    assert tracker == 12, tracker
-    assert config == {"slice:core": "Layer: Core",
-                      "slice:release-notes": "Layer: Release notes"}, config
-
-
-def test_a_key_with_no_value_never_takes_the_next_line():
-    tracker, config = tracker_sync.load_config(
-        map_file("tracker: 5\nslice:core:\nslice:docs: Layer: Docs\n"))
-    assert config == {"slice:docs": "Layer: Docs"}, config
-
-
-def test_map_file_reads_single_quotes():
-    tracker, config = tracker_sync.load_config(
-        map_file("tracker: '12'\n'slice:core': 'Layer: Core'\n"))
-    assert (tracker, config) == (12, {"slice:core": "Layer: Core"}), (tracker, config)
-
-
-def test_map_file_reads_a_trailing_comment():
-    tracker, config = tracker_sync.load_config(
-        map_file('tracker: 12  # the top issue\n"slice:core": "Layer: Core" # first\n'
-                 "slice:docs: Layer: Docs  # second\n"))
-    assert tracker == 12, tracker
-    assert config == {"slice:core": "Layer: Core", "slice:docs": "Layer: Docs"}, config
-
-
 def expect_map_error(text, *words):
     try:
         tracker_sync.load_config(map_file(text))
@@ -287,14 +271,72 @@ def expect_map_error(text, *words):
         raise AssertionError(f"{text!r} must raise ValueError")
 
 
-def test_map_line_that_does_not_parse_stops_with_the_line():
-    expect_map_error('tracker: 12\n"slice:core: "Layer: Core"\n', '"slice:core: "Layer: Core"')
-    expect_map_error("tracker: 12\n- slice:core\n", "- slice:core")
-    expect_map_error("tracker: 12\n'slice:core': \"Layer: Core'\n", "\"Layer: Core'")
+HEAD = "tracker: 12\nlayers:\n"
+ACCEPTED = 'each layer as "slice:<part>": "<title>" in double quotes'
 
 
-def test_map_key_with_no_slice_prefix_stops_with_the_line():
-    expect_map_error('tracker: 12\n"core": "Layer: Core"\n', '"core": "Layer: Core"', "slice:")
+def test_map_file_reads_the_strict_form():
+    text = ("# the map\n\ntracker: 12\n   # a comment\nlayers:\n"
+            '  "slice:core": "Layer: Core"\n\n  "slice:release-2": "Layer: Release: 2"\n')
+    assert tracker_sync.load_config(map_file(text)) == (
+        12, {"slice:core": "Layer: Core", "slice:release-2": "Layer: Release: 2"})
+
+
+def test_map_file_strips_a_bom_and_crlf():
+    text = '\ufefftracker: 12\r\nlayers:\r\n  "slice:core": "Layer: Core"\r\n'
+    assert tracker_sync.load_config(map_file(text)) == (12, {"slice:core": "Layer: Core"})
+
+
+def test_layer_line_in_any_other_form_stops_with_its_number_and_the_accepted_form():
+    refused = {
+        "single quotes": "  'slice:core': 'Layer: Core'",
+        "unquoted value": '  "slice:core": Layer: Core',
+        "unquoted key": '  slice:core: "Layer: Core"',
+        "trailing comment": '  "slice:core": "Layer: Core"  # first',
+        "trailing space": '  "slice:core": "Layer: Core" ',
+        "key with no value": '  "slice:core":',
+        "upper-case key": '  "slice:Core": "Layer: Core"',
+        "key without slice:": '  "core": "Layer: Core"',
+        "quote in the title": '  "slice:core": "Layer: \\"Core\\""',
+        "backslash in the title": '  "slice:core": "Layer: C\\\\"',
+        "empty title": '  "slice:core": ""',
+        "other indentation": '    "slice:core": "Layer: Core"',
+        "list item": "  - slice:core",
+        "stray carriage return": '  "slice:core": "Layer:\rCore"',
+    }
+    for case, line in refused.items():
+        try:
+            expect_map_error(HEAD + line + "\n", "line 3:", f"cannot read {line!r}", ACCEPTED)
+        except AssertionError as err:
+            raise AssertionError(f"{case}: {err}") from err
+
+
+def test_tracker_line_in_any_other_form_stops_with_its_number():
+    # tracker: alone is how the template ships, so it refuses to run until set.
+    for line in ("tracker:", "tracker: 0", "tracker: -3", "tracker: abc", "tracker: '12'",
+                 "tracker: 12  # top", "Tracker: 12", "  tracker: 12", "tracker: 012"):
+        expect_map_error(line + '\nlayers:\n  "slice:core": "Layer: Core"\n',
+                         "line 1:", f"cannot read {line!r}", "tracker: <number")
+
+
+def test_heading_line_in_any_other_form_is_refused():
+    for line in ("layers: ", "Layers:", "  layers:", "layers: {}", "slices:"):
+        expect_map_error(f"tracker: 12\n{line}\n", "line 2:", f"cannot read {line!r}")
+
+
+def test_layer_line_before_the_layers_heading_is_refused():
+    expect_map_error('tracker: 12\n  "slice:core": "Layer: Core"\n', "line 2:", ACCEPTED)
+    expect_map_error('layers:\ntracker: 12\n  "slice:core": "Layer: Core"\n', "line 3:")
+
+
+def test_duplicate_key_names_both_lines():
+    expect_map_error(HEAD + '  "slice:core": "Layer: Core"\n  "slice:core": "Layer: Two"\n',
+                     "line 4:", "line 3", "slice:core")
+    expect_map_error(HEAD + "tracker: 13\n", "line 3:", "line 1", "tracker")
+
+
+def test_map_file_with_no_tracker_line_is_refused():
+    expect_map_error('layers:\n  "slice:core": "Layer: Core"\n', "tracker: <number")
 
 
 def test_missing_map_file_stops_with_a_clear_message():

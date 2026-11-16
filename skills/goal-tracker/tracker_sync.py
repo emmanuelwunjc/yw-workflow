@@ -51,9 +51,14 @@ import sys
 from pathlib import Path
 
 DEFAULT_CONFIG = Path(".github/tracker-layers.yml")
-# One `key: value` pair per line, matched line by line. Indentation is ignored.
-# Key and value may be in single or double quotes. A trailing # comment is dropped.
-ENTRY = re.compile(r"""[ \t]*(["']?)([\w:-]+)\1:[ \t]*(?:(["'])(.*?)\3|([^"'#\s].*?))?[ \t]*(?:#.*)?""")
+# The map file is read line by line, in exactly these forms, and any other line
+# stops the script. It never guesses at YAML. A blank line or a # comment line
+# is skipped. A leading BOM and a \r before each line end are removed.
+TRACKER_LINE = re.compile(r"tracker: ([1-9][0-9]*)")
+HEADING_LINE = "layers:"
+LAYER_LINE = re.compile(r'  "(slice:[a-z0-9-]+)": "([^"\\\x00-\x1f\x7f]+)"')
+ACCEPTED = ('Write tracker: <number of the top issue>, then layers:, then each layer as '
+            '"slice:<part>": "<title>" in double quotes, indented two spaces.')
 SLICE = "slice:"
 
 
@@ -63,33 +68,37 @@ def slices_of(labels):
 
 
 def load_config(path):
-    """Return (tracker number, {slice label in lower case: layer title}) from the yml.
+    """Return (tracker number, {slice label: layer title}) from the map file.
 
-    A line with a key and no value is a heading, e.g. `layers:`, and is skipped.
-    Raises ValueError for a missing file, a line that does not parse, a key that
-    is neither tracker nor slice:<part>, or a tracker: that is not a positive number.
+    Raises ValueError for a missing file, a line in any form but the accepted
+    ones (see ACCEPTED), a key given twice, or no tracker line.
     """
     try:
-        text = Path(path).read_text(encoding="utf-8")
+        text = Path(path).read_bytes().decode("utf-8-sig")  # drops a BOM, keeps each \r
     except OSError as err:
         raise ValueError(f"{path}: cannot read the map file ({err.strerror}).") from err
-    entries = {}
-    for line in text.splitlines():
+    tracker, entries, seen, in_layers = None, {}, {}, False
+    for number, line in enumerate(text.split("\n"), 1):
+        line = line.removesuffix("\r")
         if not line.strip() or line.lstrip().startswith("#"):
             continue
-        match = ENTRY.fullmatch(line)
-        if not match:
-            raise ValueError(f"{path}: cannot read this line as `key: value`: {line}")
-        key, value = match[2].lower(), match[4] or match[5] or ""
-        if value and key != "tracker" and not key.startswith(SLICE):
-            raise ValueError(f"{path}: give each key as tracker or slice:<part>: {line}")
-        if value:
-            entries[key] = value
-    raw = entries.pop("tracker", "")
-    if not raw.isdigit() or int(raw) < 1:
-        raise ValueError(f"{path}: set tracker: to the issue number of the top issue "
-                         f"(it is {raw!r}).")
-    return int(raw), entries
+        tracker_match, layer_match = TRACKER_LINE.fullmatch(line), LAYER_LINE.fullmatch(line)
+        if tracker_match:
+            key, tracker, in_layers = "tracker", int(tracker_match[1]), False
+        elif line == HEADING_LINE:
+            key, in_layers = HEADING_LINE, True
+        elif layer_match and in_layers:
+            key = layer_match[1]
+            entries[key] = layer_match[2]
+        else:
+            raise ValueError(f"{path} line {number}: cannot read {line!r}. {ACCEPTED}")
+        if key in seen:
+            raise ValueError(f"{path} line {number}: {key} is already on line {seen[key]}. "
+                             "Keep one.")
+        seen[key] = number
+    if tracker is None:
+        raise ValueError(f"{path}: no tracker line. {ACCEPTED}")
+    return tracker, entries
 
 
 def one_per_title(issues, title):
@@ -246,7 +255,9 @@ def labeled_issues(repo, config):
 
 
 def sync(repo, config, tracker, layers, tracker_kids, issues, dry_run, new=()):
-    states = {k["number"]: k["state"] for k in tracker_kids}
+    # A layer is a child of the tracker, an orphan the migration found among the
+    # labeled issues, or new. tracker_kids is read before the orphans are linked.
+    states = {k["number"]: k["state"] for k in [*issues, *tracker_kids]}
     states.update({layer: "open" for layer in new})
     children = {layer: children_of(repo, layer) for layer in layers.values()}
     children[tracker] = tracker_kids

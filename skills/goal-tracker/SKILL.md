@@ -105,9 +105,9 @@ So a part nested under a part is lost from every bar above its parent. #81
 gives the second cause of the rebuilds: with the parts nested, "The bar
 showed 11 parts and hid the 17 nested ones".
 
-Layers answer this with two levels only: top issue, then layers, then work
+Layers answer this with three levels only: top issue, then layers, then work
 issues. The top bar counts the layers. Each layer has its own bar over its
-work issues. Never put a third level under a layer.
+work issues. Never add a fourth level.
 
 The top bar moves only when a whole layer closes. So it can show no progress
 while many work issues inside the layers are closed. Read the layer lines of
@@ -124,8 +124,9 @@ description as the body of the new layer issue.
 
     gh label create slice:docs --force --description "The user docs"
 
-The script skips an issue with two `slice:` labels and prints a warning. An
-issue with no `slice:` label stays directly under the top issue.
+The script skips an issue with two `slice:` labels and prints a warning. It
+moves an issue with no `slice:` label out of a layer, back under the top
+issue. It lists each such issue under the top issue, with the flag to label it.
 
 ### 6. The label-to-layer map
 
@@ -134,8 +135,11 @@ Set `tracker:` to the top issue's number. The script refuses to run while it
 is empty. Then write one line per label, with the title of its layer. The map
 holds no layer numbers, so the migration can run again safely.
 
-The script reads one `key: value` pair per line and ignores indentation. So
-the `layers:` line is only a heading for a reader, and nesting has no meaning.
+The script reads only the forms in the template: `tracker: <number>`, the
+`layers:` line, and each layer as `"slice:<part>": "<title>"` in double
+quotes, indented two spaces. `<part>` is lower-case letters, digits and `-`.
+A title holds no `"` and no backslash. Comment and blank lines are skipped.
+Any other line, or a key given twice, stops the script with its line number.
 
 ### 7. The sync script, and the optional workflow
 

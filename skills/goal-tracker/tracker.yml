@@ -2,8 +2,8 @@
 # run `python3 tools/tracker_sync.py --sync` by hand.
 # Copy it to .github/workflows/tracker.yml. Ask the owner first: it spends
 # Actions minutes on each of the five issue events below.
-# The logic and its cases: tools/tracker_sync.py. The label -> layer map:
-# .github/tracker-layers.yml.
+# The logic: tools/tracker_sync.py. Its cases stay in skills/goal-tracker/ of
+# yw-workflow. The label -> layer map: .github/tracker-layers.yml.
 name: tracker
 
 on:
