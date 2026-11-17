@@ -93,8 +93,8 @@ VERDICT_LINE = re.compile(r"verdict\s*:", re.IGNORECASE)
 #
 # `pass` and `block` were the fourth instance of the same vocabulary gap, found
 # 2026-09-02 merging office-weather-bot #1 and #3. The fresh-eye skill tells its
-# reviewers to open with exactly one word, `PASS`, `BLOCK` or `REVIEW`, and this
-# hook knew none of them. Nine independent adversarial review rounds across two
+# reviewers to open with one decision line, `PASS`, `BLOCK n` or `REVIEW n`
+# (n is the count of blocking findings), and this hook knew none of them. Nine independent adversarial review rounds across two
 # PRs, every verdict posted as a comment, and the gate still read them as no
 # review, so the only way to merge was SKIP_REVIEW_GATE=1 three times in one
 # session. A gate that a real review cannot satisfy trains you to disable it.
