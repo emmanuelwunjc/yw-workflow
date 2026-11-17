@@ -49,12 +49,13 @@ flowchart LR
         grill[grill]:::yw
         way[wayfinder]:::yw
         dm[domain-modeling]:::matt
+        tt[to-tickets]:::matt
     end
     subgraph S3 [3 Ship one ticket: ship-loop]
         direction TB
         ticket([ticket]):::start
         lanes[git-lanes]:::yw
-        build[tdd<br/>diagnosing-bugs for a bug]:::matt
+        build[tdd<br/>diagnosing-bugs for a bug<br/>implement, implement-spec]:::matt
         review[fresh-eye<br/>+ code-review]:::both
         fixer([fixer agent]):::start
         merge([PR and merge]):::start
@@ -72,6 +73,7 @@ flowchart LR
     grill -->|domain term| dm
     grill -->|one session| ticket
     way -->|map done| ticket
+    tt -->|draft| ticket
     bug --> ticket
     merge --> handoff
     handoff -->|next session| lanes
@@ -89,7 +91,8 @@ How to read it, one stage at a time:
    one session goes straight to `ship-loop`. Work too big for one session goes
    to `wayfinder`, which maps it as decision tickets and hands the finished map
    to `ship-loop`. A domain term goes to `domain-modeling`, which writes it to
-   `GLOSSARY.md`. Decisions stay in the handoff notes or
+   `GLOSSARY.md`. A ticket from `to-tickets` is a draft, and `ship-loop`
+   step 1 adds the parts it lacks. Decisions stay in the handoff notes or
    `docs/DECISIONS.md`. The model cannot call
    the yw `wayfinder`, so type `/yw-workflow:wayfinder`. Open ticket
    [#45](https://github.com/emmanuelwunjc/yw-workflow/issues/45) will replace
@@ -97,7 +100,9 @@ How to read it, one stage at a time:
 3. **Ship one ticket.** `ship-loop` runs each ticket around one loop.
    `git-lanes` gives the agent its own worktree when others may share the repo.
    A change to behavior is written test first with `tdd`. A bug starts with
-   `diagnosing-bugs`, which finds one command that fails first. `fresh-eye`
+   `diagnosing-bugs`, which finds one command that fails first. `implement`
+   and `implement-spec` may write the code, but their own review is a
+   self-check. `fresh-eye`
    sends a reviewer who did not write the change. For a change that assembles or
    corrects code, a second reviewer runs `code-review` beside it on the first
    round, when it is installed. A loop stops at four rounds.
@@ -122,6 +127,7 @@ Skills for any stage:
 | `wait-what` | matt | The last message did not land. |
 | `domain-modeling` | matt | A term needs one meaning in `GLOSSARY.md`. |
 | `prototype` | matt | A question needs code to answer it. |
+| `retro` | matt | A session needs a look back. `ship-loop` step 7 says where each finding goes. |
 
 ## Skills
 
