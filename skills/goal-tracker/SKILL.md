@@ -1,6 +1,6 @@
 ---
 name: goal-tracker
-description: Set up a pinned goal tracker issue whose progress bars update with no hand edits, from layer sub-issues, one slice label per work issue, and a sync script. Use when the owner asks for a "north star tracker", a "pinned tracker", a "progress bar issue", a "goal tracker", or to "track a project to done", or when a backlog serves one goal with a target date and more than one part.
+description: Set up a pinned goal tracker issue whose progress bars update with no hand edits, from layer sub-issues, one slice label per work issue, and a sync script. Use when the owner asks for a "north star tracker", a "pinned tracker", a "progress bar issue", a "goal tracker", to "track a project to done", to "make this issue a tracker", or to follow the "tracker style", or when a backlog serves one goal with a target date and more than one part.
 origin: authored
 tags: [github-issues, tracker, sub-issues, progress, planning]
 version: 1.0.0

@@ -47,6 +47,10 @@ shows which lane is taken.
 Issue edits cost no CI minutes unless a workflow runs `on: issues`, and
 every machine and cloud routine can read them.
 
+A `lane` issue tells the next session what to do. The progress view of a
+goal is the goal tracker of skill `goal-tracker`. A request about "the
+tracker" or its "style" goes to that skill.
+
 ## The top of the file
 
 Paste this block verbatim at the top of `docs/HANDOFF.md`, above everything
