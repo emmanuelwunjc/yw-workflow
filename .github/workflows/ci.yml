@@ -35,12 +35,13 @@ jobs:
       # A squash-merge body set at merge time (gh pr merge --body, --body-file,
       # or the web UI) is written after the PR checks ran, so they never see it
       # (#135). This scan runs after the text is on main. It cannot block the
-      # merge. A failed run notifies the account that pushed or merged, which
-      # is the owner only when the owner merged. GitHub runs no push workflow
-      # when the head commit message holds a skip marker, e.g. `[skip ci]`,
-      # or a `skip-checks: true` trailer.
-      # The step fails on a message with no text, so a scan that reads nothing
-      # cannot pass (#171). `wc -c` puts the file path and size in the log.
+      # merge. A failed run shows in the Actions tab. GitHub sends a notice
+      # only to an account that turned on Actions notifications. GitHub runs
+      # no push workflow when the head commit message holds a skip marker,
+      # e.g. `[skip ci]`, or a `skip-checks: true` trailer, or when a
+      # GITHUB_TOKEN made the push.
+      # The step fails when the message file holds no text (#171). `wc -c`
+      # puts the file path and size in the log.
       - name: Scan the head commit message on main
         if: github.event_name == 'push'
         run: |

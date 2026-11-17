@@ -84,15 +84,17 @@ On each push to `main`, the `check` job in this repo's
 merge time (`gh pr merge --body`, `--body-file`, or the web UI), which the
 PR checks ran too early to see. The scan runs after the text is on `main`,
 so it cannot block the merge. The step prints the size and path of the
-message file, and fails when the file holds no text, so a scan that reads
-nothing cannot pass. Two limits:
+message file, and fails when the file holds no text. Three limits:
 
 - GitHub runs no push workflow when the head commit message holds a skip
   marker (`[skip ci]`, `[ci skip]`, `[no ci]`, `[skip actions]` or
   `[actions skip]`) or a `skip-checks: true` trailer. Such a message gets
   no scan.
-- A failed run notifies the account that pushed or merged. That is the
-  owner only when the owner's account merged.
+- A push made with a workflow's `GITHUB_TOKEN` starts no workflow run, so
+  it gets no scan.
+- A failed run shows in the repo's Actions tab. GitHub sends a notice only
+  to an account that turned on Actions notifications for runs it started.
+  Look at the Actions tab after a merge.
 
 Before the merge, the hook `no-ai-attribution.py` reads `--body` text, and
 reads `--body-file` when it finds the file.
