@@ -3,7 +3,7 @@ name: pm
 description: The one chat the owner talks to. Status mode reports what changed, where it is heading, what it lacks and who holds which lane. It reads git, gh, docs/HANDOFF.md and the lane issues. Batch mode writes a spec per ticket, starts builder and reviewer agents, and loops to a clean review. It reports once per batch and never edits files itself. Batch mode wants Orca (the `orca` CLI) and falls back to the yw-workflow builder, reviewer and fixer subagents without it. Use when asked for project status, what happened, what to work on next, to "run these tickets", "run a batch", or "be the PM".
 origin: authored
 tags: [project-management, orchestration, orca, status, coordination]
-version: 1.0.1
+version: 1.0.2
 ---
 
 # PM
@@ -155,9 +155,9 @@ hooks.
 
 1. Load Orca's own guide once: `orca skills get orchestration`. Follow it for
    the commands. It changes with each Orca release, so it is not copied here.
-2. Start each worker in the PM's folder, then end the turn. Orca wakes the
-   PM. The quoted `'SPEC'` keeps every `$`, backtick and backslash of the
-   spec as written:
+2. Start each worker in the PM's folder, then end the turn. Orca wakes the PM.
+   The quoted `'SPEC'` keeps every `$`, backtick and backslash of the spec as
+   written:
 
    ```bash
    orca orchestration worker-start --agent claude --worktree current \
@@ -173,13 +173,12 @@ hooks.
    `/yw-workflow:git-lanes`. Make your own worktree in `.worktrees/` of the
    primary checkout, on branch `<branch>`. Do all your work and every git
    command there." A reviewer's first line names a detached worktree at the
-   SHA the builder reported. The worker is a full session with the
-   `git-lanes` rules and the hooks, so the git commands are its job.
-   A round starts the first reviewer as a worker in its own detached worktree
-   at that SHA. No Orca doc or run shows that a worker can load
-   `mattpocock-skills:code-review` and start its sub-agents. So the PM starts
-   the code-review reviewer as a subagent, as on the fallback path, until an
-   Orca smoke run shows it works.
+   SHA the builder reported. The worker is a full session with the `git-lanes`
+   rules and the hooks, so the git commands are its job. A round starts the
+   first reviewer as a worker in its own detached worktree at that SHA. No Orca
+   doc or run shows that a worker can load `mattpocock-skills:code-review` and
+   start its sub-agents. So the PM starts the code-review reviewer as a
+   subagent, as on the fallback path, until an Orca smoke run shows it works.
 4. Send fixes to the builder that wrote the code. Orca reopens a closed
    worker for it. `send` and `reply` take the text only as `--body`, and
    findings hold backticks and `$`. So write the text to a file outside the

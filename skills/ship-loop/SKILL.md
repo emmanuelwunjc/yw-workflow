@@ -3,7 +3,7 @@ name: ship-loop
 description: Run work as a closing loop instead of a trailing-off one. Ticket, branch, implement test-first, dispatch an independent review, fix what blocks, file what does not, and repeat until a review round comes back clean. Use when asked to "run the loop", "keep going until it's right", "loop until the feedback is perfect", "babysit this to done", or when handed a backlog of tickets to work through. Also use to decide what happens to review findings.
 origin: authored
 tags: [workflow, review, tdd, subagents, loop, tickets]
-version: 1.5.0
+version: 1.5.1
 ---
 
 # Ship loop
@@ -193,12 +193,14 @@ steady, so the approach is wrong.
 A loop stops at four rounds. A change of direction does not restart this
 count. If round 4 still has blocking findings, do not start round 5. Ship the
 part that passed and put the rest, with its open findings, into a new ticket.
-E.g. a branch with a hook fix and a README section merges the part whose
-findings are fixed. The split makes a new commit, so it gets one review of the
-split's diff (`git diff <round-4-sha>..<split-sha>`), outside the count. That
-review checks only that the split removed the unfinished part and broke
-nothing left. If it does not return `PASS`, or the change cannot be split,
-ask the owner (`/yw-workflow:need-me`).
+The ticket names the round-4 sha, or the branch if you keep it, so the removed
+work can still be found after a squash merge deletes the branch. E.g. a branch
+with a hook fix and a README section merges the part whose findings are fixed.
+The split makes a new commit, so it gets one review of the split's diff
+(`git diff <round-4-sha>..<split-sha>`), outside the count. That review checks
+only that the split removed the unfinished part and broke nothing left. A
+`PASS` from it is the clean round that ends the loop. If it does not return
+`PASS`, or the change cannot be split, ask the owner (`/yw-workflow:need-me`).
 
 Record every round in the PR body on one line: its verdict, its blocking count,
 and the reviewer's token count (the Agent tool's `subagent_tokens` for that
@@ -206,22 +208,25 @@ review). Take the count from the usage block of the task notification that
 says the review finished, and post the round only after it arrives. Never
 estimate it, and never ask the reviewer for it. An Orca worker reports no
 token count, so its round carries the verdict and the blocking count alone
-(skill `pm`). The coordinating session
-writes the line after round 1 and updates it after each round. The line
-starts exactly `Rounds:`, with no bullet, bold, backticks, placeholders or
-annotations. Rounds are separated by ` · `, and a
-`REVIEW` carries its blocking count like a `BLOCK`:
+(skill `pm`). The coordinating session writes the line after round 1 and
+updates it after each round. The line starts exactly `Rounds:`, with no
+bullet, bold, backticks, placeholders or annotations. Rounds are separated by
+` · `, and a `REVIEW` carries its blocking count like a `BLOCK`:
 
     Rounds: BLOCK 3 (95k) · REVIEW 0 (90k) · PASS (88k)
 
+The review of a split after round 4 is the last entry, with the word `split`
+before its verdict:
+
+    Rounds: BLOCK 3 (95k) · BLOCK 2 (80k) · BLOCK 2 (70k) · BLOCK 1 (60k) · split PASS (40k)
+
 When `fresh-eye` starts two reviewers in a round (round 1 of a code change),
-the round is still one entry.
-Its verdict follows the combining rule in `fresh-eye`. Its blocking count is
-the number of different blocking defects the two reviewers found. A defect
-that both reviewers report counts once. Two findings are the same defect when
-they name the same file and line and the same failure. The coordinating
-session decides. Its token count is the sum of the
-`subagent_tokens` of both task notifications, so post the round only after
+the round is still one entry. Its verdict follows the combining rule in
+`fresh-eye`. Its blocking count is the number of different blocking defects
+the two reviewers found. A defect that both reviewers report counts once. Two
+findings are the same defect when they name the same file and line and the
+same failure. The coordinating session decides. Its token count is the sum of
+the `subagent_tokens` of both task notifications, so post the round only after
 both arrive. E.g. a mutation reviewer with BLOCK 2 at 95k and a code-review
 reviewer with BLOCK 1 at 60k, where that one defect is also one of the two,
 give `BLOCK 2 (155k)`.
@@ -313,8 +318,9 @@ If asked to keep looping without check-ins:
 Goal met. Diff reviewed by someone who did not write it. Behavior verified by
 running something, with the output. No orphaned code your change created. Every
 finding fixed, ticketed, or rejected in writing. A review round that came back
-clean, as step 6 defines it. A `Rounds:` line in the PR body. A housekeeping
-ticket, if the loop took three or more fix rounds (step 7).
+clean, as step 6 defines it, or a review of a split after round 4 that returned
+`PASS` (step 6). A `Rounds:` line in the PR body. A housekeeping ticket, if the
+loop took three or more fix rounds (step 7).
 
 ## Suggested skills
 
