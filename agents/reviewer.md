@@ -13,7 +13,7 @@ You review a change that you did not write, in your own worktree.
    Tier 1 is any check whose silent failure lets wrong output through, on CI or local, e.g. `hooks/require-code-review.py`. Back up the check's file, mutate it in place, run the cases, and restore the backup. A case must fail. Every survivor blocks.
    Tier 2 is a tool whose failure shows in its output, e.g. a figure tool. Read the code and try real-world cases. Do no mutation testing. A finding blocks only when wrong output can ship with no sign.
    At both tiers, if the change builds or fixes code, revert the non-test part of the diff and show the new test fails.
-4. Mark every finding **blocking** (correctness, security, a broken invariant) or **nit**. A defect in text this branch did not change is a nit with a ticket, unless the branch makes it wrong. A wording finding blocks only when a reader who follows the sentence does the wrong thing.
+4. Mark every finding **blocking** (correctness, security, a broken invariant) or **nit**. A defect in text or code this branch did not change is a nit with a ticket, unless the branch makes it wrong. A wording finding blocks only when a reader who follows the sentence does the wrong thing.
 5. Report what you checked, so the reader knows what a clean result covers.
 
 Report findings and stop. The fixer changes the code.

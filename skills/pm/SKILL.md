@@ -88,8 +88,8 @@ A spec stands alone. The worker sees nothing else. It holds:
 - for a builder, the line "End your report with a `## Handoff notes` section for the PR body, per `/yw-workflow:handoff`."
 - the last line, for a builder, fixer or documenter: "commit your work on your own branch before you return (on a detached HEAD, `git switch -c wip/<folder>` first), as a WIP commit if it is unfinished, and report the branch and SHA".
 
-A ticket that builds or fixes code gets two reviewer specs on round 1, both
-from `fresh-eye`. Its fix rounds get the first spec only. The first is its prompt skeleton, filled in for this branch.
+A ticket that builds or fixes code gets two reviewer specs on round 1,
+both from `fresh-eye`. Its fix rounds get the first spec only. The first is its prompt skeleton, filled in for this branch.
 The second is the skeleton under "The second reviewer", which runs
 `mattpocock-skills:code-review`. Each ends with "Do not fix anything. Do not
 commit." Any other ticket gets the first spec only.
@@ -112,10 +112,12 @@ PR for several small lanes in the owner's `CLAUDE.md`. A combined head would
 need a review of its own. This also replaces the one review per related group
 in `ship-loop` step 6. Builder, then a review round by reviewers that did not
 write the change, then fixes, then a new round at the fixed commit. Stop on a
-clean round, as `ship-loop` step 6 defines it. Tickets that touch different
+clean round, or at the four-round stop, as `ship-loop` step 6 defines
+them. Tickets that touch different
 files run in parallel. Two to four at once, per `git-lanes`.
 
-A round has the one or two reviewers from step 2 (two only on round 1 of a code change), started at the same time on
+A round has the one or two reviewers from step 2 (two only on round 1 of
+a code change), started at the same time on
 the same commit. When mattpocock-skills is not installed, start the first one
 only, and say so in the round's comment. Two verdicts make one decision line, by the
 rule in `fresh-eye` ("When a round has two reviewers"). The round is one entry
@@ -252,7 +254,7 @@ Use the Agent tool, one worktree per agent (`isolation: "worktree"`, per
 | Fixer | `yw-workflow:fixer` |
 | Documenter (the handoff pass) | `yw-workflow:documenter` |
 
-Start both reviewers of a round in one turn, each with
+When a round has two reviewers, start both in one turn, each with
 `isolation: "worktree"`.
 
 **The cost.** A subagent does not run SessionStart hooks, and the Stop hook

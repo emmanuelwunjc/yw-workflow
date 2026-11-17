@@ -21,7 +21,7 @@ dispatches someone else.
 - Before merging any change that is not a typo.
 - On the FIX for a previous review. Each fix to a check tends to open a different
   hole in it, and the second review routinely finds defects the first one's fix
-  introduced. One clean round is not enough for new checking code.
+  introduced. So a fix always gets its own round.
 - When a change alters a global property (a layout invariant, a timeout, an
   auth boundary). Requirements written under the old assumption rot silently.
 
@@ -263,7 +263,8 @@ bury the verdict in prose the reader has to extract themselves. A `REVIEW`
 that could have been asked before the build cost a round. `ship-loop` step 3
 asks those calls first.
 
-When a round has two reviewers (round 1 of a code change), one decision line covers both. A `BLOCK` from
+When a round has two reviewers (round 1 of a code change), one decision
+line covers both. A `BLOCK` from
 either one makes the round a `BLOCK`. Else a `REVIEW` from either one makes it
 a `REVIEW`. Else the round is a `PASS`.
 
