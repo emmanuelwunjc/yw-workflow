@@ -1436,3 +1436,40 @@ Waits on the owner:
 Open work is in the `lane` issues. List them with
 `gh issue list --label lane --state open`. Lane #47 holds this repo's
 backlog. Its first task is the grilling for #101.
+
+## 2026-11-17: handoff pass
+
+- #160 (PR #164): a request about "tracker style" or a progress tracker
+  goes to skill `goal-tracker`. "The tracker" alone is ambiguous in this
+  repo (GitHub Issues or the goal tracker), so the skill says to ask
+  which one.
+- #101 (PR #166): the owner grilled the review loop's cost. The
+  decisions are recorded on #101, and `~/CLAUDE.md` section 2 carries
+  them, quoted in the PR body.
+  - A finding in text the branch did not change is a ticket, unless the
+    branch makes it wrong.
+  - Wording blocks only when a reader who follows it acts wrongly.
+  - Nothing changes after a `PASS`. Its nits become tickets.
+  - Premise and "should this exist" run on round 1 only.
+  - The code-review reviewer runs on round 1 of a code change only.
+  - A loop stops at four rounds. It ships the part that passed and
+    reviews the split once, outside the count. It asks the owner when
+    that review fails or the change cannot be split.
+- The PR took two rounds under its own rules. #101 stays open for its
+  last box: the averages command in ship-loop step 6 over the next 10
+  merged PRs. Round 2 nits are #165.
+- Housekeeping #89 (a rule change must reach every copy) fit #101. It
+  was not moved to the front, because its own fix waits on #85. Its
+  check, grep every old copy across line breaks, ran by hand in both
+  review rounds.
+- Trap: in a worktree-isolated session, a Bash command that holds git
+  in a form the harness cannot verify is refused, e.g. `git diff` text
+  inside a Python heredoc, or git chained with `&&`. Put each git
+  command in its own plain Bash call, and write scripts with the Write
+  tool.
+
+### Next
+
+Open work is in the `lane` issues. List them with
+`gh issue list --label lane --state open`. Lane #47 holds this repo's
+backlog. Its first tasks are #165 and #131.
