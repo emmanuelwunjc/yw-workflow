@@ -3,7 +3,7 @@ name: fresh-eye
 description: Dispatch an independent adversarial reviewer that did not write the code, in an isolated git worktree, to try to break a change rather than agree with it. Use before merging anything non-trivial, when asked for "a fresh eye", "a second opinion", "review this properly", "try to break this", or when you have just finished work and are about to call it done. Also use on the FIX for a previous review, because that is where the next defect usually is.
 origin: authored
 tags: [review, quality, adversarial, worktree, mutation-testing]
-version: 1.6.0
+version: 1.6.1
 ---
 
 # Fresh eye
@@ -253,20 +253,27 @@ or the fifth fix-and-re-review cycle:
     ## Agent-facing specifics
     <the existing detailed format: file:line, BLOCKING or nit, the concrete
     failure scenario (inputs -> wrong output), and how it was verified (ran
-    vs. reasoned). This is for the next agent that
-    picks up the fix, not for a person skimming.>
+    vs. reasoned). This is for the next agent that picks up the fix.>
 
 The decision line is the first thing on the page and is exactly one or two
 words: `PASS`, `BLOCK n`, or `REVIEW n`, where n is the number of blocking
-findings. `REVIEW` is a call only a person can make, e.g. a
-deliberate tradeoff the reviewer cannot approve or reject on its own. Never
-bury the verdict in prose the reader has to extract themselves. A `REVIEW`
-that could have been asked before the build cost a round. `ship-loop` step 3
-asks those calls first.
+findings. `REVIEW` is a call only a person can make, e.g. a deliberate
+tradeoff the reviewer cannot approve or reject on its own. Use the first word
+that applies: `BLOCK` when there is a blocking finding, else `REVIEW` when a
+call only a person can make is open, else `PASS`. Never bury the verdict in
+prose the reader has to extract themselves. A `REVIEW` that could have been
+asked before the build cost a round. `ship-loop` step 3 asks those calls
+first.
 
 When a round has two reviewers (round 1 of a code change), one decision line
 covers both. A `BLOCK` from either one makes the round a `BLOCK`. Else a
-`REVIEW` from either one makes it a `REVIEW`. Else the round is a `PASS`.
+`REVIEW` from either one makes it a `REVIEW`. Else the round is a `PASS`. So
+a `REVIEW` always carries 0, from one reviewer or two.
+
+A `BLOCK n` round can also hold a call only a person can make. The decision
+line does not show that call. So write it in the Executive TL;DR, and send it
+to `/yw-workflow:need-me` in the same round. The owner can then answer it
+while the fix is made.
 
 A round is clean when it returns `PASS`. A `REVIEW` counts as clean only when
 the owner's answer needs no code change.

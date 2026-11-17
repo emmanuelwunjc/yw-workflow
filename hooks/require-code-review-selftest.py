@@ -32,9 +32,11 @@ HOOK = pathlib.Path(__file__).with_name("require-code-review.py")
 
 # (comment body, should it satisfy the gate, what this pins)
 CASES = [
-    # The fresh-eye skill tells reviewers to open with exactly one word.
+    # The fresh-eye skill tells reviewers to open with one decision line:
+    # `PASS`, `BLOCK n` or `REVIEW n`.
     ("PASS\n\n## Executive TL;DR\nAll good.", True, "fresh-eye PASS"),
     ("BLOCK\n\n## Executive TL;DR\nTwo defects.", True, "fresh-eye BLOCK"),
+    ("BLOCK 2\n\n## Executive TL;DR\nTwo defects.", True, "fresh-eye BLOCK n"),
     ("**PASS**\n\nreviewed at abc123", True, "PASS in bold"),
     ("> BLOCK", True, "BLOCK in a quote"),
     ("## PASS", True, "PASS as a heading"),
