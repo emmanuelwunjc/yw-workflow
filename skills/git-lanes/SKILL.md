@@ -3,7 +3,7 @@ name: git-lanes
 description: Run concurrent agents in isolated git worktrees without them colliding. Use before starting multi-file work in a repo where another agent may be active, when asked to "run these in parallel", "spin up lanes", "use worktrees", when dispatching a reviewer, or when about to git checkout/pull/stash in a repo you did not just create. Also covers where built deliverables live and how lanes merge back to trunk.
 origin: authored
 tags: [git, worktree, concurrency, multi-agent, merge]
-version: 1.3.1
+version: 1.3.2
 ---
 
 # Git lanes
@@ -54,9 +54,10 @@ in a dispatch note. Deleting the repo takes its worktrees with it.
 Two to four concurrent lanes is the practical ceiling before coordination costs
 more than the parallelism gains. The numbering makes exceeding it visible.
 
-A `mattpocock-skills:implement-spec` integration branch is one lane. Its
-implementer worktrees take the `.worktrees/NN-` names, and each one counts
-toward the ceiling of four.
+A `mattpocock-skills:implement-spec` integration branch is one lane, and it
+does not count toward the ceiling of four. Its implementer worktrees take the
+`.worktrees/NN-` names, and each one counts, so at most four implementers run
+at once.
 
 Never rename or move a worktree while an agent is working in it.
 
