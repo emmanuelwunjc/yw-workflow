@@ -36,7 +36,9 @@ them as a required status check:
 
 ```yaml
 # .github/workflows/guards.yml in any repo
-on: pull_request
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
 permissions:
   contents: read
   pull-requests: read
@@ -70,6 +72,19 @@ not overwrite each other's file lists.
 | `claude-md` | changed `.md` and `.txt` files | an em-dash or a negation-then-correction in prose, with code fences exempt |
 | `no-ai-attribution` | the PR body, changed prose files, and the messages git wrote on the PR's commits (from the API, at most 250) | a generation footer, a session URL (which includes a `Claude-Session:` trailer), the triage skill's AI disclaimer, or a co-author trailer at an anthropic.com address |
 | `review-gate` | the PR's files, reviews, and comments | a 25+ line code diff with no approval and no verdict comment, including a verdict the author posted themselves |
+
+When it runs: on each PR event in the `types` list above. A push to the PR
+runs it, and so does an edit to the PR body or title. The `edited` type is
+what makes CI read a body changed after the last push. Without it, the
+default types leave that body unscanned.
+
+What CI never reads, by decision (see [DECISIONS.md](DECISIONS.md),
+2026-11-17):
+
+- Issue comments and release notes. The hook checks only the forms it can read.
+- A squash-merge body set at merge time (`gh pr merge --body`,
+  `--body-file`, or the web UI). The PR checks ran before the merge. The
+  hook reads `--body-file` when it finds the file.
 
 Three differences from the hook path, each deliberate:
 
