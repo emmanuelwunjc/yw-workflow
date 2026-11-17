@@ -4,6 +4,9 @@ on:
   push:
     branches: [main]
   pull_request:
+    # edited: a PR body changed after the last push is scanned again (#135).
+    # It also reruns the check job, at the cost of one run per edit.
+    types: [opened, synchronize, reopened, edited]
 
 permissions:
   contents: read
