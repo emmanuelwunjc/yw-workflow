@@ -264,10 +264,9 @@ bury the verdict in prose the reader has to extract themselves. A `REVIEW`
 that could have been asked before the build cost a round. `ship-loop` step 3
 asks those calls first.
 
-When a round has two reviewers (round 1 of a code change), one decision
-line covers both. A `BLOCK` from
-either one makes the round a `BLOCK`. Else a `REVIEW` from either one makes it
-a `REVIEW`. Else the round is a `PASS`.
+When a round has two reviewers (round 1 of a code change), one decision line
+covers both. A `BLOCK` from either one makes the round a `BLOCK`. Else a
+`REVIEW` from either one makes it a `REVIEW`. Else the round is a `PASS`.
 
 A round is clean when it returns `PASS`. A `REVIEW` counts as clean only when
 the owner's answer needs no code change.
