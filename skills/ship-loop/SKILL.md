@@ -3,7 +3,7 @@ name: ship-loop
 description: Run work as a closing loop instead of a trailing-off one. Ticket, branch, implement test-first, dispatch an independent review, fix what blocks, file what does not, and repeat until a review round comes back clean. Use when asked to "run the loop", "keep going until it's right", "loop until the feedback is perfect", "babysit this to done", or when handed a backlog of tickets to work through. Also use to decide what happens to review findings.
 origin: authored
 tags: [workflow, review, tdd, subagents, loop, tickets]
-version: 1.4.1
+version: 1.5.0
 ---
 
 # Ship loop
@@ -175,14 +175,20 @@ running, each in its own worktree. `parallel` is a mark on a `## Next` item
 
 Stop on a clean round. A round is clean when it returns `PASS`. A `REVIEW`
 counts as clean only when the owner's answer needs no code change. If the
-answer changes code, that change gets another round. A clean round ends the
-loop only when nothing changes after it. Nits fixed in code after a `PASS` get
-one more round; otherwise they are ticketed or rejected in writing (step 5).
+answer changes code, that change gets another round. Nothing changes after a
+`PASS`: the reviewed commit merges, and its nits become tickets or are
+rejected in writing (step 5).
 
 Three rounds whose blocking count does not fall means change direction. "Does
 not fall" means the third of three consecutive rounds has a blocking count no
 lower than the first of them. So 3, 1, 3 fires and 3, 2, 1 does not. The count
 restarts after a change of direction.
+
+A loop stops at four rounds. If round 4 still has blocking findings, ship the
+part that passed and put the rest, with its open findings, into a new ticket.
+E.g. a branch with a hook fix and a README section merges the part whose
+findings are fixed. If the change cannot be split, ask the owner
+(`/yw-workflow:need-me`). A change of direction does not restart this count.
 
 When it fires, say in one line what changed and why, and carry on. Ask the
 owner only if the new direction departs from what a grilling settled. This
@@ -204,7 +210,7 @@ annotations. Rounds are separated by ` · `, and a
 
     Rounds: BLOCK 3 (95k) · REVIEW 0 (90k) · PASS (88k)
 
-When `fresh-eye` starts two reviewers in a round, the round is still one entry.
+When `fresh-eye` starts two reviewers in a round (round 1 of a code change), the round is still one entry.
 Its verdict follows the combining rule in `fresh-eye`. Its blocking count is
 the number of different blocking defects the two reviewers found. A defect
 that both reviewers report counts once. Two findings are the same defect when
