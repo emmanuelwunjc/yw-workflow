@@ -32,6 +32,16 @@ jobs:
       - name: Repo checks
         run: ./tools/check-repo.py
 
+      # A squash-merge body set at merge time (gh pr merge --body, --body-file,
+      # or the web UI) is written after the PR checks ran, so they never see it
+      # (#135). This scan runs after the text is on main. It cannot block the
+      # merge. A failed run tells the owner, who then chooses what to do.
+      - name: Scan the head commit message on main
+        if: github.event_name == 'push'
+        run: |
+          git log -1 --format=%B > "$RUNNER_TEMP/yw-head-msg.txt"
+          ./hooks/no-ai-attribution.py scan "$RUNNER_TEMP/yw-head-msg.txt"
+
   # Dogfood: the same action other repos consume, run against this repo's own
   # PRs. A gate nobody runs against themselves is a gate nobody has tested.
   guards:

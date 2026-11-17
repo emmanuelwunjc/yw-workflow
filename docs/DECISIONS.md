@@ -970,7 +970,7 @@ Not done here: the step that puts `docs/agents/issue-tracker.md` into
 another repo. It goes into the repo-setup skill after lane #97 merges,
 because #97 deletes `skills/harden`.
 
-## 2026-11-17: CI rescans an edited PR body, and three kinds of text stay unscanned
+## 2026-11-17: CI rescans an edited PR body and the squash-merge body, and two kinds of text stay unscanned
 
 Supports the CI gate in `docs/HOOKS.md`. From issue #135.
 
@@ -978,29 +978,31 @@ Supports the CI gate in `docs/HOOKS.md`. From issue #135.
 this, a PR body changed after the last push reached GitHub with no CI scan.
 The cost is one more run of each job per edit.
 
+A squash-merge body set at merge time with `gh pr merge --body`,
+`--body-file`, or the web UI is now scanned after the merge. From the
+comment on #135 (round 6 of the review of #109). The PR checks run before
+the merge, so they never see that body. The `check` job has a step that
+runs only on a push to `main`. It scans the head commit message with
+`hooks/no-ai-attribution.py scan`. The scan cannot block the merge,
+because the text is already on `main`. A failed run tells the owner. A
+history rewrite to remove the text is a separate choice.
+
 CI does not scan these, and the gap is accepted:
 
-1. Issue comments. Lane #47 set this on 2026-11-15 ("accept the gap for
-   issue comments").
+1. Issue comments. Lane #47 set this on 2026-11-15 ("Issue comments get
+   no CI scan for AI attribution").
 2. Release notes, for the same reason.
-3. A squash-merge body set at merge time with `gh pr merge --body`,
-   `--body-file`, or the web UI. From the comment on #135 (round 6 of the
-   review of #109). The PR checks run before the merge, so they never see
-   that body.
 
 Why:
 
 1. Items 1 and 2 need a new workflow on `issue_comment` and `release`
    events. That workflow spends Actions minutes on each event, and
    `~/CLAUDE.md` section 3 asks the owner before a new workflow.
-2. Item 3 could be scanned by the existing `push` run on `main`. That scan
-   runs after the text is on `main`. It cannot block the merge. A finding
-   there needs a history rewrite of `main` to remove the text, which costs
-   more than the gap.
-3. The local hook `hooks/no-ai-attribution.py` reads all three in the forms
-   it can see: the command text, and a `--body-file` or `--notes-file` it
-   can find.
+2. The squash-merge scan is a step in the existing `check` job. It adds
+   no workflow, job, matrix entry or schedule.
+3. The local hook `hooks/no-ai-attribution.py` reads all three kinds in
+   the forms it can see: the command text, and a `--body-file` or
+   `--notes-file` it can find.
 
-To close a gap later, the owner approves the workflow or the `main` scan
-first.
-
+To close the gap for issue comments or release notes later, the owner
+approves the new workflow first.
