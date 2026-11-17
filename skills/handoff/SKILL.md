@@ -1,6 +1,6 @@
 ---
 name: handoff
-description: Keep a repo's docs/HANDOFF.md in the one shape that lets a fresh session start from the file and the open lane issues alone, with a Start here block on top that has the session claim one open `lane` issue, and dated sections added by a handoff pass after merges, from the Handoff notes each lane PR carries. Use when asked for "a handoff", "/handoff", "write the handoff", "update the handoff", at the close of a session, or when the handoff-freshness hook warns HANDOFF STALE or HANDOFF SHAPE.
+description: Keep a repo's docs/HANDOFF.md in the one shape that lets a fresh session start from the file and the open lane issues alone, with a Start here block on top that has the session claim one open `lane` issue, and dated sections added by a handoff pass after merges, from the Handoff notes each lane PR carries. Use when asked for "a handoff", "/handoff", "write the handoff", "update the handoff", at the close of a session, or when the handoff-freshness hook warns HANDOFF STALE or HANDOFF SHAPE. A progress tracker with progress bars is skill goal-tracker.
 origin: authored
 tags: [handoff, docs, session, continuity]
 version: 1.4.0
@@ -48,8 +48,9 @@ Issue edits cost no CI minutes unless a workflow runs `on: issues`, and
 every machine and cloud routine can read them.
 
 A `lane` issue tells the next session what to do. The progress view of a
-goal is the goal tracker of skill `goal-tracker`. A request about "the
-tracker" or its "style" goes to that skill.
+goal is the goal tracker of skill `goal-tracker`. A request about a
+progress tracker, its progress bars or its "tracker style" goes to that
+skill. "The tracker" alone can mean GitHub Issues, so ask which one.
 
 ## The top of the file
 
