@@ -694,6 +694,54 @@ def stop_once_failures():
     return failures
 
 
+def failed_read_failures():
+    """A read that fails names that read, never the problem it would have
+    looked for (round 2 of the #118 review, then issue #145). Each case
+    breaks one read in a repo that is otherwise clean, so the forbid list
+    holds the warning the old code gave. Root reads past mode bits, so root
+    skips the chmod cases. stop_text() is empty on a non-zero exit, so a
+    crash fails the want list and needs no exit-code check of its own."""
+    def chmod(rel, mode, back):
+        return lambda tmp: pathlib.Path(tmp, rel).chmod(mode), (rel, back)
+
+    def junk_index(tmp):
+        # a tracked stray file, so the old silent pass hid a real finding
+        pathlib.Path(tmp, "AGENT_HANDOFF.md").write_text("x\n")
+        git(tmp, "add", "AGENT_HANDOFF.md")
+        pathlib.Path(tmp, ".git", "index").write_bytes(b"junk")
+
+    cases = [("an unreadable docs/HANDOFF.md", *chmod("docs/HANDOFF.md", 0, 0o644),
+              ["cannot read docs/HANDOFF.md at "], ["has no `## Start here` line"]),
+             ("a scripts/ folder that cannot be searched", *chmod("scripts", 0o600, 0o755),
+              [f"cannot look for {SCRIPT} at "], [NO_SCRIPT]),
+             ("an unreadable repo copy of the script", *chmod(SCRIPT, 0, 0o644),
+              [f"cannot read {SCRIPT} in this repo"], [])]
+    if os.geteuid() == 0:
+        cases = []
+    cases.append(("a git index that cannot be read", junk_index, None,
+                  [f"git cannot say whether {SCRIPT} is tracked",
+                   "git cannot list the tracked files, so the check for "
+                   "handoff files outside docs/ did not run"],
+                  [f"{SCRIPT} is not tracked"]))
+    failures = 0
+    for label, breaks, restore, want, forbid in cases:
+        with tempfile.TemporaryDirectory() as tmp:
+            make_repo(tmp, {"docs/HANDOFF.md": GOOD}, ["docs/HANDOFF.md"])
+            breaks(tmp)
+            try:
+                got = run_hook(tmp)
+            finally:
+                if restore:
+                    pathlib.Path(tmp, restore[0]).chmod(restore[1])
+        missing = [w for w in want if w not in got.warn]
+        present = [f for f in forbid if f in got.warn]
+        if missing or present:
+            failures += 1
+            print(f"FAIL failed read, {label}: missing={missing} unwanted={present}"
+                  f"\n--- told the model ---\n{got.warn}")
+    return failures
+
+
 def make_repo(tmp, files, tracked):
     """Every repo has the script the block runs, tracked, unless files names
     it: None leaves it out, text writes it untracked unless listed."""
@@ -942,22 +990,7 @@ def main():
             print(f"FAIL from a subfolder, script {label}: missing={missing} "
                   f"unwanted={present}\n--- told the model ---\n{got.warn}")
 
-    # Round 2 of the #118 review: a tracked repo copy the hook cannot read is
-    # a finding of its own. Root reads a mode-000 file, so root skips this.
-    if os.geteuid() != 0:
-        with tempfile.TemporaryDirectory() as tmp:
-            make_repo(tmp, {"docs/HANDOFF.md": GOOD}, ["docs/HANDOFF.md"])
-            target = pathlib.Path(tmp, SCRIPT)
-            target.chmod(0)
-            try:
-                got = run_hook(tmp)
-            finally:
-                target.chmod(0o644)
-        want = f"cannot read {SCRIPT} in this repo"
-        if want not in got.warn or got.returncode != 0:
-            failures += 1
-            print(f"FAIL an unreadable repo copy of the script: exit={got.returncode} "
-                  f"missing={want!r}\n--- told the model ---\n{got.warn}")
+    failures += failed_read_failures()
 
     # the escape hatch silences the shape check as well as the freshness one
     with tempfile.TemporaryDirectory() as tmp:
