@@ -89,7 +89,8 @@ How to read it, one stage at a time:
    one session goes straight to `ship-loop`. Work too big for one session goes
    to `wayfinder`, which maps it as decision tickets and hands the finished map
    to `ship-loop`. A domain term goes to `domain-modeling`, which writes it to
-   `GLOSSARY.md`. Decisions stay in the handoff notes. The model cannot call
+   `GLOSSARY.md`. Decisions stay in the handoff notes or
+   `docs/DECISIONS.md`. The model cannot call
    the yw `wayfinder`, so type `/yw-workflow:wayfinder`. Open ticket
    [#45](https://github.com/emmanuelwunjc/yw-workflow/issues/45) will replace
    it with Matt's copy.

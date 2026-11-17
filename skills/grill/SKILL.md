@@ -87,7 +87,7 @@ building the wrong thing confidently is worse than no grilling.
 - A domain term needs one fixed meaning: `/mattpocock-skills:domain-modeling` can
   write it to `GLOSSARY.md`. Keep decisions out of its ADRs. A decision stays in
   the PR's `## Handoff notes`, `docs/HANDOFF.md` or `docs/DECISIONS.md`. Never
-  record one decision in two places.
+  record one decision both in an ADR and in those notes.
 - You could not get an answer: `/yw-workflow:need-me` puts the open question in front of the
   human in the format they can act on.
 - They cannot answer because they do not yet understand what is being decided:

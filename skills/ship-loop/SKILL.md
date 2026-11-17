@@ -108,9 +108,10 @@ comment, a sources file, or the PR body), so the review becomes a diff of
 sentence against quote. A fix to copy can make a new defect, as in
 edsim_funder_impact #92.
 
-**The seams under test come from the ticket.** `tdd` asks the user to confirm
-the seams before the first test, and a builder cannot ask. A ticket that does
-not name its seams is not agent-ready. It goes back to step 1.
+**The seams under test come from the ticket.** They are the seams that the
+ticket's Verification commands and acceptance boxes exercise. Name them in the
+builder brief, and they count as confirmed for `tdd`. A ticket whose
+Verification names no runnable seam goes back to step 1.
 
 Write the failing probe before the fix, or you will ship something that never
 runs. Then the smallest change that passes, at the root cause: grep every caller
