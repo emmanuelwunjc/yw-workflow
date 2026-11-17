@@ -35,12 +35,20 @@ jobs:
       # A squash-merge body set at merge time (gh pr merge --body, --body-file,
       # or the web UI) is written after the PR checks ran, so they never see it
       # (#135). This scan runs after the text is on main. It cannot block the
-      # merge. A failed run tells the owner, who then chooses what to do.
+      # merge. A failed run notifies the account that pushed or merged, which
+      # is the owner only when the owner merged. GitHub runs no push workflow
+      # when the head commit message holds a skip marker, e.g. `[skip ci]`,
+      # or a `skip-checks: true` trailer.
+      # The step fails on a message with no text, so a scan that reads nothing
+      # cannot pass (#171). `wc -c` puts the file path and size in the log.
       - name: Scan the head commit message on main
         if: github.event_name == 'push'
         run: |
-          git log -1 --format=%B > "$RUNNER_TEMP/yw-head-msg.txt"
-          ./hooks/no-ai-attribution.py scan "$RUNNER_TEMP/yw-head-msg.txt"
+          msg="$RUNNER_TEMP/yw-head-msg.txt"
+          git log -1 --format=%B > "$msg"
+          wc -c "$msg"
+          grep -q '[^[:space:]]' "$msg" || { echo "::error::$msg holds no text, so nothing was scanned"; exit 1; }
+          ./hooks/no-ai-attribution.py scan "$msg"
 
   # Dogfood: the same action other repos consume, run against this repo's own
   # PRs. A gate nobody runs against themselves is a gate nobody has tested.
