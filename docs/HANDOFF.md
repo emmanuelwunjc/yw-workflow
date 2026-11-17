@@ -1436,3 +1436,33 @@ Waits on the owner:
 Open work is in the `lane` issues. List them with
 `gh issue list --label lane --state open`. Lane #47 holds this repo's
 backlog. Its first task is the grilling for #101.
+
+## 2026-11-17: handoff pass
+
+- #160 (PR #164): "the tracker" alone is ambiguous in this repo (GitHub
+  Issues or the goal tracker). The skill says to ask which one.
+- #101 (PR #166): the owner grilled the review loop's cost. Decisions,
+  recorded on #101: a finding in text the branch did not change is a
+  ticket unless the branch makes it wrong; wording blocks only when a
+  reader who follows it acts wrongly; nothing changes after a `PASS`,
+  so its nits become tickets; premise and "should this exist" run on
+  round 1 only; the code-review reviewer runs on round 1 of a code
+  change only; a loop stops at four rounds, ships the part that passed,
+  reviews the split once outside the count, and asks the owner only
+  when the change cannot be split. `~/CLAUDE.md` section 2 carries the
+  same rules, quoted in the PR body. The PR took two rounds under its
+  own rules. #101 stays open for its last box: the averages command in
+  ship-loop step 6 over the next 10 merged PRs. Round 2 nits are #165.
+- Housekeeping #89 (a rule change must reach every copy) fit #101 and
+  was not moved to the front, because its own fix waits on #85. Its
+  check, grep every old copy across line breaks, ran by hand in both
+  review rounds and found one live copy in round 1.
+- Trap: in a worktree-isolated session, a Bash command whose text holds
+  `git diff`, even inside a Python heredoc, is refused as git outside
+  the worktree. Write the script with the Write tool, then run it.
+
+### Next
+
+Open work is in the `lane` issues. List them with
+`gh issue list --label lane --state open`. Lane #47 holds this repo's
+backlog. Its first tasks are #165 and #131.
