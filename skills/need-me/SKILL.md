@@ -1,9 +1,9 @@
 ---
 name: need-me
-description: Show only what is actually waiting on the human, delivered as clickable questions they answer in seconds. Use when the user asks "what needs me", "am I blocking anything", "/need-me", "what's waiting on me", at any natural pause where they may walk away, and before a handoff so the next session does not inherit a hidden queue of unanswered questions.
+description: Show only what is actually waiting on the human, delivered as clickable questions they answer in seconds. Use when the user asks "what needs me", "am I blocking anything", "/need-me", "what's waiting on me", at any natural pause where they may walk away, and before a handoff so the next session does not inherit a hidden queue of unanswered questions. It is for the owner's own queue. To sort a repo's issues and PRs, use mattpocock-skills:triage.
 origin: authored
 tags: [attention, escalation, handoff, decisions]
-version: 1.0.2
+version: 1.0.3
 ---
 
 # Need me
@@ -145,3 +145,5 @@ options:
 - The answer opens more questions than it settles: `/yw-workflow:grill`.
 - They are stuck because the choice needs background they do not have:
   `/yw-workflow:eli5-text`, then ask again.
+- The human step has many values to enter, e.g. API keys or CI secrets:
+  `/mattpocock-skills:wizard` writes a bash script that walks them through it.
