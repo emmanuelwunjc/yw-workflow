@@ -3,7 +3,7 @@ name: ship-loop
 description: Run work as a closing loop instead of a trailing-off one. Ticket, branch, implement test-first, dispatch an independent review, fix what blocks, file what does not, and repeat until a review round comes back clean. Use when asked to "run the loop", "keep going until it's right", "loop until the feedback is perfect", "babysit this to done", or when handed a backlog of tickets to work through. Also use to decide what happens to review findings.
 origin: authored
 tags: [workflow, review, tdd, subagents, loop, tickets]
-version: 1.5.1
+version: 1.5.2
 ---
 
 # Ship loop
@@ -211,7 +211,9 @@ token count, so its round carries the verdict and the blocking count alone
 (skill `pm`). The coordinating session writes the line after round 1 and
 updates it after each round. The line starts exactly `Rounds:`, with no
 bullet, bold, backticks, placeholders or annotations. Rounds are separated by
-` · `, and a `REVIEW` carries its blocking count like a `BLOCK`:
+` · `, and a `REVIEW` carries its blocking count like a `BLOCK`. A blocking
+finding makes the verdict `BLOCK`, so a `REVIEW` from one reviewer always
+carries 0:
 
     Rounds: BLOCK 3 (95k) · REVIEW 0 (90k) · PASS (88k)
 
@@ -224,8 +226,8 @@ When `fresh-eye` starts two reviewers in a round (round 1 of a code change),
 the round is still one entry. Its verdict follows the combining rule in
 `fresh-eye`. Its blocking count is the number of different blocking defects
 the two reviewers found. A defect that both reviewers report counts once. Two
-findings are the same defect when they name the same file and line and the
-same failure. The coordinating session decides. Its token count is the sum of
+findings are the same defect when they name the same failure at the same
+place. The coordinating session decides. Its token count is the sum of
 the `subagent_tokens` of both task notifications, so post the round only after
 both arrive. E.g. a mutation reviewer with BLOCK 2 at 95k and a code-review
 reviewer with BLOCK 1 at 60k, where that one defect is also one of the two,
