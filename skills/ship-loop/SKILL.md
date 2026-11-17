@@ -3,7 +3,7 @@ name: ship-loop
 description: Run work as a closing loop instead of a trailing-off one. Ticket, branch, implement test-first, dispatch an independent review, fix what blocks, file what does not, and repeat until a review round comes back clean. Use when asked to "run the loop", "keep going until it's right", "loop until the feedback is perfect", "babysit this to done", or when handed a backlog of tickets to work through. Also use to decide what happens to review findings.
 origin: authored
 tags: [workflow, review, tdd, subagents, loop, tickets]
-version: 1.5.3
+version: 1.5.4
 ---
 
 # Ship loop
@@ -43,6 +43,11 @@ yw-workflow repo:
 In any repo, write the ticket with these four parts, each as a `## ` heading.
 The plugin's own check, `tools/check-repo.py` in the yw-workflow repo, fails
 when these bullets and the template headings name different parts.
+
+A ticket from `mattpocock-skills:to-tickets` is a draft. Its template has
+acceptance criteria only, and it leaves out paths and code on purpose. Before
+work starts, add the reproduction, the verification commands and the mutation
+check.
 
 A ticket without an acceptance criterion is a wish. Write the demand down when
 it is given, then build it. Doing it in the other order is how a set of demands
@@ -128,6 +133,20 @@ fix that did not happen:
   anchor before every scripted replace.
 - **A check that greps for a string proves the code exists, not that it works.**
   Measure behavior.
+
+### mattpocock's `implement` and `implement-spec`
+
+`mattpocock-skills:implement` and `mattpocock-skills:implement-spec` may do
+this step only. Their own `code-review` run is a self-check, so step 4 still
+dispatches `fresh-eye`. Refuse two parts of `implement-spec`:
+
+- **Its merger subagent.** The coordinator merges each implementer branch into
+  the integration branch, so one agent writes to that branch.
+- **Its draft PR.** A draft runs CI on work that is not finished. Open the PR
+  after a clean round, with `Closes #N` for each ticket.
+
+Steps 4 and 6 apply to the integration branch, and it merges to trunk only
+after a clean round.
 
 ## 4. Review (not by you)
 
@@ -306,6 +325,13 @@ has no guard against that, because a rare duplicate costs less than the guard.
 
 If the general fix needs an owner call, queue the call for the owner and
 continue other lanes.
+
+### A finding from `retro`
+
+A `mattpocock-skills:retro` finding that a mechanism can fix goes to a
+housekeeping ticket. A finding that is a habit goes to `LESSONS.md`, beside
+`~/CLAUDE.md`. Add to `CODING_STANDARDS.md` only in a repo that already has
+one.
 
 ## Running it unattended
 
