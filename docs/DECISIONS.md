@@ -984,8 +984,14 @@ comment on #135 (round 6 of the review of #109). The PR checks run before
 the merge, so they never see that body. The `check` job has a step that
 runs only on a push to `main`. It scans the head commit message with
 `hooks/no-ai-attribution.py scan`. The scan cannot block the merge,
-because the text is already on `main`. A failed run tells the owner. A
-history rewrite to remove the text is a separate choice.
+because the text is already on `main`. A failed run notifies the account
+that pushed or merged, which is the owner only when the owner merged.
+GitHub runs no push workflow when the head commit message holds a skip
+marker (`[skip ci]`, `[ci skip]`, `[no ci]`, `[skip actions]` or
+`[actions skip]`) or a `skip-checks: true` trailer, so that message gets
+no scan. The step fails on a message with no text, so a scan that reads
+nothing cannot pass (#171). A history rewrite to remove the text is a
+separate choice.
 
 CI does not scan these, and the gap is accepted:
 
@@ -1000,9 +1006,9 @@ Why:
    `~/CLAUDE.md` section 3 asks the owner before a new workflow.
 2. The squash-merge scan is a step in the existing `check` job. It adds
    no workflow, job, matrix entry or schedule.
-3. The local hook `hooks/no-ai-attribution.py` reads all three kinds in
-   the forms it can see: the command text, and a `--body-file` or
-   `--notes-file` it can find.
+3. The local hook `hooks/no-ai-attribution.py` reads issue comments,
+   release notes and the squash-merge body in the forms it can see: the
+   command text, and a `--body-file` or `--notes-file` it can find.
 
 To close the gap for issue comments or release notes later, the owner
 approves the new workflow first.

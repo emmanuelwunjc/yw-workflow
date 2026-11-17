@@ -83,9 +83,19 @@ On each push to `main`, the `check` job in this repo's
 `hooks/no-ai-attribution.py scan`. That catches a squash-merge body set at
 merge time (`gh pr merge --body`, `--body-file`, or the web UI), which the
 PR checks ran too early to see. The scan runs after the text is on `main`,
-so it cannot block the merge. A failed run tells the owner. Before the
-merge, the hook `no-ai-attribution.py` reads `--body` text, and reads
-`--body-file` when it finds the file.
+so it cannot block the merge. The step prints the size and path of the
+message file, and fails when the file holds no text, so a scan that reads
+nothing cannot pass. Two limits:
+
+- GitHub runs no push workflow when the head commit message holds a skip
+  marker (`[skip ci]`, `[ci skip]`, `[no ci]`, `[skip actions]` or
+  `[actions skip]`) or a `skip-checks: true` trailer. Such a message gets
+  no scan.
+- A failed run notifies the account that pushed or merged. That is the
+  owner only when the owner's account merged.
+
+Before the merge, the hook `no-ai-attribution.py` reads `--body` text, and
+reads `--body-file` when it finds the file.
 
 What CI never reads, by decision (see [DECISIONS.md](DECISIONS.md),
 2026-11-17):
