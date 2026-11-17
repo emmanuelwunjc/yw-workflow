@@ -78,13 +78,19 @@ runs it, and so does an edit to the PR body or title. The `edited` type is
 what makes CI read a body changed after the last push. Without it, the
 default types leave that body unscanned.
 
+On each push to `main`, the `check` job in this repo's
+`.github/workflows/ci.yml` scans the head commit message with
+`hooks/no-ai-attribution.py scan`. That catches a squash-merge body set at
+merge time (`gh pr merge --body`, `--body-file`, or the web UI), which the
+PR checks ran too early to see. The scan runs after the text is on `main`,
+so it cannot block the merge. A failed run tells the owner. Before the
+merge, the hook `no-ai-attribution.py` reads `--body` text, and reads
+`--body-file` when it finds the file.
+
 What CI never reads, by decision (see [DECISIONS.md](DECISIONS.md),
 2026-11-17):
 
 - Issue comments and release notes. The hook checks only the forms it can read.
-- A squash-merge body set at merge time (`gh pr merge --body`,
-  `--body-file`, or the web UI). The PR checks ran before the merge. The
-  hook reads `--body-file` when it finds the file.
 
 Three differences from the hook path, each deliberate:
 
