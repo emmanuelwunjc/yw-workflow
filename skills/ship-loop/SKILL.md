@@ -3,7 +3,7 @@ name: ship-loop
 description: Run work as a closing loop instead of a trailing-off one. Ticket, branch, implement test-first, dispatch an independent review, fix what blocks, file what does not, and repeat until a review round comes back clean. Use when asked to "run the loop", "keep going until it's right", "loop until the feedback is perfect", "babysit this to done", or when handed a backlog of tickets to work through. Also use to decide what happens to review findings.
 origin: authored
 tags: [workflow, review, tdd, subagents, loop, tickets]
-version: 1.5.6
+version: 1.5.4
 ---
 
 # Ship loop
@@ -138,34 +138,21 @@ fix that did not happen:
 ### mattpocock's `implement` and `implement-spec`
 
 `mattpocock-skills:implement` and `mattpocock-skills:implement-spec` may do
-this step only. Their own `code-review` run is a self-check, so step 4 still
+this step only. Their own `code-review` run is a self-check. So step 4 still
 dispatches `fresh-eye`.
 
 `implement-spec` runs in the coordinating session, because a builder has no
-Agent tool. Start each of its implementer subagents as `yw-workflow:builder`
-("Name the role"), and end each brief with the commit line. Implementers run
-at most four at a time (`/yw-workflow:git-lanes`).
+Agent tool. Start each implementer subagent as `yw-workflow:builder` ("Name
+the role"). End each brief with the commit line. At most four implementers run
+at once (`/yw-workflow:git-lanes`).
 
-Refuse three parts of `implement-spec`:
+Refuse the branch it merges every ticket into, its merger subagent, its draft
+PR and its step 7. Each ticket ships through this loop on its own.
 
-- **Its merger subagent.** The coordinator merges each implementer branch into
-  the integration branch, so one agent writes to that branch.
-- **Its draft PR.** A draft runs CI on work that is not finished.
-- **Its step 7.** Its `code-review` is a self-check, and each ticket already
-  had a `fresh-eye` round.
-
-Each implementer branch gets its own `fresh-eye` review (steps 4 to 6) before
-the coordinator merges it into the integration branch. That brief names as its
-base the integration branch tip the implementer merged in (`implement-spec`
-step 4).
-
-After every ticket has merged, one short `fresh-eye` round reviews the
-integration diff. It checks only that the diff holds the reviewed ticket
-branches and their conflict resolutions. It works like the split review in
-step 6. Then push the branch once and open the PR, with `Closes #N` for each
-ticket. Post the round's verdict on the PR as a comment, so the review gate
-passes. The PR body carries each ticket's `Rounds:` result. The PR merges to
-trunk after its CI passes.
+Each implementer branch starts from trunk. A ticket blocked by another starts
+after its blocker merges. Each branch runs steps 4 to 6 and merges like any
+other ticket. Several reviewed branches may share one PR with one commit each,
+as `~/CLAUDE.md` section 3 says.
 
 ## 4. Review (not by you)
 
