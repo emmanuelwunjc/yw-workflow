@@ -984,13 +984,13 @@ comment on #135 (round 6 of the review of #109). The PR checks run before
 the merge, so they never see that body. The `check` job has a step that
 runs only on a push to `main`. It scans the head commit message with
 `hooks/no-ai-attribution.py scan`. The scan cannot block the merge,
-because the text is already on `main`. A failed run notifies the account
-that pushed or merged, which is the owner only when the owner merged.
-GitHub runs no push workflow when the head commit message holds a skip
-marker (`[skip ci]`, `[ci skip]`, `[no ci]`, `[skip actions]` or
-`[actions skip]`) or a `skip-checks: true` trailer, so that message gets
-no scan. The step fails on a message with no text, so a scan that reads
-nothing cannot pass (#171). A history rewrite to remove the text is a
+because the text is already on `main`. A failed run shows in the Actions
+tab. GitHub sends a notice only to an account that turned on Actions
+notifications. GitHub runs no push workflow when the head commit message
+holds a skip marker (`[skip ci]`, `[ci skip]`, `[no ci]`, `[skip actions]`
+or `[actions skip]`) or a `skip-checks: true` trailer, or when a
+workflow's `GITHUB_TOKEN` made the push, so that message gets no scan. The
+step fails when the message file holds no text (#171). A history rewrite to remove the text is a
 separate choice.
 
 CI does not scan these, and the gap is accepted:
