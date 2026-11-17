@@ -26,6 +26,10 @@ skill describes. shape_problems() returns one string per problem:
     skills/handoff/lane_claim.py (issue #118). Each warning prints the fix.
     A plugin script that cannot be read gets one warning that the check did
     not run. A repo copy that cannot be read gets its own warning.
+  - a read that fails (docs/HANDOFF.md, the scripts/ folder, or git
+    ls-files) gets a warning that names that read and says which check did
+    not run (issue #145). It never warns for the problem the check would
+    have looked for, and it never passes silently.
 
 Offline by design: it reads files and git only.
 """
@@ -138,11 +142,22 @@ def script_problems(top: str, lines: list[str]) -> list[str]:
     target = os.path.join(top, LANE_SCRIPT)
     copy = (f"  mkdir -p '{os.path.dirname(target)}' && "
             f"cp '{PLUGIN_SCRIPT}' '{target}'")
-    if not os.path.isfile(target):
+    try:
+        os.stat(target)
+    except (FileNotFoundError, NotADirectoryError):
         return [f"{HANDOFF}'s `{START_HERE}` block runs {LANE_SCRIPT}, and "
                 f"this repo has no {LANE_SCRIPT}, so every lane claim fails. "
                 f"Copy it from the plugin and commit it:\n{copy}"]
-    if not git("-C", top, "ls-files", "--", LANE_SCRIPT).strip():
+    except OSError as exc:
+        return [f"cannot look for {LANE_SCRIPT} at {target} ({exc.strerror}), "
+                f"so the copy check did not run and a lane claim may fail. "
+                f"Fix the permissions of {os.path.dirname(target)}."]
+    try:
+        tracked = git("-C", top, "ls-files", "--", LANE_SCRIPT, check=True)
+    except RuntimeError as exc:
+        return [f"git cannot say whether {LANE_SCRIPT} is tracked, so the "
+                f"copy check did not run: {exc}"]
+    if not tracked.strip():
         return [f"{LANE_SCRIPT} is not tracked, so a fresh clone or a cloud "
                 f"routine has no copy and every lane claim there fails. "
                 f"Commit it:\n  git -C '{top}' add {LANE_SCRIPT}"]
@@ -165,13 +180,16 @@ def script_problems(top: str, lines: list[str]) -> list[str]:
 def shape_problems(top: str) -> list[str]:
     """Each string is one warning; empty means the handoff has the right shape."""
     problems = []
+    lines = None
     handoff = os.path.join(top, HANDOFF)
     if os.path.isfile(handoff):
         try:
             with open(handoff, encoding="utf-8", errors="replace") as fh:
                 lines = fh.read().splitlines()
-        except OSError:
-            lines = []
+        except OSError as exc:
+            problems.append(f"cannot read {HANDOFF} at {handoff} ({exc.strerror}), "
+                            f"so its shape checks did not run. Fix its permissions.")
+    if lines is not None:
         if not any(ln.strip() == START_HERE for ln in lines):
             problems.append(
                 f"{HANDOFF} has no `{START_HERE}` line. A fresh session starts from "
@@ -186,7 +204,11 @@ def shape_problems(top: str) -> list[str]:
                 f"{HANDOFF} still says \"{hit}\" in its first {PREAMBLE_LINES} "
                 f"lines. That preamble told the reader the file was written at "
                 f"close; the file is written as work happens. Delete it.")
-    tracked = git("-C", top, "ls-files", "-z").split("\0")
+    try:
+        tracked = git("-C", top, "ls-files", "-z", check=True).split("\0")
+    except RuntimeError as exc:
+        return problems + [f"git cannot list the tracked files, so the check for "
+                           f"handoff files outside docs/ did not run: {exc}"]
     stray = [f for f in tracked
              if "handoff" in os.path.basename(f).lower()
              and f.lower().endswith(".md")
