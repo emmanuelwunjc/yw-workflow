@@ -3,7 +3,7 @@ name: ship-loop
 description: Run work as a closing loop instead of a trailing-off one. Ticket, branch, implement test-first, dispatch an independent review, fix what blocks, file what does not, and repeat until a review round comes back clean. Use when asked to "run the loop", "keep going until it's right", "loop until the feedback is perfect", "babysit this to done", or when handed a backlog of tickets to work through. Also use to decide what happens to review findings.
 origin: authored
 tags: [workflow, review, tdd, subagents, loop, tickets]
-version: 1.5.2
+version: 1.5.3
 ---
 
 # Ship loop
@@ -107,6 +107,10 @@ never stronger than the quote. Keep the source line beside the sentence (a
 comment, a sources file, or the PR body), so the review becomes a diff of
 sentence against quote. A fix to copy can make a new defect, as in
 edsim_funder_impact #92.
+
+**The seams under test come from the ticket.** `tdd` asks the user to confirm
+the seams before the first test, and a builder cannot ask. A ticket that does
+not name its seams is not agent-ready. It goes back to step 1.
 
 Write the failing probe before the fix, or you will ship something that never
 runs. Then the smallest change that passes, at the root cause: grep every caller

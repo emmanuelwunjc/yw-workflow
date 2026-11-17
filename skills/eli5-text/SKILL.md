@@ -3,7 +3,7 @@ name: eli5-text
 description: Explain a topic like the reader knows nothing about it, in the conversation, with no artifact and no page to open. Use when the user asks to "eli5 this", "explain it simply", "what does this actually mean", or wants the plain version right now rather than a link. Prefer this over eli5 when the answer is needed mid-task, and when a bare "eli5 X" or "explain like I'm 5" could go either way.
 origin: authored
 tags: [explanation, teaching, plain-language]
-version: 1.0.0
+version: 1.0.1
 ---
 
 # eli5 text
@@ -78,3 +78,5 @@ Close with one line naming what this lets them do now.
 - The explanation reveals a decision the user has to make rather than a fact
   they have to learn: `/yw-workflow:grill`.
 - They asked because something is blocked on them: `/yw-workflow:need-me`.
+- The last message did not land: `/mattpocock-skills:wait-what` says it again
+  with context, in Simplified Technical English.

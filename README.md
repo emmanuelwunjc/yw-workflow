@@ -48,6 +48,7 @@ flowchart LR
         direction TB
         grill[grill]:::yw
         way[wayfinder]:::yw
+        dm[domain-modeling]:::matt
     end
     subgraph S3 [3 Ship one ticket: ship-loop]
         direction TB
@@ -68,6 +69,7 @@ flowchart LR
     end
     idea --> grill
     grill -->|too big for one session| way
+    grill -->|domain term| dm
     grill -->|one session| ticket
     way -->|map done| ticket
     bug --> ticket
@@ -86,8 +88,9 @@ How to read it, one stage at a time:
 2. **Plan.** An idea goes to `grill`, one decision at a time. Work sized for
    one session goes straight to `ship-loop`. Work too big for one session goes
    to `wayfinder`, which maps it as decision tickets and hands the finished map
-   to `ship-loop`. The model cannot call the yw `wayfinder`, so type
-   `/yw-workflow:wayfinder`. Open ticket
+   to `ship-loop`. A domain term goes to `domain-modeling`, which writes it to
+   `GLOSSARY.md`. Decisions stay in the handoff notes. The model cannot call
+   the yw `wayfinder`, so type `/yw-workflow:wayfinder`. Open ticket
    [#45](https://github.com/emmanuelwunjc/yw-workflow/issues/45) will replace
    it with Matt's copy.
 3. **Ship one ticket.** `ship-loop` runs each ticket around one loop.
@@ -109,6 +112,8 @@ Skills for any stage:
 |---|---|---|
 | `harden` | yw | A repo has no CI or branch protection yet. |
 | `need-me` | yw | You want only what waits on you. |
+| `triage` | matt | A repo's issues and PRs need sorting into agent-ready briefs. |
+| `wizard` | matt | A human step has many values to enter, e.g. CI secrets. |
 | `pm` | yw | You want status, or one chat that runs the agents. |
 | `mutation-gate` | yw | A check must prove it can fail. |
 | `goal-tracker` | yw | A goal with a date and several parts needs one progress page. |
