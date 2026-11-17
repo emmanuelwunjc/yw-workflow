@@ -3,7 +3,7 @@ name: fresh-eye
 description: Dispatch an independent adversarial reviewer that did not write the code, in an isolated git worktree, to try to break a change rather than agree with it. Use before merging anything non-trivial, when asked for "a fresh eye", "a second opinion", "review this properly", "try to break this", or when you have just finished work and are about to call it done. Also use on the FIX for a previous review, because that is where the next defect usually is.
 origin: authored
 tags: [review, quality, adversarial, worktree, mutation-testing]
-version: 1.5.0
+version: 1.6.0
 ---
 
 # Fresh eye
@@ -252,13 +252,14 @@ or the fifth fix-and-re-review cycle:
 
     ## Agent-facing specifics
     <the existing detailed format: file:line, BLOCKING or nit, the concrete
-    failure scenario (inputs -> wrong output), how it was verified (ran vs.
-    reasoned), and the mergeable/not verdict. This is for the next agent that
+    failure scenario (inputs -> wrong output), and how it was verified (ran
+    vs. reasoned). This is for the next agent that
     picks up the fix, not for a person skimming.>
 
 The decision line is the first thing on the page and is exactly one or two
-words: `PASS`, `BLOCK`, or `REVIEW` (a call only a person can make, e.g. a
-deliberate tradeoff the reviewer can't approve or reject on its own). Never
+words: `PASS`, `BLOCK n`, or `REVIEW n`, where n is the number of blocking
+findings. `REVIEW` is a call only a person can make, e.g. a
+deliberate tradeoff the reviewer cannot approve or reject on its own. Never
 bury the verdict in prose the reader has to extract themselves. A `REVIEW`
 that could have been asked before the build cost a round. `ship-loop` step 3
 asks those calls first.
@@ -349,9 +350,12 @@ function, or line number, it belongs in Agent-facing specifics instead.
        README, or style guide)? Round 1 only: is the premise sound? Should
        this exist at all?
 
-    Report each finding with file:line, BLOCKING or nit, the concrete failure
-    scenario (inputs -> wrong output), and how you verified it. Say plainly
-    whether this is mergeable. Do not fix anything. Do not commit.
+    Start with one decision line: BLOCK n if you found a blocking finding,
+    else REVIEW n if a call only a person can make is open, else PASS.
+    n is the number of blocking findings.
+    Then report each finding with file:line, BLOCKING or nit, the concrete
+    failure scenario (inputs -> wrong output), and how you verified it.
+    Do not fix anything. Do not commit.
 
 The second reviewer, on round 1 of a change that builds or fixes code:
 
