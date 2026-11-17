@@ -3,7 +3,7 @@ name: fresh-eye
 description: Dispatch an independent adversarial reviewer that did not write the code, in an isolated git worktree, to try to break a change rather than agree with it. Use before merging anything non-trivial, when asked for "a fresh eye", "a second opinion", "review this properly", "try to break this", or when you have just finished work and are about to call it done. Also use on the FIX for a previous review, because that is where the next defect usually is.
 origin: authored
 tags: [review, quality, adversarial, worktree, mutation-testing]
-version: 1.4.0
+version: 1.5.0
 ---
 
 # Fresh eye
@@ -21,7 +21,7 @@ dispatches someone else.
 - Before merging any change that is not a typo.
 - On the FIX for a previous review. Each fix to a check tends to open a different
   hole in it, and the second review routinely finds defects the first one's fix
-  introduced. One clean round is not enough for new checking code.
+  introduced. So a fix always gets its own round.
 - When a change alters a global property (a layout invariant, a timeout, an
   auth boundary). Requirements written under the old assumption rot silently.
 
@@ -81,6 +81,23 @@ changed (tier 1).** Other code a past round already mutated stays covered.
 Name the fix's diff in the brief, e.g.
 `git diff <reviewed-sha>..origin/<branch>`.
 
+**Judge only what this branch changed.** Round 1 reviews the branch's diff
+against its base. A later round reviews the fix's diff and what the fix
+touches. A defect in text or code that this branch did not change is a nit
+with a ticket, never blocking. One exception: the branch makes the old text
+wrong, e.g. it renames a flag and an old README line still names the old
+flag. Then the old line is part of the change and can block.
+
+**A wording finding blocks only when a reader acts wrongly.** It blocks when
+a reader who follows the sentence does the wrong thing, e.g. "run X" where X
+fails, or "merge needs no review" where it does. A sentence that is only
+stronger than its source, or has no source line, is a nit.
+
+**Ask the premise once.** Round 1 asks whether the premise is sound and
+whether the change should exist at all, about the whole change. A later round
+checks house style on the fix's diff only. The premise does not change
+between fix rounds.
+
 **Demand mutation at tier 1.** At tier 1 this is the highest-value
 instruction in the prompt. List the specific mutations that MUST fail, and ask
 for any that survive, loudly:
@@ -113,8 +130,8 @@ For each branch the reviewer breaks, at least one case must fail.
 
 Each survivor has one route, and the route depends on the tier. At tier 1, a
 surviving broken input or check mutation becomes the case that kills it, and
-it blocks. A case is cheap to run, but adding one after a `PASS` changes
-code, so it costs one more review round (`ship-loop` step 6). At tier 2, a
+it blocks. A case is cheap to run, but it changes code, so it costs one
+more review round (`ship-loop` step 6). At tier 2, a
 finding follows the tier 2 rule above, and a nit's ticket holds the case. At
 tier 1, a code breakage that a script's own self-check missed becomes a
 `mutation-gate` entry. Cases go when their check goes. The measurement behind
@@ -132,8 +149,8 @@ and never exercised. Ask which regions of the input space no test renders.
 makes a factual claim to a reader (site copy, a report, a README claim), the
 author wrote its source line first: the exact quote (or the command that
 measures a number or a behavior), where it lives, its date.
-The reviewer compares sentence to quote. A sentence stronger than its quote, or
-with no source line, is blocking. Before a PR exists, the source lines are in
+The reviewer compares sentence to quote, and marks each finding by the
+wording rule above. Before a PR exists, the source lines are in
 the diff (a comment or a sources file) or in the author's report. Paste the
 report's lines into the review prompt. The reviewer runs the author's commands
 and judges whether each command measures what its sentence claims. Where a
@@ -156,8 +173,10 @@ tell a check that was written to fail first from one written after the code.
   of the diff and show the new test fails. For a bug fix, show the reproduction
   command fails on the base and passes on the branch. A test that passes with the
   code reverted is a finding.
-- You also start a second reviewer for `mattpocock-skills:code-review`, at the
-  same time as the first. The `yw-workflow:reviewer` type has no Skill or Agent
+- On round 1 of a change that touches code, you also start a second reviewer
+  for `mattpocock-skills:code-review`, at the same time as the first. A
+  docs-only change never gets it, and a fix round uses the first reviewer
+  only. The spec and the standards do not change between fix rounds. The `yw-workflow:reviewer` type has no Skill or Agent
   tool, and code-review needs both: it loads as a skill and runs its two axes
   as parallel sub-agents. So start it with `subagent_type: "general-purpose"`
   and `isolation: "worktree"`, and put the role first in its description (e.g.
@@ -244,7 +263,8 @@ bury the verdict in prose the reader has to extract themselves. A `REVIEW`
 that could have been asked before the build cost a round. `ship-loop` step 3
 asks those calls first.
 
-When a round has two reviewers, one decision line covers both. A `BLOCK` from
+When a round has two reviewers (round 1 of a code change), one decision
+line covers both. A `BLOCK` from
 either one makes the round a `BLOCK`. Else a `REVIEW` from either one makes it
 a `REVIEW`. Else the round is a `PASS`.
 
@@ -273,6 +293,11 @@ function, or line number, it belongs in Agent-facing specifics instead.
 
     This project's recurring failure mode is <disease>. Assume it is present
     until you prove otherwise.
+
+    Round: <1, or n after a fix>. Review only: <round 1: the diff above;
+    later: git diff <reviewed-sha>..origin/<branch> and what it touches>.
+    A defect in text or code this branch did not change is a nit with a
+    ticket, unless this branch makes it wrong.
 
     Tier: <1 or 2>. <That tier's rule, pasted from "Name the tier".>
     Tier 1, mutate only: <the full diff, or after a fix, the fix's diff and
@@ -317,15 +342,18 @@ function, or line number, it belongs in Agent-facing specifics instead.
        the command measures what the sentence claims (e.g. a count that also
        counts comment lines does not). Where it does not, or where a line is
        missing, write your own command. Diff the sentence against
-       the quote. Stronger than the quote, or no source line: BLOCKING.
-    9. Does this match house style (the repo's CLAUDE.md, README, or style
-       guide)? Is the premise sound? Should this exist at all?
+       the quote. BLOCKING only when a reader who follows the sentence
+       does the wrong thing. Only stronger than the quote, or no source
+       line: nit.
+    9. Does the changed text match house style (the repo's CLAUDE.md,
+       README, or style guide)? Round 1 only: is the premise sound? Should
+       this exist at all?
 
     Report each finding with file:line, BLOCKING or nit, the concrete failure
     scenario (inputs -> wrong output), and how you verified it. Say plainly
     whether this is mergeable. Do not fix anything. Do not commit.
 
-The second reviewer, for a change that builds or fixes code:
+The second reviewer, on round 1 of a change that builds or fixes code:
 
     You run mattpocock-skills:code-review on a change you did not write.
 
