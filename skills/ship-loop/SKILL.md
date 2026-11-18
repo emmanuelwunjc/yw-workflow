@@ -81,10 +81,12 @@ the whole tree.
 **Name the role.** When you hand this step to a subagent, start it with
 `subagent_type: "yw-workflow:builder"`. A helper started without a type shows
 as `general-purpose`, and the owner cannot tell a builder from a reviewer.
-Fixes after a review go to `yw-workflow:fixer`. Docs, READMEs and handoff notes
-go to `yw-workflow:documenter`. If the install predates these types, the Agent
-tool errors on them: start a `general-purpose` helper and put the role first in
-its description (e.g. "Build: ticket 41").
+Fixes after a review go to `yw-workflow:fixer`. Every fixer brief says: check
+the whole contract each time, in one assert. The fixer prompt gives the
+example. Docs, READMEs and handoff notes go to `yw-workflow:documenter`. If
+the install predates these types, the Agent tool errors on them: start a
+`general-purpose` helper and put the role first in its description (e.g.
+"Build: ticket 41").
 
 **End the brief with the commit line.** Every builder, fixer or documenter brief ends
 with "commit your work on your own branch before you return (on a detached
