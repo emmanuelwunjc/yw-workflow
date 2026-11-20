@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Wind a session down and get its handoff written once its context is large.
 
-The line is 120k tokens, the owner's setting. docs/DECISIONS.md, 2026-11-15,
-records that mattpocock's ask-matt skill now gives about 150k. A session
+The line is 300k tokens, the owner's setting since 2026-11-20 (about 30% of
+a 1M Opus window). docs/DECISIONS.md, 2026-11-20, records why it moved from
+120k, and 2026-11-15 that mattpocock's ask-matt skill gives about 150k. A session
 cannot see its own size, so it pushes on degraded. The owner decided on
 2026-09-30 that a warning is too weak: past the line the session lets its
 running subagents finish, for a bounded time, and writes the handoff either
@@ -12,7 +13,7 @@ window.
 This hook instructs and the model acts. It kills nothing itself. Three parts:
 
 1. Wind-down notice. The first PostToolBatch or UserPromptSubmit at or past
-   `first` tokens, and again at each `step` past it (220k, 320k): start no
+   `first` tokens (300k), and again at each `step` past it (400k, 500k): start no
    new work, spawn no subagents, let running ones finish for at most
    `grace_minutes`, set a background timer for the deadline, then write the
    handoff and tell the user to start a fresh session. The time is recorded.
@@ -69,7 +70,7 @@ except Exception:  # a missing or broken helper leaves no detector: see respond(
 HANDOFF = getattr(handoff_touch, "HANDOFF", "docs/HANDOFF.md")
 
 RULE = "context_handoff"
-DEFAULTS = {"first": 120000, "step": 100000, "grace_minutes": 15}
+DEFAULTS = {"first": 300000, "step": 100000, "grace_minutes": 15}
 USAGE_FIELDS = ("input_tokens", "cache_read_input_tokens",
                 "cache_creation_input_tokens")
 STATE_TTL_SECONDS = 7 * 24 * 3600

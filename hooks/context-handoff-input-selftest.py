@@ -20,13 +20,13 @@ e.write(usage_line(300_000), user_line(), usage_line(50_000))
 check("the most recent assistant usage is the size", silent(e.run()), True)
 
 e = Env()
-e.write(usage_line(130_000), usage_line(900_000, sidechain=True))
+e.write(usage_line(310_000), usage_line(900_000, sidechain=True))
 r = e.run()
 check("a sidechain line is skipped; the main-thread one counts",
-      warned(r) and "130k" in context(r[1]), True)
+      warned(r) and "310k" in context(r[1]), True)
 
 e = Env()
-e.write(usage_line(130_000))
+e.write(usage_line(310_000))
 check("inside a subagent (agent_id present): silent",
       silent(e.run(extra={"agent_id": "a1"})), True)
 check("the subagent call did not use up the step",
@@ -45,20 +45,20 @@ def synthetic_line(model="<synthetic>"):
 
 
 e = Env()
-check("synthetic: 130k winds down", warned(e.at(130_000)), True)
-e.write(usage_line(130_000), synthetic_line())
+check("synthetic: 310k winds down", warned(e.at(310_000)), True)
+e.write(usage_line(310_000), synthetic_line())
 check("synthetic: a <synthetic> line after it is silent", silent(e.run()), True)
-e.write(usage_line(130_000), synthetic_line(), usage_line(135_000))
-check("synthetic: 135k after it stays silent, same step", silent(e.run()), True)
-e.write(usage_line(135_000), synthetic_line(model="claude-opus-5"))
+e.write(usage_line(310_000), synthetic_line(), usage_line(315_000))
+check("synthetic: 315k after it stays silent, same step", silent(e.run()), True)
+e.write(usage_line(315_000), synthetic_line(model="claude-opus-5"))
 check("a zero-sum line from a real model is skipped too", silent(e.run()), True)
-e.write(usage_line(140_000))
-check("after the zero lines, 140k is still the same step", silent(e.run()), True)
+e.write(usage_line(320_000))
+check("after the zero lines, 320k is still the same step", silent(e.run()), True)
 e = Env()
-e.write(usage_line(130_000), synthetic_line())
+e.write(usage_line(310_000), synthetic_line())
 r = e.run()
 check("synthetic last: the real line before it is the size",
-      warned(r) and "130k" in context(r[1]), True)
+      warned(r) and "310k" in context(r[1]), True)
 
 # --- state cleanup -----------------------------------------------------------
 e = Env()
@@ -69,7 +69,7 @@ old.write_text("{}")
 fresh.write_text("{}")
 eight_days = 8 * 24 * 3600
 os.utime(old, (os.path.getmtime(old) - eight_days,) * 2)
-e.at(130_000)
+e.at(310_000)
 check("state older than 7 days is removed when state is written", old.exists(), False)
 check("recent state from another session is kept", fresh.exists(), True)
 
@@ -77,14 +77,14 @@ e = Env()
 state_dir = e.home / ".claude" / "state" / "context-handoff"
 state_dir.mkdir(parents=True)
 (state_dir / "s1").write_text("not json")
-check("an unreadable state file is treated as no state", warned(e.at(130_000)), True)
+check("an unreadable state file is treated as no state", warned(e.at(310_000)), True)
 (state_dir / "s1").write_text('["a list"]')
 check("a state file of the wrong shape is treated as no state",
-      warned(e.at(130_000)), True)
+      warned(e.at(310_000)), True)
 
 # --- output shape ---------------------------------------------------------
 e = Env()
-code, out, _ = e.at(130_000, event="UserPromptSubmit")
+code, out, _ = e.at(310_000, event="UserPromptSubmit")
 check("the notice is exactly the documented shape",
       json.loads(out or "{}"), {"hookSpecificOutput": {
           "hookEventName": "UserPromptSubmit",
@@ -102,7 +102,7 @@ e = Env()
 e.write(json.dumps({"type": "assistant", "message": {"usage": {"input_tokens": "x"}}}))
 check("non-numeric usage: exit 0, silent", silent(e.run()), True)
 e = Env()
-e.write(usage_line(130_000))
+e.write(usage_line(310_000))
 check("no session_id: exit 0, silent",
       silent(e.run(raw=json.dumps({"transcript_path": str(e.transcript)}))), True)
 
@@ -131,26 +131,26 @@ check("user config switches it off: Stop is allowed", silent(e.run(event="Stop")
 e = Env()
 (e.home / ".handrail.json").write_text(json.dumps(
     {"context_handoff": {"first": "lots", "step": 0, "grace_minutes": -3}}))
-check("nonsense config values fall back to defaults: 119k silent",
-      silent(e.at(119_000)), True)
-r = e.at(120_000, now=T0)
-check("nonsense config values fall back to defaults: 120k winds down", warned(r), True)
+check("nonsense config values fall back to defaults: 299k silent",
+      silent(e.at(299_000)), True)
+r = e.at(300_000, now=T0)
+check("nonsense config values fall back to defaults: 300k winds down", warned(r), True)
 check("nonsense grace_minutes falls back to 15",
       "at most 15 minutes" in context(r[1]), True)
 check("default grace holds: silent at 14:59",
-      silent(e.at(121_000, now=T0 + 15 * MIN - 1)), True)
+      silent(e.at(301_000, now=T0 + 15 * MIN - 1)), True)
 check("default grace holds: deadline notice at 15:00",
-      deadline(e.at(121_000, now=T0 + 15 * MIN)), True)
+      deadline(e.at(301_000, now=T0 + 15 * MIN)), True)
 
 for bad in (True, 2.5, "15", None):
     e = Env()
     (e.home / ".handrail.json").write_text(json.dumps(
         {"context_handoff": {"grace_minutes": bad}}))
     check("grace_minutes=%r falls back to 15" % (bad,),
-          "at most 15 minutes" in context(e.at(120_000)[1]), True)
+          "at most 15 minutes" in context(e.at(300_000)[1]), True)
 
 e = Env()
 (e.home / ".handrail.json").write_text("{broken")
-check("unreadable config: defaults still wind down at 120k", warned(e.at(120_000)), True)
+check("unreadable config: defaults still wind down at 300k", warned(e.at(300_000)), True)
 
 finish("input")

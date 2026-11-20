@@ -8,7 +8,8 @@ with finish(). The name has no `-selftest.` in it, so the CI loop over
 
 Each case writes a fake transcript, runs the hook on it the way Claude Code
 does (JSON on stdin), and compares what reaches the model with what the owner
-decided on 2026-09-30: a wind-down notice at 120k tokens, a deadline notice
+decided on 2026-09-30, with the line raised on 2026-11-20: a wind-down
+notice at 300k tokens, a deadline notice
 when the grace for running subagents is over, and one Stop block while no
 handoff has been written.
 
