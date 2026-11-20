@@ -7,6 +7,28 @@ moving tool version does not rot them.
 A decision is superseded, never deleted. Mark it with the date and what
 replaced it.
 
+## 2026-11-20: the wind-down line moves to 300k, about 30% of a 1M Opus window
+
+Supports `handoff`. Supersedes "ask-matt now puts the smart zone at about
+150k, and 120k stays" (2026-11-15) on the number. What still holds: the
+unit is tokens, `step` is 100000, `grace_minutes` is 15.
+
+On Opus with a window of about 1M tokens, the hook fired at 120k while the
+owner's context meter read 12%. The owner said the session "should not wind
+down until 30%", and decided the hook "should be updated globally to a 300k
+hook, if that is about 30% of a opus context".
+
+`first` is now 300000 in `hooks/context-handoff.py` and
+`hooks/handrail_config.py`. Notices come at 300k, 400k, 500k. The threshold
+stays a token count, so on a 200k window the hook never fires. A repo or
+user `.handrail.toml` can still set `[context_handoff] first` lower.
+
+The self-tests now pin 300k: 299,999 is silent, 300,000 winds down, 400k is
+the next step, and 120k, the old line, is silent.
+
+Check: `grep -n '"first": 300000' hooks/context-handoff.py hooks/handrail_config.py`
+and `(for t in ./hooks/context-handoff-*-selftest.py; do "$t" || exit 1; done)`.
+
 ## 2026-11-16: handoff-freshness sends its Stop warnings as Stop additionalContext, once per session
 
 Supports `hooks/handoff-freshness.py` (#125, with the boxes merged from #22).
@@ -848,6 +870,9 @@ Check: `./hooks/lane-claim-selftest.py`, `./hooks/handoff-freshness-selftest.py`
 and `./hooks/context-handoff-selftest.py`.
 
 ## 2026-11-15: ask-matt now puts the smart zone at about 150k, and 120k stays
+
+Superseded 2026-11-20 by "the wind-down line moves to 300k, about 30% of a
+1M Opus window" above, for the number. The ask-matt citation still holds.
 
 Supports `handoff`. The entries of 2026-09-21 and 2026-09-30 quote
 mattpocock's `ask-matt` skill at "~120k tokens". mattpocock-skills 1.3.1

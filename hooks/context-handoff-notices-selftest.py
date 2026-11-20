@@ -13,12 +13,13 @@ from context_handoff_testkit import (
 # --- thresholds and steps ------------------------------------------------
 e = Env()
 e.repo()  # the repo wording names the branch and the PR body
-check("119,999 tokens: below the threshold, silent", silent(e.at(119_999)), True)
-r = e.at(120_000, now=T0)
-check("120,000 tokens: at the threshold, winds down", warned(r), True)
+check("120k, the old line: silent", silent(e.at(120_000)), True)
+check("299,999 tokens: below the threshold, silent", silent(e.at(299_999)), True)
+r = e.at(300_000, now=T0)
+check("300,000 tokens: at the threshold, winds down", warned(r), True)
 text = context(r[1])
-check("the notice names the size", "120k" in text, True)
-check("the notice names the threshold", "~120k" in text, True)
+check("the notice names the size", "300k" in text, True)
+check("the notice names the threshold", "~300k" in text, True)
 check("the notice stops new work and new subagents",
       "Start no new work and spawn no new subagents" in text, True)
 check("the notice gives running subagents the grace",
@@ -36,38 +37,38 @@ check("the notice hands the lane off on its issue",
       and '`python3 scripts/lane_claim.py write <N> "<name>" <file>`' in text
       and '`python3 scripts/lane_claim.py release <N> "<name>"`' in text, True)
 check("the time of the notice is recorded", e.state().get("noticed"), T0)
-check("150k, same step: no second notice", silent(e.at(150_000, now=T0 + 1)), True)
-check("219,999: still step 0, silent", silent(e.at(219_999, now=T0 + 2)), True)
-r = e.at(220_000, now=T0 + 3)
-check("220k: next step, winds down again", warned(r), True)
-check("220k notice names 220k", "220k" in context(r[1]), True)
+check("330k, same step: no second notice", silent(e.at(330_000, now=T0 + 1)), True)
+check("399,999: still step 0, silent", silent(e.at(399_999, now=T0 + 2)), True)
+r = e.at(400_000, now=T0 + 3)
+check("400k: next step, winds down again", warned(r), True)
+check("400k notice names 400k", "400k" in context(r[1]), True)
 check("the repeat restarts the clock", e.state().get("noticed"), T0 + 3)
-check("250k: same step, silent", silent(e.at(250_000, now=T0 + 4)), True)
-r = e.at(480_000, now=T0 + 5)
-check("480k: jumps three steps, one notice", warned(r), True)
-check("490k: same step, silent", silent(e.at(490_000, now=T0 + 6)), True)
+check("430k: same step, silent", silent(e.at(430_000, now=T0 + 4)), True)
+r = e.at(660_000, now=T0 + 5)
+check("660k: jumps three steps, one notice", warned(r), True)
+check("670k: same step, silent", silent(e.at(670_000, now=T0 + 6)), True)
 
 # a different session keeps its own state
-check("another session at 130k is told on its own", warned(e.at(130_000, session="s2")), True)
+check("another session at 310k is told on its own", warned(e.at(310_000, session="s2")), True)
 
 # after /compact the context drops; crossing again later is news again
 e = Env()
-check("compact: notice at 130k", warned(e.at(130_000, now=T0)), True)
+check("compact: notice at 310k", warned(e.at(310_000, now=T0)), True)
 check("compact: drop to 40k is silent", silent(e.at(40_000, now=T0 + 1)), True)
 check("compact: below the threshold the wind-down is off",
       e.state().get("noticed"), None)
 check("compact: no deadline notice for a session back under the line",
       silent(e.at(40_000, now=T0 + 99 * MIN)), True)
 check("compact: and no Stop block", silent(e.stop(T0 + 99 * MIN)), True)
-check("compact: back over 120k winds down again",
-      warned(e.at(125_000, now=T0 + 100 * MIN)), True)
+check("compact: back over 300k winds down again",
+      warned(e.at(305_000, now=T0 + 100 * MIN)), True)
 
 # --- the deadline ------------------------------------------------------------
 e = Env()
-e.at(130_000, now=T0)
+e.at(310_000, now=T0)
 check("deadline: one second early, silent",
-      silent(e.at(131_000, now=T0 + 15 * MIN - 1)), True)
-r = e.at(131_000, now=T0 + 15 * MIN)
+      silent(e.at(311_000, now=T0 + 15 * MIN - 1)), True)
+r = e.at(311_000, now=T0 + 15 * MIN)
 check("deadline: at 15 minutes, the deadline notice", deadline(r), True)
 text = context(r[1])
 check("the deadline notice saves each subagent's work",
@@ -77,63 +78,63 @@ check("the deadline notice says write the handoff now",
       "write the handoff now" in text, True)
 check("the deadline notice says what the check cannot see",
       "This check sees only docs/HANDOFF.md" in text, True)
-check("deadline: said once", silent(e.at(132_000, now=T0 + 16 * MIN)), True)
+check("deadline: said once", silent(e.at(312_000, now=T0 + 16 * MIN)), True)
 check("deadline: still once an hour later",
-      silent(e.at(133_000, now=T0 + 60 * MIN)), True)
-code, out, _ = e.at(131_000, now=T0 + 61 * MIN, event="UserPromptSubmit")
+      silent(e.at(313_000, now=T0 + 60 * MIN)), True)
+code, out, _ = e.at(311_000, now=T0 + 61 * MIN, event="UserPromptSubmit")
 check("deadline: not repeated on the other event either", out, "")
 
 e = Env()
-e.at(130_000, now=T0)
-r = e.at(131_000, now=T0 + 15 * MIN, event="UserPromptSubmit")
+e.at(310_000, now=T0)
+r = e.at(311_000, now=T0 + 15 * MIN, event="UserPromptSubmit")
 check("deadline: arrives on UserPromptSubmit too",
       deadline(r) and output(r[1]).get("hookEventName") == "UserPromptSubmit", True)
 
 # a step crossed after the deadline starts a new wind-down with its own grace
 e = Env()
-e.at(130_000, now=T0)
-r = e.at(230_000, now=T0 + 20 * MIN)
+e.at(310_000, now=T0)
+r = e.at(410_000, now=T0 + 20 * MIN)
 check("a new step past the deadline is a wind-down notice",
       warned(r) and not deadline(r), True)
-check("and its own deadline follows", deadline(e.at(231_000, now=T0 + 35 * MIN)), True)
+check("and its own deadline follows", deadline(e.at(411_000, now=T0 + 35 * MIN)), True)
 
 # --- handoff already written ---------------------------------------------------
 e = Env()
 e.repo()
-e.at(130_000, now=T0)
+e.at(310_000, now=T0)
 e.commit_handoff(when=T0 + 5 * MIN)
 check("handoff committed after the notice: no deadline notice",
-      silent(e.at(131_000, now=T0 + 15 * MIN)), True)
+      silent(e.at(311_000, now=T0 + 15 * MIN)), True)
 check("handoff committed after the notice: Stop is allowed",
       silent(e.stop(T0 + 16 * MIN)), True)
 
 e = Env()
 e.repo()
 e.commit_handoff(when=T0 - 5 * MIN)
-e.at(130_000, now=T0)
+e.at(310_000, now=T0)
 check("handoff committed before the notice does not count: deadline notice",
-      deadline(e.at(131_000, now=T0 + 15 * MIN)), True)
+      deadline(e.at(311_000, now=T0 + 15 * MIN)), True)
 
 e = Env()
 e.repo()
 e.commit_handoff(when=T0 - 5 * MIN)
-e.at(130_000, now=T0)
+e.at(310_000, now=T0)
 check("handoff committed before the notice does not count: Stop blocks",
       bool(blocked(e.stop(T0 + 1))), True)
 
 e = Env()
 e.repo()
 e.commit_handoff(when=T0 - 5 * MIN)
-e.at(130_000, now=T0)
+e.at(310_000, now=T0)
 (e.cwd / "docs" / "HANDOFF.md").write_text("being written\n")
 check("an uncommitted handoff edit counts: Stop is allowed",
       silent(e.stop(T0 + 1)), True)
 check("an uncommitted handoff edit counts: no deadline notice",
-      silent(e.at(131_000, now=T0 + 15 * MIN)), True)
+      silent(e.at(311_000, now=T0 + 15 * MIN)), True)
 
 e = Env()
 e.repo()
-e.at(130_000, now=T0)
+e.at(310_000, now=T0)
 e.git("checkout", "-q", "-b", "docs/handoff-x")
 e.commit_handoff(when=T0 + 5 * MIN)
 e.git("checkout", "-q", "main")
@@ -142,7 +143,7 @@ check("handoff committed on another branch after the notice: Stop is allowed",
 
 e = Env()
 e.repo()
-e.at(130_000, now=T0)
+e.at(310_000, now=T0)
 (e.cwd / "docs" / "HANDOFF.md").write_text("new, untracked\n")
 check("a new untracked docs/HANDOFF.md counts: Stop is allowed",
       silent(e.stop(T0 + 1)), True)
@@ -150,20 +151,20 @@ check("a new untracked docs/HANDOFF.md counts: Stop is allowed",
 # the lane case: the notes may be in a PR body the check cannot read
 e = Env()
 e.repo()
-e.at(130_000, now=T0)
+e.at(310_000, now=T0)
 reason = blocked(e.stop(T0 + 1))
 check("in a git repo the block says the notes may be in the PR body",
       "already in the PR body" in reason, True)
 e = Env()
 e.repo()
-e.at(130_000, now=T0)
-text = context(e.at(131_000, now=T0 + 15 * MIN)[1])
+e.at(310_000, now=T0)
+text = context(e.at(311_000, now=T0 + 15 * MIN)[1])
 check("in a git repo the deadline notice names the skill with its plugin prefix",
       "load the yw-workflow:handoff skill" in text, True)
 
 # a plain folder: no repo, so no branch and no PR body either
 e = Env()
-text = context(e.at(130_000, now=T0)[1])
+text = context(e.at(310_000, now=T0)[1])
 check("in a plain folder the wind-down notice never mentions a PR body",
       "PR body" not in text and "docs/handoff-" not in text, True)
 check("in a plain folder the notice names the skill with its plugin prefix",
@@ -175,7 +176,7 @@ check("in a plain folder the block names the skill with its plugin prefix",
       "load the yw-workflow:handoff skill" in reason, True)
 check("in a plain folder the block never mentions a PR body",
       "PR body" not in reason and "docs/handoff-" not in reason, True)
-text = context(e.at(131_000, now=T0 + 15 * MIN)[1])
+text = context(e.at(311_000, now=T0 + 15 * MIN)[1])
 check("in a plain folder the deadline notice says it is no git repo",
       "not a git repo" in text, True)
 check("in a plain folder the deadline notice names the skill with its plugin prefix",

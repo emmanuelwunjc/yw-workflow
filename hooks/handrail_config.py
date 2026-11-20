@@ -91,10 +91,10 @@ VALUE_DEFAULTS = {
     "handoff": {"path": "docs/HANDOFF.md"},
     # `first` and `step` are tokens of context. The wind-down notice is given
     # at `first`, then again at each `step` past it. Both are the owner's
-    # call, 2026-09-21. docs/DECISIONS.md, 2026-11-15, records that ask-matt
-    # now says about 150k and that 120k stays. `grace_minutes` is how long running subagents may take
+    # call: 120k on 2026-09-21, raised to 300k on 2026-11-20 (about 30% of a
+    # 1M Opus window). docs/DECISIONS.md, 2026-11-20, records why. `grace_minutes` is how long running subagents may take
     # to finish after a notice, the owner's call on 2026-09-30.
-    "context_handoff": {"first": 120000, "step": 100000, "grace_minutes": 15},
+    "context_handoff": {"first": 300000, "step": 100000, "grace_minutes": 15},
     "require_review": {
         "trivial_lines": 25,
         "code_suffixes": [".py", ".yml", ".yaml", ".toml", ".cfg", ".sh", ".ts", ".js"],
