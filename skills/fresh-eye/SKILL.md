@@ -183,8 +183,9 @@ tell a check that was written to fail first from one written after the code.
   the first. Count the lines with
   `gh pr view <n> --json additions,deletions --jq '.additions + .deletions'`.
   A fix round, a PR of 50 lines or fewer, and a docs-only change get the
-  first reviewer only. The owner chose this rule on 2026-11-23. The spec and the standards do not change between fix rounds. The `yw-workflow:reviewer` type has no Skill or Agent
-  tool, and code-review needs both: it loads as a skill and runs its two axes
+  first reviewer only. The owner chose this rule on 2026-11-23. The spec
+  and the standards do not change between fix rounds. The
+  `yw-workflow:reviewer` type has no Skill or Agent tool, and code-review needs both: it loads as a skill and runs its two axes
   as parallel sub-agents. So start it with `subagent_type: "general-purpose"`
   and `isolation: "worktree"`, and put the role first in its description (e.g.
   "Code review: PR 12"). That type has Write and Edit, so its prompt tells it
@@ -216,18 +217,22 @@ tell a check that was written to fail first from one written after the code.
 
 ## In Orca
 
-In Orca, the coordinator starts the reviewer as an Orca worker, not with the
-Agent tool. `subagent_type` and `isolation` have no Orca form, so:
+In Orca, the coordinator starts the reviewer as an Orca worker.
+`subagent_type` and `isolation` have no Orca form, so:
 
 - **Role:** the worker's spec starts with the role, e.g. "Review: PR 12",
   then holds the prompt skeleton below, filled in.
 - **Worktree:** start the worker in a new worktree, e.g.
   `--worktree new-top-level`. Never `--worktree current`, which is the
   author's tree.
-- **Report:** the reviewer posts its verdict on the PR (see "Closing the
-  loop"), then sends the coordinator one line as its `worker_done` subject:
+- **Report:** the reviewer writes its verdict, in the shape under "Closing
+  the loop", to a file outside the repo. It sends that path as the
+  `worker_done` `--report-path`, with one line as the subject:
   `review done: PR <n> <decision>`, e.g. `review done: PR 585 BLOCK 1`. The
-  coordinator acts on that line and opens the comment only for the findings.
+  coordinator acts on that line and opens the file only for the findings.
+- **Post:** the coordinator posts the verdict, as `pm` says, with
+  `gh pr comment <n> --body-file <file>`. The reviewer does not post to
+  GitHub. Before the PR exists, the verdict goes on the `Rounds:` line.
 
 ## Reading the result
 
@@ -259,11 +264,13 @@ of them is acceptable.
 
 Then post the verdict where the change lives, including what you did NOT fix and
 why. Post it with `gh pr comment <n> --body-file <file>`, first line `PASS`,
-`BLOCK` or `REVIEW`. The merge gate (`hooks/require-code-review.py`) looks for
-that first line. It reads PR comments on every plugin version. Since plugin
-1.19.27 it also reads the body of a review posted with
+`BLOCK` or `REVIEW`. The merge gate (`hooks/require-code-review.py`) counts
+`PASS` or `BLOCK` at the start of any line, and `REVIEW` never lets a merge
+through. It reads PR comments on every plugin version. Since plugin
+1.19.28 it also reads the body of a review posted with
 `gh pr review <n> --comment`. A copy of the gate older than that sees no
-review, and CI fails with "nothing has reviewed it". See `ship-loop` for running this repeatedly until the feedback is clean.
+review, and CI fails with "nothing has reviewed it". See `ship-loop` for
+running this repeatedly until the feedback is clean.
 
 **Every round's posted comment has a fixed shape**, whether it's the first round
 or the fifth fix-and-re-review cycle:
@@ -293,8 +300,8 @@ prose the reader has to extract themselves. A `REVIEW` that could have been
 asked before the build cost a round. `ship-loop` step 3 asks those calls
 first.
 
-When a round has two reviewers (round 1 of a code PR over 50 lines), one decision line
-covers both. A `BLOCK` from either one makes the round a `BLOCK`. Else a
+When a round has two reviewers (round 1 of a code PR over 50 changed lines),
+one decision line covers both. A `BLOCK` from either one makes the round a `BLOCK`. Else a
 `REVIEW` from either one makes it a `REVIEW`. Else the round is a `PASS`. So
 a `REVIEW` always carries 0, from one reviewer or two.
 

@@ -254,7 +254,7 @@ before its verdict:
 
     Rounds: BLOCK 3 (95k) · BLOCK 2 (80k) · BLOCK 2 (70k) · BLOCK 1 (60k) · split PASS (40k)
 
-When `fresh-eye` starts two reviewers in a round (round 1 of a code change),
+When `fresh-eye` starts two reviewers in a round (round 1 of a code PR over 50 changed lines),
 the round is still one entry. Its verdict follows the combining rule in
 `fresh-eye`. Its blocking count is the number of different blocking defects
 the two reviewers found. A defect that both reviewers report counts once. Two
