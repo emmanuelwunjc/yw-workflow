@@ -19,6 +19,13 @@ events: opened, labeled, unlabeled, closed and reopened. Each run:
   Layer issues (known by title) and the tracker itself are never moved.
   Before the migration (no layers under the tracker) it does nothing.
 
+Then it lists each open issue of the repo that no tracker can see, one line
+each: "#N has no slice: label (title)". It skips an issue with any slice:
+label, the tracker, a layer (by title), and an issue with an exempt label:
+lane, tracker, or a label in the exempt: list of the map file. The list is a
+warning and the exit code stays 0. With --strict the exit code is 1 while the
+list has a line, so a CI step or a weekly check fails on it.
+
 Stdlib and the gh CLI only. Its self-check is test_tracker_sync.py in
 skills/goal-tracker/ of yw-workflow, the general copy of this file.
 Run it from the repo root, so the default map file path resolves.
@@ -56,10 +63,15 @@ DEFAULT_CONFIG = Path(".github/tracker-layers.yml")
 # is skipped. A leading BOM and a \r before each line end are removed.
 TRACKER_LINE = re.compile(r"tracker: ([1-9][0-9]*)")
 HEADING_LINE = "layers:"
+EXEMPT_LINE = "exempt:"
+EXEMPT_ITEM = re.compile(r'  - "([^"\\\x00-\x1f\x7f]+)"')
 LAYER_LINE = re.compile(r'  "(slice:[a-z0-9-]+)": "([^"\\\x00-\x1f\x7f]+)"')
 ACCEPTED = ('Write tracker: <number of the top issue>, then layers:, then each layer as '
-            '"slice:<part>": "<title>" in double quotes, indented two spaces.')
+            '"slice:<part>": "<title>" in double quotes, indented two spaces. '
+            'An optional exempt: line takes - "<label>" lines, indented two spaces.')
 SLICE = "slice:"
+# Labels of issues that serve the work but are no work item, so no tracker lists them.
+DEFAULT_EXEMPT = ("lane", "tracker")
 
 
 def slices_of(labels):
@@ -68,7 +80,7 @@ def slices_of(labels):
 
 
 def load_config(path):
-    """Return (tracker number, {slice label: layer title}) from the map file.
+    """Return (tracker number, {slice label: layer title}, [exempt labels]) from the map file.
 
     Raises ValueError for a missing file, a line in any form but the accepted
     ones (see ACCEPTED), a key given twice, or no tracker line.
@@ -77,19 +89,23 @@ def load_config(path):
         text = Path(path).read_bytes().decode("utf-8-sig")  # drops a BOM, keeps each \r
     except OSError as err:
         raise ValueError(f"{path}: cannot read the map file ({err.strerror}).") from err
-    tracker, entries, seen, in_layers = None, {}, {}, False
+    tracker, entries, exempt, seen, section = None, {}, [], {}, None
     for number, line in enumerate(text.split("\n"), 1):
         line = line.removesuffix("\r")
         if not line.strip() or line.lstrip().startswith("#"):
             continue
         tracker_match, layer_match = TRACKER_LINE.fullmatch(line), LAYER_LINE.fullmatch(line)
+        item_match = EXEMPT_ITEM.fullmatch(line)
         if tracker_match:
-            key, tracker, in_layers = "tracker", int(tracker_match[1]), False
-        elif line == HEADING_LINE:
-            key, in_layers = HEADING_LINE, True
-        elif layer_match and in_layers:
+            key, tracker, section = "tracker", int(tracker_match[1]), None
+        elif line in (HEADING_LINE, EXEMPT_LINE):
+            key = section = line
+        elif layer_match and section == HEADING_LINE:
             key = layer_match[1]
             entries[key] = layer_match[2]
+        elif item_match and section == EXEMPT_LINE:
+            key = item_match[1]
+            exempt.append(key)
         else:
             raise ValueError(f"{path} line {number}: cannot read {line!r}. {ACCEPTED}")
         if key in seen:
@@ -98,7 +114,7 @@ def load_config(path):
         seen[key] = number
     if tracker is None:
         raise ValueError(f"{path}: no tracker line. {ACCEPTED}")
-    return tracker, entries
+    return tracker, entries, exempt
 
 
 def one_per_title(issues, title):
@@ -206,6 +222,19 @@ def sync_plan(issues, children, layers, layer_states, tracker, config):
     return calls, warnings
 
 
+def unlabeled(open_issues, tracker, config, exempt):
+    """Return one line per open issue that no tracker can see.
+
+    Skipped: an issue with any slice: label, the tracker, a layer (by title),
+    and an issue with a label in DEFAULT_EXEMPT or exempt. Case is ignored.
+    """
+    skip = {name.lower() for name in (*DEFAULT_EXEMPT, *exempt)}
+    return [f"#{i['number']} has no slice: label ({i['title']})" for i in open_issues
+            if i["number"] != tracker and i["title"] not in config.values()
+            and not slices_of(i["labels"])
+            and not skip & {name.lower() for name in i["labels"]}]
+
+
 # The part below talks to GitHub. The test does not cover it: the gh calls,
 # and the order of steps in sync and migrate.
 
@@ -301,30 +330,38 @@ def main():
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG,
                         help=f"the label-to-layer map (default {DEFAULT_CONFIG})")
+    parser.add_argument("--strict", action="store_true",
+                        help="with --sync: exit 1 while an open issue has no slice: label")
     parser.add_argument("--label", action="append", default=[], metavar="N=slice:x",
                         help="with --migrate: add this slice label to issue N, then move it")
     args = parser.parse_args()
-    if args.sync == args.migrate or (args.label and not args.migrate):
-        parser.error("give --sync, or --migrate [--label N=slice:x ...], with optional --dry-run")
+    if args.sync == args.migrate or (args.label and not args.migrate) or (
+            args.strict and not args.sync):
+        parser.error("give --sync [--strict], or --migrate [--label N=slice:x ...], "
+                     "with optional --dry-run")
     repo = os.environ.get("GITHUB_REPOSITORY") or subprocess.run(
         ["gh", "repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"],
         capture_output=True, text=True, check=True).stdout.strip()
     try:
-        tracker, config = load_config(args.config)
+        tracker, config, exempt = load_config(args.config)
         if args.migrate:
             migrate(repo, config, tracker, parse_label_pairs(args.label, config), args.dry_run)
             return 0
         tracker_kids = children_of(repo, tracker)
         layers = find_layers(tracker_kids, config)
-        if not layers:
-            print(f"#{tracker} has no layer issues yet, run --migrate first. Nothing done.")
-            return 0
-        sync(repo, config, tracker, layers, tracker_kids, labeled_issues(repo, config),
-             args.dry_run)
+        if layers:
+            sync(repo, config, tracker, layers, tracker_kids, labeled_issues(repo, config),
+                 args.dry_run)
+        else:
+            print(f"#{tracker} has no layer issues yet, run --migrate first. Nothing synced.")
+        lost = unlabeled(rows(f"repos/{repo}/issues?state=open&per_page=100"),
+                         tracker, config, exempt)
     except ValueError as err:
         print(err, file=sys.stderr)
         return 1
-    return 0
+    if lost:
+        print("\n".join(lost))
+    return 1 if lost and args.strict else 0
 
 
 if __name__ == "__main__":

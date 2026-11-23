@@ -128,6 +128,14 @@ The script skips an issue with two `slice:` labels and prints a warning. It
 moves an issue with no `slice:` label out of a layer, back under the top
 issue. It lists each such issue under the top issue, with the flag to label it.
 
+An agent that files an issue for a tracked goal gives it a `slice:` label at
+once, in the same `gh issue create` call:
+
+    gh issue create --title "<title>" --body "<body>" --label slice:<part>
+
+An issue with no `slice:` label is in no layer, so no bar counts it, and the
+goal reads closer to done than it is. Step 9 finds such issues.
+
 ### 6. The label-to-layer map
 
 Copy `tracker-layers.yml` from this folder to `.github/tracker-layers.yml`.
@@ -189,6 +197,30 @@ hand costs no minutes.
 
 The workflow runs one job at a time. Each run reads the whole tracker, so a
 run that GitHub cancels loses nothing.
+
+### 9. Find the issues no tracker counts
+
+After it syncs, each `--sync` run lists each open issue of the repo with no
+`slice:` label, one line each. A real line from the twenty repo:
+
+    #581 has no slice: label (Cut scripts/person_match_eval.py below the module size limit)
+
+It skips the top issue, each layer, and each issue with a `lane` or `tracker`
+label. Add other labels to skip, e.g. maps that are no work item, as an
+`exempt:` list at the end of the map file:
+
+    exempt:
+      - "wayfinder:map"
+
+The list is a warning, and the exit code stays 0. With `--strict` the exit
+code is 1 while the list has a line. Run it with `--strict` in a CI step or a
+weekly check, so an unlabeled issue shows up:
+
+    python3 tools/tracker_sync.py --sync --dry-run --strict
+
+Found 2026-11-23 in the twenty repo: its MVP tracker showed 13 of 45 done
+while 9 open MVP tickets had no `slice:` label, and nothing said so. Ask the
+owner before you add a workflow or a schedule for this check.
 
 ## Hands off to
 

@@ -7,6 +7,7 @@ hooks/goal-tracker-selftest.py runs this file, so CI runs it too.
 """
 import contextlib
 import io
+import os
 import sys
 import tempfile
 from pathlib import Path
@@ -248,8 +249,8 @@ def test_label_pairs_parse_and_reject_unknown_labels():
 
 def test_template_names_every_layer_once_the_tracker_is_set():
     text = TEMPLATE.read_text(encoding="utf-8").replace("\ntracker:", "\ntracker: 7", 1)
-    tracker, config = tracker_sync.load_config(map_file(text))
-    assert tracker == 7, tracker
+    tracker, config, exempt = tracker_sync.load_config(map_file(text))
+    assert tracker == 7 and exempt == [], (tracker, exempt)
     assert config == CONFIG, config
 
 
@@ -279,12 +280,12 @@ def test_map_file_reads_the_strict_form():
     text = ("# the map\n\ntracker: 12\n   # a comment\nlayers:\n"
             '  "slice:core": "Layer: Core"\n\n  "slice:release-2": "Layer: Release: 2"\n')
     assert tracker_sync.load_config(map_file(text)) == (
-        12, {"slice:core": "Layer: Core", "slice:release-2": "Layer: Release: 2"})
+        12, {"slice:core": "Layer: Core", "slice:release-2": "Layer: Release: 2"}, [])
 
 
 def test_map_file_strips_a_bom_and_crlf():
     text = '\ufefftracker: 12\r\nlayers:\r\n  "slice:core": "Layer: Core"\r\n'
-    assert tracker_sync.load_config(map_file(text)) == (12, {"slice:core": "Layer: Core"})
+    assert tracker_sync.load_config(map_file(text)) == (12, {"slice:core": "Layer: Core"}, [])
 
 
 def test_layer_line_in_any_other_form_stops_with_its_number_and_the_accepted_form():
@@ -363,6 +364,64 @@ def test_slice_label_not_in_the_map_warns_that_it_is_not_in_the_map():
     assert any("#301" in w and "slice:posters" in w and "not in the map" in w
                for w in warnings), warnings
     assert not any("has no slice: label" in w for w in warnings), warnings
+
+
+# The coverage check: an open issue with no slice: label is invisible to every tracker
+
+def run_main(argv, open_issues, map_text=HEAD + '  "slice:core": "Layer: Core"\n'):
+    """Run main() with every gh read stubbed. Returns (exit code, stdout)."""
+    def rows(path):
+        return open_issues if "state=open" in path else []
+    saved, saved_argv = tracker_sync.rows, sys.argv
+    tracker_sync.rows = rows
+    sys.argv = ["tracker_sync.py", *argv, "--config", map_file(map_text)]
+    os.environ["GITHUB_REPOSITORY"] = "o/r"
+    out = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(out):
+            code = tracker_sync.main()
+    finally:
+        tracker_sync.rows, sys.argv = saved, saved_argv
+    return code, out.getvalue()
+
+
+COVERAGE = [issue(12, [], title="Goal"),                       # the tracker itself
+            issue(201, [], title="Layer: Core"),               # a layer, known by title
+            issue(401, [], title="Lost ticket"),               # the one to list
+            issue(402, ["Lane"], title="Lane: docs"),          # exempt by default
+            issue(403, ["tracker"], title="Tracker: other"),   # exempt by default
+            issue(404, ["wayfinder:map"], title="Map: x"),     # exempt in the map file
+            issue(405, ["slice:nits"], title="A nit"),         # any slice: label counts
+            issue(406, ["slice:core"], title="Core work")]
+
+
+def test_sync_lists_each_open_issue_with_no_slice_label():
+    text = HEAD + '  "slice:core": "Layer: Core"\nexempt:\n  - "wayfinder:map"\n'
+    code, out = run_main(["--sync", "--dry-run"], COVERAGE, text)
+    assert code == 0, (code, out)
+    lines = [line for line in out.splitlines() if "has no slice: label" in line]
+    assert lines == ["#401 has no slice: label (Lost ticket)"], out
+
+
+def test_strict_exits_1_while_an_issue_has_no_slice_label():
+    code, out = run_main(["--sync", "--strict"], [issue(401, [], title="Lost ticket")])
+    assert code == 1 and "#401 has no slice: label (Lost ticket)" in out, (code, out)
+    code, out = run_main(["--sync", "--strict"], [issue(406, ["slice:core"])])
+    assert code == 0 and "has no slice: label" not in out, (code, out)
+
+
+def test_without_its_exempt_line_the_map_label_is_listed():
+    code, out = run_main(["--sync"], [issue(404, ["wayfinder:map"], title="Map: x")])
+    assert "#404 has no slice: label (Map: x)" in out, out
+
+
+def test_map_file_reads_the_exempt_list():
+    text = HEAD + '  "slice:core": "Layer: Core"\nexempt:\n  - "wayfinder:map"\n  - "deferred"\n'
+    assert tracker_sync.load_config(map_file(text)) == (
+        12, {"slice:core": "Layer: Core"}, ["wayfinder:map", "deferred"])
+    expect_map_error(HEAD + '  - "deferred"\n', "line 3:")          # outside exempt:
+    expect_map_error(text + '  - "deferred"\n', "line 7:", "line 6")  # given twice
+    expect_map_error(HEAD + "exempt:\n  - deferred\n", "line 4:")     # unquoted
 
 
 def test_default_map_file_is_relative_to_the_repo_root():
