@@ -49,9 +49,8 @@ its `slice:` label when you file it: `gh issue create ... --label
 slice:<part>`. Pick `<part>` from the keys of the map file the sync reads:
 the file its `--config` names, e.g. `.github/tracker-mvp.yml`, else
 `.github/tracker-layers.yml` (`grep -h '^  "slice:' <map file>`). When no key
-fits, file the ticket
-with no `slice:` label and name it in your report. Each sync lists the open
-issues with none (`goal-tracker` step 9).
+fits, file the ticket with no `slice:` label and name it in your report.
+Each sync lists the open issues with none (`goal-tracker` step 9).
 
 A ticket from `mattpocock-skills:to-tickets` is a draft. Its template has
 acceptance criteria only, and it leaves out paths and code on purpose. Before
