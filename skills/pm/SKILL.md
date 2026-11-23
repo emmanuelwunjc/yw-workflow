@@ -3,7 +3,7 @@ name: pm
 description: The one chat the owner talks to. Status mode reports what changed, where it is heading, what it lacks and who holds which lane. It reads git, gh, docs/HANDOFF.md and the lane issues. Batch mode writes a spec per ticket, starts builder and reviewer agents, and loops to a clean review. It reports once per batch and never edits files itself. Batch mode wants Orca (the `orca` CLI) and falls back to the yw-workflow builder, reviewer and fixer subagents and a `general-purpose` code-review reviewer without it. Use when asked for project status, what happened, what to work on next, to "run these tickets", "run a batch", or "be the PM".
 origin: authored
 tags: [project-management, orchestration, orca, status, coordination]
-version: 1.0.3
+version: 1.0.4
 ---
 
 # PM
@@ -13,7 +13,8 @@ version: 1.0.3
 Say that line back when you start, so whoever invoked this knows what they
 got.
 
-Two modes. Status mode reads. Batch mode runs other agents and edits nothing.
+Two modes. Status mode reads, and starts a worker on each idle lane. Batch
+mode runs other agents and edits nothing.
 
 ## The one rule
 
@@ -44,6 +45,17 @@ Then read authored judgment:
 | Who holds which lane | the lane list command in step 3 of the `## Start here` block of `$MAIN/docs/HANDOFF.md`. Run it from there. A copy here would drift from the one the hook checks |
 | Who is live now | ListAgents, if the harness has it |
 | Why a decision went that way | `$MAIN/docs/DECISIONS.md`, if it exists |
+
+**Before any status report, fill each idle lane.** A lane is idle when its
+`Held by:` name shows neither in ListAgents nor in
+`orca orchestration worker-list --terminal-state active`. For each idle lane,
+take the first ticket in its `## Next` that is open (`gh issue view <N> --json
+state`), has no `after` mark on an unmerged item, and names no file a running
+worker edits (`git -C "$MAIN" diff --name-only origin/main...<branch>` for
+each worker's branch). Start a worker on it with steps 2 and 3 of batch mode.
+The report names each worker started, and gives each idle lane with none a
+one-line reason, e.g. "lane #12: its one ticket waits on #40 (the wage table
+fix)". Done when every lane has a running worker or a one-line reason.
 
 In the answer, keep a derived fact ("4 PRs open") apart from a judgment ("the
 weakest area is X"), and name whose judgment it is. Name the source of each
