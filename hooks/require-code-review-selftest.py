@@ -473,6 +473,8 @@ REVIEW_BODY_CASES = [
      "DISMISSED review with a PASS body"),
     ([], [_review(""), _review("PASS\n\nAll good.")], "ok",
      "verdict in the second of two reviews"),
+    ([], [_review("PASS\n\nAll good."), _review("")], "ok",
+     "verdict in the first of two reviews"),
 ]
 
 

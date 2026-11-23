@@ -185,8 +185,9 @@ tell a check that was written to fail first from one written after the code.
   A fix round, a PR of 50 lines or fewer, and a docs-only change get the
   first reviewer only. The owner chose this rule on 2026-11-23. The spec
   and the standards do not change between fix rounds. The
-  `yw-workflow:reviewer` type has no Skill or Agent tool, and code-review needs both: it loads as a skill and runs its two axes
-  as parallel sub-agents. So start it with `subagent_type: "general-purpose"`
+  `yw-workflow:reviewer` type has no Skill or Agent tool, and code-review
+  needs both: it loads as a skill and runs its two axes as parallel
+  sub-agents. So start it with `subagent_type: "general-purpose"`
   and `isolation: "worktree"`, and put the role first in its description (e.g.
   "Code review: PR 12"). That type has Write and Edit, so its prompt tells it
   to read only and fix nothing.
@@ -301,9 +302,9 @@ asked before the build cost a round. `ship-loop` step 3 asks those calls
 first.
 
 When a round has two reviewers (round 1 of a code PR over 50 changed lines),
-one decision line covers both. A `BLOCK` from either one makes the round a `BLOCK`. Else a
-`REVIEW` from either one makes it a `REVIEW`. Else the round is a `PASS`. So
-a `REVIEW` always carries 0, from one reviewer or two.
+one decision line covers both. A `BLOCK` from either one makes the round a
+`BLOCK`. Else a `REVIEW` from either one makes it a `REVIEW`. Else the round
+is a `PASS`. So a `REVIEW` always carries 0, from one reviewer or two.
 
 A `BLOCK n` round can also hold a call only a person can make. The decision
 line does not show that call. So write it in the Executive TL;DR, and send it

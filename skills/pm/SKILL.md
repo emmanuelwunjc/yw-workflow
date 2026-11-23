@@ -89,7 +89,8 @@ A spec stands alone. The worker sees nothing else. It holds:
 - the last line, for a builder, fixer or documenter: "commit your work on your own branch before you return (on a detached HEAD, `git switch -c wip/<folder>` first), as a WIP commit if it is unfinished, and report the branch and SHA".
 
 A ticket that builds or fixes code, in a PR over 50 changed lines, gets two
-reviewer specs on round 1, both from `fresh-eye`. Its fix rounds get the first spec only. The first is its prompt skeleton, filled in for this branch.
+reviewer specs on round 1, both from `fresh-eye`. Its fix rounds get the
+first spec only. The first is its prompt skeleton, filled in for this branch.
 The second is the skeleton under "The second reviewer", which runs
 `mattpocock-skills:code-review`. Each ends with "Do not fix anything. Do not
 commit." Any other ticket gets the first spec only.
@@ -116,12 +117,12 @@ clean round, or at the four-round stop, as `ship-loop` step 6 defines
 them. Tickets that touch different
 files run in parallel. Two to four at once, per `git-lanes`.
 
-A round has the one or two reviewers from step 2 (two only on round 1 of
-a code PR over 50 changed lines, as `fresh-eye` counts them), started at the same time on
-the same commit. When mattpocock-skills is not installed, start the first one
-only, and say so in the round's comment. Two verdicts make one decision line, by the
-rule in `fresh-eye` ("When a round has two reviewers"). The round is one entry
-on the `Rounds:` line, as `ship-loop` step 6 says.
+A round has the one or two reviewers from step 2 (two only on round 1 of a
+code PR over 50 changed lines, as `fresh-eye` counts them), started at the
+same time on the same commit. When mattpocock-skills is not installed, start
+the first one only, and say so in the round's comment. Two verdicts make one
+decision line, by the rule in `fresh-eye` ("When a round has two reviewers").
+The round is one entry on the `Rounds:` line, as `ship-loop` step 6 says.
 
 Who does what at the end:
 

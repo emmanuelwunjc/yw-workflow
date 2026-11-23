@@ -105,7 +105,8 @@ How to read it, one stage at a time:
    self-check. `fresh-eye`
    sends a reviewer who did not write the change. For a change that assembles or
    corrects code in a PR over 50 changed lines, a second reviewer runs
-   `code-review` beside it on the first round, when it is installed. A loop stops at four rounds.
+   `code-review` beside it on the first round, when it is installed. A loop
+   stops at four rounds.
    Blocking findings go to a `fixer` agent, and the fix gets a new review.
    After a clean review, the lane merges (`git-lanes`). Its PR body records
    each review (`ship-loop` step 6).
