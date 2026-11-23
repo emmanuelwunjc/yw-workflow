@@ -16,6 +16,10 @@ Line one of the issue body is the holder line (docs/DECISIONS.md, 2026-11-10):
                                                 the future
   anything else                                 malformed, so free
 
+A `Held by:` line under line one is stale: an older `write` kept the one its
+file started with (issue 215). Every write drops those lines, and `release`
+also frees a lane for the name on one when line one is free.
+
 Usage, in USAGE below. Exit 0: done. Exit 1: a refusal, and only a
 refusal. Nothing changed by this run (a lost claim leaves the winner's
 line). Exit 2: everything else, e.g. bad arguments, a bad
@@ -44,6 +48,8 @@ from datetime import datetime, timedelta, timezone
 HOLDER = re.compile(r"Held by: (?P<name>.+), since "
                     r"(?P<time>[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}Z)")
 FREE = "Held by: nobody"
+SUFFIX = re.compile(r" \([^()]*\)$")  # e.g. " (task_722fca52de26)"
+STALE = re.compile(r"(\nHeld by:[^\n]*)*")  # the holder lines under line one
 HOLD_HOURS = 24
 WAIT_ENV = "LANE_CLAIM_WAIT_SECONDS"
 DEFAULT_WAIT_SECONDS = 30
@@ -69,6 +75,12 @@ def holder(line):
     if not m or m["name"] == "nobody" or m["time"] > now_minute():
         return None
     return m["name"], m["time"]
+
+
+def same_name(held, name):
+    """True when a holder line's name is this name, with or without a
+    parenthetical suffix after it, e.g. `orca:escolar (task_722fca52de26)`."""
+    return held == name or SUFFIX.sub("", held) == name
 
 
 def wait_seconds(env):
@@ -130,6 +142,12 @@ def split(body):
     return first, nl + rest
 
 
+def drop_stale(rest):
+    """The rest of a body, from its newline on, minus the stale holder lines
+    at its top."""
+    return rest[STALE.match(rest).end():]
+
+
 def refuse(msg, code=1):
     print(msg, file=sys.stderr)
     sys.exit(code)
@@ -143,7 +161,7 @@ def claim(issue, name, holder_not_live, wait):
     start_budget()
     first, rest = split(read(issue))
     held = holder(first)
-    if held and held[0] != name:
+    if held and not same_name(held[0], name):
         since = datetime.strptime(held[1], "%Y-%m-%dT%H:%MZ").replace(tzinfo=timezone.utc)
         stale = datetime.now(timezone.utc) - since > timedelta(hours=HOLD_HOURS)
         if not stale:
@@ -155,14 +173,14 @@ def claim(issue, name, holder_not_live, wait):
                    f"that session live, run again with --holder-not-live.")
     line = f"Held by: {name}, since {now_minute()}"
     if first.startswith("Held by:"):
-        write(issue, line + rest)
+        write(issue, line + drop_stale(rest))
     else:
         write(issue, line + "\n" + first + rest)
     time.sleep(wait)
     start_budget()  # a fresh budget for the second read, which writes nothing
     first, _ = split(read(issue))
     held = holder(first)
-    if not held or held[0] != name:
+    if not held or not same_name(held[0], name):
         refuse(f"lane #{issue}: line one changed during the wait, to: {first}\n"
                f"You do not hold the lane. Change nothing. Pick another lane.")
     print(f"you hold lane #{issue}: {first}")
@@ -173,10 +191,29 @@ def check_holder(issue, name):
     start_budget()
     first, rest = split(read(issue))
     held = holder(first)
-    if not held or held[0] != name:
+    if not held or not same_name(held[0], name):
         refuse(f"lane #{issue}: line one is not your own holder line: {first}\n"
                f"{STOP_RULE}")
     return rest
+
+
+def release(issue, name):
+    """Free line one when this name holds it, or drop a stale holder line
+    that carries this name under a free line one."""
+    start_budget()
+    first, rest = split(read(issue))
+    held = holder(first)
+    stale = [holder(line) for line in STALE.match(rest)[0].split("\n")[1:]]
+    if held:
+        mine = same_name(held[0], name)
+    else:
+        mine = first.startswith("Held by:") and any(
+            s and same_name(s[0], name) for s in stale)
+    if not mine:
+        refuse(f"lane #{issue}: line one is not your own holder line: {first}\n"
+               f"{STOP_RULE}")
+    write(issue, FREE + drop_stale(rest))
+    print(f"released lane #{issue}")
 
 
 def main(argv):
@@ -198,11 +235,11 @@ def main(argv):
         with open(args[3], encoding="utf-8") as fh:
             text = fh.read()
         check_holder(issue, name)
-        write(issue, f"Held by: {name}, since {now_minute()}\n" + text)
+        write(issue, f"Held by: {name}, since {now_minute()}"
+              + drop_stale("\n" + text))
         print(f"wrote lane #{issue}")
     else:
-        write(issue, FREE + check_holder(issue, name))
-        print(f"released lane #{issue}")
+        release(issue, name)
 
 
 if __name__ == "__main__":
