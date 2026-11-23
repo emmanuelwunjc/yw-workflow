@@ -3,7 +3,7 @@ name: fresh-eye
 description: Dispatch an independent adversarial reviewer that did not write the code, in an isolated git worktree, to try to break a change rather than agree with it. Use before merging anything non-trivial, when asked for "a fresh eye", "a second opinion", "review this properly", "try to break this", or when you have just finished work and are about to call it done. Also use on the FIX for a previous review, because that is where the next defect usually is.
 origin: authored
 tags: [review, quality, adversarial, worktree, mutation-testing]
-version: 1.6.1
+version: 1.7.0
 ---
 
 # Fresh eye
@@ -71,6 +71,11 @@ means tier 1.
   read the code, and try real-world cases. No mutation testing. A finding
   blocks only when wrong output can ship with no sign. A failure a person
   sees at once (e.g. a crash, a stale PDF) is a nit with a ticket.
+
+**Name the repo's own rule for what blocks.** A repo can write its own rule,
+e.g. twenty's `NORTH-STAR.md` rule 10: a finding blocks only for data loss, a
+wrong write, overspend or a missed alert. Name that file in the brief, or
+write "none". When the repo rule and the tier differ, the repo rule wins.
 
 **Run only the tests near the change.** The reviewer never runs the full suite
 or the full render, because CI does that. One exception: the change is to the
@@ -173,12 +178,16 @@ tell a check that was written to fail first from one written after the code.
   of the diff and show the new test fails. For a bug fix, show the reproduction
   command fails on the base and passes on the branch. A test that passes with the
   code reverted is a finding.
-- On round 1 of a change that touches code, you also start a second reviewer
-  for `mattpocock-skills:code-review`, at the same time as the first. A
-  docs-only change never gets it, and a fix round uses the first reviewer
-  only. The spec and the standards do not change between fix rounds. The `yw-workflow:reviewer` type has no Skill or Agent
-  tool, and code-review needs both: it loads as a skill and runs its two axes
-  as parallel sub-agents. So start it with `subagent_type: "general-purpose"`
+- On round 1 of a code PR that changes more than 50 lines, you also start a
+  second reviewer for `mattpocock-skills:code-review`, at the same time as
+  the first. Count the lines with
+  `gh pr view <n> --json additions,deletions --jq '.additions + .deletions'`.
+  A fix round, a PR of 50 lines or fewer, and a docs-only change get the
+  first reviewer only. The owner chose this rule on 2026-11-23. The spec
+  and the standards do not change between fix rounds. The
+  `yw-workflow:reviewer` type has no Skill or Agent tool, and code-review
+  needs both: it loads as a skill and runs its two axes as parallel
+  sub-agents. So start it with `subagent_type: "general-purpose"`
   and `isolation: "worktree"`, and put the role first in its description (e.g.
   "Code review: PR 12"). That type has Write and Edit, so its prompt tells it
   to read only and fix nothing.
@@ -207,6 +216,25 @@ tell a check that was written to fail first from one written after the code.
 - If mattpocock-skills is not installed, say so in the round's comment and
   start only the first reviewer.
 
+## In Orca
+
+In Orca, the coordinator starts the reviewer as an Orca worker.
+`subagent_type` and `isolation` have no Orca form, so:
+
+- **Role:** the worker's spec starts with the role, e.g. "Review: PR 12",
+  then holds the prompt skeleton below, filled in.
+- **Worktree:** start the worker in a new worktree, e.g.
+  `--worktree new-top-level`. Never `--worktree current`, which is the
+  author's tree.
+- **Report:** the reviewer writes its verdict, in the shape under "Closing
+  the loop", to a file outside the repo. It sends that path as the
+  `worker_done` `--report-path`, with one line as the subject:
+  `review done: PR <n> <decision>`, e.g. `review done: PR 585 BLOCK 1`. The
+  coordinator acts on that line and opens the file only for the findings.
+- **Post:** the coordinator posts the verdict, as `pm` says, with
+  `gh pr comment <n> --body-file <file>`. The reviewer does not post to
+  GitHub. Before the PR exists, the verdict goes on the `Rounds:` line.
+
 ## Reading the result
 
 Believe measurements. Do not automatically believe conclusions: reviewers are
@@ -227,15 +255,23 @@ report names leaves every sibling caller broken.
 **A review that finds something is not finished until that something is written
 down.** Blocking findings get fixed in the branch, and the fix is the record.
 Everything else becomes a ticket, written agent-ready: reproduction, acceptance
-criteria as checkable boxes, literal verification commands. A nit that lives only
-in a review comment dies when the branch merges.
+criteria as checkable boxes, literal verification commands. The author files
+these tickets, from the nit list in the reviewer's comment. The reviewer files
+none. A nit that lives only in a review comment dies when the branch merges.
 
 If a finding is deliberately not acted on, say so with the reason. "Considered
 and rejected" and "never noticed" look identical six months later, and only one
 of them is acceptable.
 
 Then post the verdict where the change lives, including what you did NOT fix and
-why. See `ship-loop` for running this repeatedly until the feedback is clean.
+why. Post it with `gh pr comment <n> --body-file <file>`, first line `PASS`,
+`BLOCK` or `REVIEW`. The merge gate (`hooks/require-code-review.py`) counts
+`PASS` or `BLOCK` at the start of any line, and `REVIEW` never lets a merge
+through. It reads PR comments on every plugin version. Since plugin
+1.19.28 it also reads the body of a review posted with
+`gh pr review <n> --comment`. A copy of the gate older than that sees no
+review, and CI fails with "nothing has reviewed it". See `ship-loop` for
+running this repeatedly until the feedback is clean.
 
 **Every round's posted comment has a fixed shape**, whether it's the first round
 or the fifth fix-and-re-review cycle:
@@ -265,10 +301,10 @@ prose the reader has to extract themselves. A `REVIEW` that could have been
 asked before the build cost a round. `ship-loop` step 3 asks those calls
 first.
 
-When a round has two reviewers (round 1 of a code change), one decision line
-covers both. A `BLOCK` from either one makes the round a `BLOCK`. Else a
-`REVIEW` from either one makes it a `REVIEW`. Else the round is a `PASS`. So
-a `REVIEW` always carries 0, from one reviewer or two.
+When a round has two reviewers (round 1 of a code PR over 50 changed lines),
+one decision line covers both. A `BLOCK` from either one makes the round a
+`BLOCK`. Else a `REVIEW` from either one makes it a `REVIEW`. Else the round
+is a `PASS`. So a `REVIEW` always carries 0, from one reviewer or two.
 
 A `BLOCK n` round can also hold a call only a person can make. The decision
 line does not show that call. So write it in the Executive TL;DR, and send it
@@ -307,6 +343,8 @@ function, or line number, it belongs in Agent-facing specifics instead.
     ticket, unless this branch makes it wrong.
 
     Tier: <1 or 2>. <That tier's rule, pasted from "Name the tier".>
+    The repo's own rule for what blocks: <file or none>. Where it differs
+    from the tier, the repo rule wins.
     Tier 1, mutate only: <the full diff, or after a fix, the fix's diff and
     code that calls what it changed>.
 
@@ -363,7 +401,7 @@ function, or line number, it belongs in Agent-facing specifics instead.
     failure scenario (inputs -> wrong output), and how you verified it.
     Do not fix anything. Do not commit.
 
-The second reviewer, on round 1 of a change that builds or fixes code:
+The second reviewer, on round 1 of a code PR over 50 changed lines:
 
     You run mattpocock-skills:code-review on a change you did not write.
 

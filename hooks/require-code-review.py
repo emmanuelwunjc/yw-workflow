@@ -612,7 +612,11 @@ def review_status(target: dict):
     if "APPROVED" in states or "CHANGES_REQUESTED" in states:
         return "ok", code_lines
 
-    body = gh("view", target, "--json", "comments", "--jq", ".comments[].body")
+    # A verdict counts as a PR comment or as the body of a COMMENTED review,
+    # which is what `gh pr review --comment` makes (yw-workflow #218).
+    body = gh("view", target, "--json", "comments,reviews", "--jq",
+              ".comments[].body, "
+              "(.reviews[] | select(.state == \"COMMENTED\") | .body)")
     if has_verdict(body or ""):
         return "ok", code_lines
 
