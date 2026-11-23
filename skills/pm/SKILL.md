@@ -1,6 +1,6 @@
 ---
 name: pm
-description: The one chat the owner talks to. Status mode reports what changed, where it is heading, what it lacks and who holds which lane. It reads git, gh, docs/HANDOFF.md and the lane issues. Batch mode writes a spec per ticket, starts builder and reviewer agents, and loops to a clean review. It reports once per batch and never edits files itself. Batch mode wants Orca (the `orca` CLI) and falls back to the yw-workflow builder, reviewer and fixer subagents and a `general-purpose` code-review reviewer without it. Use when asked for project status, what happened, what to work on next, to "run these tickets", "run a batch", or "be the PM".
+description: The one chat the owner talks to. Status mode reports what changed, where it is heading, what it lacks and who holds which lane, and first starts a worker on each idle lane. It reads git, gh, docs/HANDOFF.md and the lane issues. Batch mode writes a spec per ticket, starts builder and reviewer agents, and loops to a clean review. It reports once per batch and never edits files itself. Batch mode wants Orca (the `orca` CLI) and falls back to the yw-workflow builder, reviewer and fixer subagents and a `general-purpose` code-review reviewer without it. Use when asked for project status, what happened, what to work on next, to "run these tickets", "run a batch", or "be the PM".
 origin: authored
 tags: [project-management, orchestration, orca, status, coordination]
 version: 1.0.4
@@ -46,16 +46,24 @@ Then read authored judgment:
 | Who is live now | ListAgents, if the harness has it |
 | Why a decision went that way | `$MAIN/docs/DECISIONS.md`, if it exists |
 
-**Before any status report, fill each idle lane.** A lane is idle when its
-`Held by:` name shows neither in ListAgents nor in
-`orca orchestration worker-list --terminal-state active`. For each idle lane,
-take the first ticket in its `## Next` that is open (`gh issue view <N> --json
-state`), has no `after` mark on an unmerged item, and names no file a running
-worker edits (`git -C "$MAIN" diff --name-only origin/main...<branch>` for
-each worker's branch). Start a worker on it with steps 2 and 3 of batch mode.
-The report names each worker started, and gives each idle lane with none a
-one-line reason, e.g. "lane #12: its one ticket waits on #40 (the wage table
-fix)". Done when every lane has a running worker or a one-line reason.
+**Before any status report, fill each idle lane.** First apply the owner's
+limit on work in progress. When more than four open PRs or finished branches
+wait for review or merge (`gh pr list --state open --json number --jq
+length`), start nothing: review, fix or merge one, and say so in the report.
+Else read line one of each open lane issue. A lane is idle when it is free
+by step 4 of the `## Start here` block, or when it holds this PM's own name
+and no worker the PM started for it is running. Running means started and
+no `worker_done` yet. For each idle lane, take the first ticket in its
+`## Next` that is open (`gh issue view <N> --json state`), has no `after`
+mark on an unmerged item, and names no file a running worker may edit. Those
+files are the "may edit" list in each running worker's spec, and the files a
+pushed branch changes (`git -C "$MAIN" diff --name-only
+origin/main...origin/<branch>`). Start a worker on it with steps 2 and 3 of
+batch mode. A claim that exits 1 means another session holds the lane, and
+that is its reason. The report names each worker started, and gives each
+idle lane with none a one-line reason, e.g. "lane #12: its one ticket waits
+on #40 (the wage table fix)". Done when every lane has a running worker or a
+one-line reason.
 
 In the answer, keep a derived fact ("4 PRs open") apart from a judgment ("the
 weakest area is X"), and name whose judgment it is. Name the source of each
