@@ -46,7 +46,11 @@ when these bullets and the template headings name different parts.
 
 When the repo has a goal tracker (`tools/tracker_sync.py`), give each ticket
 its `slice:` label when you file it: `gh issue create ... --label
-slice:<part>`. Each sync lists the open issues with none (`goal-tracker` step 9).
+slice:<part>`. Pick `<part>` from the `"slice:<part>"` keys of the map file
+the sync reads, `.github/tracker-layers.yml` or e.g. `.github/tracker-mvp.yml`
+(`grep -h '"slice:' .github/tracker*.yml`). When no key fits, file the ticket
+with no `slice:` label and name it in your report. Each sync lists the open
+issues with none (`goal-tracker` step 9).
 
 A ticket from `mattpocock-skills:to-tickets` is a draft. Its template has
 acceptance criteria only, and it leaves out paths and code on purpose. Before
