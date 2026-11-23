@@ -3,7 +3,7 @@ name: ship-loop
 description: Run work as a closing loop instead of a trailing-off one. Ticket, branch, implement test-first, dispatch an independent review, fix what blocks, file what does not, and repeat until a review round comes back clean. Use when asked to "run the loop", "keep going until it's right", "loop until the feedback is perfect", "babysit this to done", or when handed a backlog of tickets to work through. Also use to decide what happens to review findings.
 origin: authored
 tags: [workflow, review, tdd, subagents, loop, tickets]
-version: 1.5.4
+version: 1.5.5
 ---
 
 # Ship loop
@@ -43,6 +43,10 @@ yw-workflow repo:
 In any repo, write the ticket with these four parts, each as a `## ` heading.
 The plugin's own check, `tools/check-repo.py` in the yw-workflow repo, fails
 when these bullets and the template headings name different parts.
+
+When the repo has a goal tracker (`tools/tracker_sync.py`), give each ticket
+its `slice:` label when you file it: `gh issue create ... --label
+slice:<part>`. Each sync lists the open issues with none (`goal-tracker` step 9).
 
 A ticket from `mattpocock-skills:to-tickets` is a draft. Its template has
 acceptance criteria only, and it leaves out paths and code on purpose. Before
