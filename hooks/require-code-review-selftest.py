@@ -446,8 +446,50 @@ def run_target_cases(failures: list) -> int:
     return len(TARGET_CASES) + 3
 
 
+# A verdict posted with `gh pr review --comment` is a review in state
+# COMMENTED, and its text is the review body, not an issue comment. On
+# 2026-11-23 (yw-workflow #218) the gate could not see it, so CI said "nothing
+# has reviewed it" on a reviewed PR. Each case: the COMMENTED review bodies,
+# what review_status must return.
+REVIEW_BODY_CASES = [
+    (["PASS\n\n## Executive TL;DR\nAll good."], "ok", "COMMENTED review, PASS"),
+    (["BLOCK 2\n\n## Executive TL;DR\nTwo defects."], "ok", "COMMENTED review, BLOCK"),
+    (["Looks fine to me, nice work."], "unreviewed", "COMMENTED review, no verdict"),
+    (["REVIEW 0\n\nA person decides."], "unreviewed", "COMMENTED review, REVIEW"),
+]
+
+
+def run_review_body_cases(gate, failures: list) -> int:
+    """Call review_status with gate.gh replaced by a fake that answers each
+    --json field. Only the reviews field holds a verdict, so a pass proves the
+    gate read the review body."""
+    real_gh = gate.gh
+    try:
+        for bodies, want, label in REVIEW_BODY_CASES:
+            reviews = {"reviews": [{"state": "COMMENTED", "body": b} for b in bodies]}
+
+            def fake(sub, target, *args, _r=reviews):
+                fields = args[args.index("--json") + 1]
+                if fields == "files":
+                    return BIG
+                # Run the hook's own jq filter, so a wrong filter fails here.
+                data = {"comments": [], **_r}
+                jq = args[args.index("--jq") + 1]
+                out = subprocess.run(["jq", "-r", jq], input=json.dumps(data),
+                                     capture_output=True, text=True)
+                return out.stdout if out.returncode == 0 else ""
+
+            gate.gh = fake
+            got, _ = gate.review_status({})
+            if got != want:
+                failures.append(f"  {label}: wanted {want}, got {got}")
+    finally:
+        gate.gh = real_gh
+    return len(REVIEW_BODY_CASES)
+
+
 def main() -> int:
-    spec = importlib.util.spec_from_file_location("gate", HOOK)
+    spec =importlib.util.spec_from_file_location("gate", HOOK)
     gate = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(gate)
 
@@ -472,7 +514,8 @@ def main() -> int:
         if got != want:
             failures.append(f"  {label}: wanted {want}, got {got} for {body!r}")
 
-    total = len(CASES) + run_target_cases(failures) + 1
+    total = (len(CASES) + run_target_cases(failures) + 1
+             + run_review_body_cases(gate, failures))
 
     if failures:
         print(f"FAIL: {len(failures)} failures in {total} cases", file=sys.stderr)
