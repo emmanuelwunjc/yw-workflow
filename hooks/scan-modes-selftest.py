@@ -204,12 +204,15 @@ DOCS = "README.md 900 900"        # prose only, never gated
 
 
 def fake_gh(files="", reviews="", comments=""):
+    # Match on the --json fields. The verdict query asks for
+    # "comments,reviews" and gets the comment bodies (yw-workflow #218).
     def gh(*args):
-        if "files" in args:
+        fields = args[args.index("--json") + 1] if "--json" in args else ""
+        if fields == "files":
             return files
-        if "reviews" in args:
+        if fields == "reviews":
             return reviews
-        if "comments" in args:
+        if "comments" in fields.split(","):
             return comments
         return ""
     return gh
