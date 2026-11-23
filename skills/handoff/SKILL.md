@@ -162,7 +162,10 @@ within hours. Derive them with `gh issue list` and the scripts in the repo.
   change nothing, stop, and tell the owner. `write <N> "<name>" <file>`
   replaces everything after line one with the file and puts a new time on
   line one. `release <N> "<name>"` sets line one to `Held by: nobody`. Both
-  refuse when line one is not your own holder line. An edit replaces the
+  refuse when line one is not your own holder line. Your name matches it
+  with or without a suffix in brackets, e.g. `orca:escolar (task_1)`. Both
+  drop a stale `Held by:` line under line one, and `release` also frees one
+  that carries your name. An edit replaces the
   whole body, so a write built from an older read would erase a claim made
   since.
 - **Write it down as you go, in the PR body.** Every decision, defect and
