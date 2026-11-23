@@ -254,16 +254,16 @@ before its verdict:
 
     Rounds: BLOCK 3 (95k) · BLOCK 2 (80k) · BLOCK 2 (70k) · BLOCK 1 (60k) · split PASS (40k)
 
-When `fresh-eye` starts two reviewers in a round (round 1 of a code change),
-the round is still one entry. Its verdict follows the combining rule in
-`fresh-eye`. Its blocking count is the number of different blocking defects
-the two reviewers found. A defect that both reviewers report counts once. Two
-findings are the same defect when they name the same failure at the same
-place. The coordinating session decides. Its token count is the sum of
-the `subagent_tokens` of both task notifications, so post the round only after
-both arrive. E.g. a mutation reviewer with BLOCK 2 at 95k and a code-review
-reviewer with BLOCK 1 at 60k, where that one defect is also one of the two,
-give `BLOCK 2 (155k)`.
+When `fresh-eye` starts two reviewers in a round (round 1 of a code PR over 50
+changed lines), the round is still one entry. Its verdict follows the
+combining rule in `fresh-eye`. Its blocking count is the number of different
+blocking defects the two reviewers found. A defect that both reviewers report
+counts once. Two findings are the same defect when they name the same failure
+at the same place. The coordinating session decides. Its token count is the
+sum of the `subagent_tokens` of both task notifications, so post the round
+only after both arrive. E.g. a mutation reviewer with BLOCK 2 at 95k and a
+code-review reviewer with BLOCK 1 at 60k, where that one defect is also one of
+the two, give `BLOCK 2 (155k)`.
 
 That makes the three-round rule checkable at a glance. The averages are one
 command, which reads the first `Rounds:` line of each PR:

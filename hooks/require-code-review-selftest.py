@@ -446,6 +446,68 @@ def run_target_cases(failures: list) -> int:
     return len(TARGET_CASES) + 3
 
 
+# A verdict posted with `gh pr review --comment` is a review in state
+# COMMENTED, and its text is the review body, not an issue comment. On
+# 2026-11-23 (yw-workflow #218) the gate could not see it, so CI said "nothing
+# has reviewed it" on a reviewed PR. The cases below also pin the comment
+# path, the state filter, every body read, and no filter on the author.
+def _review(body, state="COMMENTED"):
+    # The PR author's own account, as on PR 214: an author filter must fail.
+    return {"state": state, "body": body, "authorAssociation": "OWNER",
+            "author": {"login": "pr-author"}}
+
+
+# (PR comment bodies, reviews, what review_status must return, label)
+REVIEW_BODY_CASES = [
+    ([], [_review("PASS\n\n## Executive TL;DR\nAll good.")], "ok",
+     "COMMENTED review by the PR author, PASS"),
+    ([], [_review("BLOCK 2\n\n## Executive TL;DR\nTwo defects.")], "ok",
+     "COMMENTED review, BLOCK"),
+    ([], [_review("Looks fine to me, nice work.")], "unreviewed",
+     "COMMENTED review, no verdict"),
+    ([], [_review("REVIEW 0\n\nA person decides.")], "unreviewed",
+     "COMMENTED review, REVIEW"),
+    (["PASS\n\n## Executive TL;DR\nAll good."], [], "ok",
+     "verdict in a PR comment only"),
+    ([], [_review("PASS", state="DISMISSED")], "unreviewed",
+     "DISMISSED review with a PASS body"),
+    ([], [_review(""), _review("PASS\n\nAll good.")], "ok",
+     "verdict in the second of two reviews"),
+    ([], [_review("PASS\n\nAll good."), _review("")], "ok",
+     "verdict in the first of two reviews"),
+]
+
+
+def run_review_body_cases(gate, failures: list) -> int:
+    """Call review_status with gate.gh replaced by a fake that runs the hook's
+    own jq filter over the given comments and reviews, so a wrong filter fails
+    here."""
+    if shutil.which("jq") is None:
+        failures.append("  review body cases need jq on PATH, and it is missing")
+        return len(REVIEW_BODY_CASES)
+    real_gh = gate.gh
+    try:
+        for comments, reviews, want, label in REVIEW_BODY_CASES:
+            data = {"comments": [{"body": b} for b in comments],
+                    "reviews": reviews}
+
+            def fake(sub, target, *args, _d=data):
+                if args[args.index("--json") + 1] == "files":
+                    return BIG
+                jq = args[args.index("--jq") + 1]
+                out = subprocess.run(["jq", "-r", jq], input=json.dumps(_d),
+                                     capture_output=True, text=True)
+                return out.stdout if out.returncode == 0 else ""
+
+            gate.gh = fake
+            got, _ = gate.review_status({})
+            if got != want:
+                failures.append(f"  {label}: wanted {want}, got {got}")
+    finally:
+        gate.gh = real_gh
+    return len(REVIEW_BODY_CASES)
+
+
 def main() -> int:
     spec = importlib.util.spec_from_file_location("gate", HOOK)
     gate = importlib.util.module_from_spec(spec)
@@ -472,7 +534,8 @@ def main() -> int:
         if got != want:
             failures.append(f"  {label}: wanted {want}, got {got} for {body!r}")
 
-    total = len(CASES) + run_target_cases(failures) + 1
+    total = (len(CASES) + run_target_cases(failures) + 1
+             + run_review_body_cases(gate, failures))
 
     if failures:
         print(f"FAIL: {len(failures)} failures in {total} cases", file=sys.stderr)
