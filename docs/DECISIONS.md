@@ -7,6 +7,83 @@ moving tool version does not rot them.
 A decision is superseded, never deleted. Mark it with the date and what
 replaced it.
 
+## 2026-11-23: fresh-eye and the Orca twenty reviewer, compared blind on three PRs
+
+Supports `fresh-eye` ("Name the harm of each finding", and exactly three
+invented mutations). Proposed, for the owner to decide.
+
+Style A is the fresh-eye prompt skeleton, filled in at tier 1 with
+twenty's `NORTH-STAR.md` rule 10 as the blocking rule. Style B is the Orca
+twenty template `reviewer-adversarial.txt`
+(`~/.orca/bots/mdi-mac/skills/twenty-worker-spec/`). The second reviewer
+(`reviewer-codereview.txt`) has the same text as fresh-eye's code-review
+prompt, so it was left out. Each of six Orca workers (same agent, same
+model) got one PR and one style. Each saw a copy of the repo that held only
+the commit under review and its base, the ticket and the PR body. None saw
+the other style or the earlier review comments. PR 583 was reviewed at its
+round 1 commit with its round 1 body. PRs 585 and 591 were reviewed at
+their merged head.
+
+What each found. "Old" is the review posted on the PR at the time.
+
+| PR | Finding | Old | A | B |
+|---|---|---|---|---|
+| 583 | a forged Authentication-Results header passes as the owner | blocking | blocking | blocking |
+| 583 | a crash between two lessons of one reply loses the rest | blocking | nit | blocking |
+| 583 | a forwarded block counts as the sender's own text | blocking | missed | missed |
+| 583 | a `>` line quoted from mail outside the thread counts as own text | blocking, round 3 | missed | blocking |
+| 583 | a quoted line of the HTML run email (a link or a bullet) counts as own text | not found | blocking | missed |
+| 583 | nothing reads `replies.json`, so held replies reach no person | nit | nit | nit |
+| 583 | a bad Gemini answer stops the whole Friday run | nit | missed | nit |
+| 585 | in a cloud run the named local file goes away, and "copy it from the run log" is false | not found | blocking | nit |
+| 585 | the wait between tries has no check | not found | nit | nit |
+| 585 | `write_log.md` does not describe the retry | nit | nit | nit |
+| 591 | an undo event carries the first run's `runId` and `sourceId` | nit, owner question | nit | blocking |
+| 591 | three older test gaps (bucket copy, a bad per step log field, step log fields) | partly | nit | missed |
+
+| | A (fresh-eye) | B (Orca) |
+|---|---|---|
+| Decisions (583, 585, 591) | BLOCK 2, BLOCK 1, PASS | BLOCK 3, PASS, BLOCK 1 |
+| Old round 1 blocking findings on 583 (3) found as blocking | 1 | 2 |
+| Valid blocking findings no old review had | 2 (HTML quote, cloud loss) | 0 |
+| False alarms | 0 | 0 |
+| Severity splits with the other style | 1 per PR | 1 per PR |
+| Invented mutations that survived | 9, all nits | 1, a nit |
+| Minutes, dispatch to report (583, 585, 591) | 8.7, 5.3, 6.6 (20.6) | 5.3, 1.9, 1.6 (8.8) |
+
+Tokens were not counted: an Orca worker record holds only times.
+Minutes come from `orca orchestration worker-show --dispatch <id> --json
+--full` (`dispatchedAt` to `completedAt`).
+
+What it means:
+
+- The styles found the same top defect on 583 and the same 585 and 591
+  defects. They differ in severity: on each PR one style blocked a defect
+  that the other called a nit. Neither brief made the reviewer name the
+  harm before it chose. A called a lost lesson a nit, which rule 10 makes
+  blocking. B blocked the undo source, which the old review sent to the
+  owner as a question. So fresh-eye now asks for the harm of each finding,
+  and a harm that depends on a reading of the rule is a `REVIEW`.
+- A's two unique blocking findings came from a probe of a real input form
+  and from the source line check (fresh-eye steps 3 and 8). None came from
+  its invented mutations. A ran up to thirteen invented mutations per PR,
+  where the skeleton asks for three. So fresh-eye now asks for exactly three.
+- B costs about 43% of A's minutes and found more of the old blocking
+  findings on 583. Its short brief is enough for a defect a probe finds. It
+  found fewer test gaps.
+- Both missed the forwarded block that the old round 1 found. A one-run
+  sample per cell cannot say whether that is luck.
+
+Limits: three PRs, one run per style per PR, one model. B's template tells
+the reviewer to load fresh-eye, so B is not fully apart from A. The two
+new own-text findings and the missed forwarded block were rerun on the
+round 1 code by the coordinator. Every other finding is as the reviewers
+reported it.
+
+Check: the verdicts and specs were scratch files. To rerun, fill the
+skeleton and the template for a PR and start one Orca worker each with
+`orca orchestration worker-start --spec-file <file> --agent claude`.
+
 ## 2026-11-20: the wind-down line moves to 300k, about 30% of a 1M Opus window
 
 Supports `handoff`. Supersedes "ask-matt now puts the smart zone at about

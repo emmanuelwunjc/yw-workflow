@@ -3,7 +3,7 @@ name: fresh-eye
 description: Dispatch an independent adversarial reviewer that did not write the code, in an isolated git worktree, to try to break a change rather than agree with it. Use before merging anything non-trivial, when asked for "a fresh eye", "a second opinion", "review this properly", "try to break this", or when you have just finished work and are about to call it done. Also use on the FIX for a previous review, because that is where the next defect usually is.
 origin: authored
 tags: [review, quality, adversarial, worktree, mutation-testing]
-version: 1.7.0
+version: 1.8.0
 ---
 
 # Fresh eye
@@ -77,6 +77,15 @@ e.g. twenty's `NORTH-STAR.md` rule 10: a finding blocks only for data loss, a
 wrong write, overspend or a missed alert. Name that file in the brief, or
 write "none". When the repo rule and the tier differ, the repo rule wins.
 
+**Name the harm of each finding.** Each finding names the harm it causes
+under the repo's rule, e.g. "lost record" or "wrong write", or "none".
+A finding with a named harm blocks. A finding with no harm is a nit. When
+the harm depends on how a person reads the rule, the finding is a `REVIEW`
+with the question written out, e.g. "does an undo entry that names the
+first run's source count as wrong data?". On each of three twenty PRs, two
+reviewers saw one defect and only one of them marked it blocking
+(`docs/DECISIONS.md`, 2026-11-23).
+
 **Run only the tests near the change.** The reviewer never runs the full suite
 or the full render, because CI does that. One exception: the change is to the
 render itself and no CI run exists at that commit.
@@ -113,7 +122,9 @@ for any that survive, loudly:
     Revert each after testing. Report any mutation that was NOT caught.
 
 At tier 1, also ask it to invent three more mutations you did not think of,
-aimed at the weakest checks. Those are the ones that find things.
+aimed at the weakest checks. Those are the ones that find things. Ask for
+exactly three. In the 2026-11-23 comparison a reviewer ran up to thirteen
+per PR, and the extra ones found test gaps that were all nits.
 
 **Record the broken inputs, so no round retypes them.** Two kinds of mutation
 go into a review. A *broken input* is bad data fed to a check, e.g. a tag with
@@ -363,7 +374,7 @@ function, or line number, it belongs in Agent-facing specifics instead.
        entry.
        Tier 2: do no mutation testing. Read the code and try real-world
        cases, e.g. <cases>. Mark each finding by the tier 2 rule above.
-    3. Tier 1 only: invent three more mutations aimed at the weakest checks.
+    3. Tier 1 only: invent exactly three more mutations aimed at the weakest checks.
        Then answer two questions. What does this check read that CI may not
        have (a commit on a deleted branch, a shallow clone, a remote file)?
        What does it do when that read fails? A failed read must fail the
@@ -397,8 +408,9 @@ function, or line number, it belongs in Agent-facing specifics instead.
     Start with one decision line: BLOCK n if you found a blocking finding,
     else REVIEW n if a call only a person can make is open, else PASS.
     n is the number of blocking findings.
-    Then report each finding with file:line, BLOCKING or nit, the concrete
-    failure scenario (inputs -> wrong output), and how you verified it.
+    Then report each finding with file:line, BLOCKING or nit, the harm it
+    causes under the repo's rule (or none), the concrete failure scenario
+    (inputs -> wrong output), and how you verified it.
     Do not fix anything. Do not commit.
 
 The second reviewer, on round 1 of a code PR over 50 changed lines:
