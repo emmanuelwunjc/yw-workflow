@@ -40,6 +40,12 @@ yw-workflow repo:
 - **Mutation check.** Whether one is expected, i.e. reverting the fix must
   fail something.
 
+Name the function or behaviour the ticket changes, e.g. "`_log` takes the
+singular object name from a map". Give a file path only as a hint, e.g.
+"(in `scripts/live_write.py` when this was filed)". A file can move or be cut
+up before the work starts. In twenty, ticket 521 named `scripts/live_write.py`.
+PR 630 then cut that file into three, so the worker lost time to find the code.
+
 In any repo, write the ticket with these four parts, each as a `## ` heading.
 The plugin's own check, `tools/check-repo.py` in the yw-workflow repo, fails
 when these bullets and the template headings name different parts.
