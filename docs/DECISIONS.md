@@ -1,5 +1,7 @@
 # Decisions
 
+Frozen on 2026-11-24. New decisions go to `docs/adr/` (see skill `grill`).
+
 Measured findings behind the skills. These carry a date because they age:
 re-measure before trusting one that is old. The skills stay procedure, so a
 moving tool version does not rot them.

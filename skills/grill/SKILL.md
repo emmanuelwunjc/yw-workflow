@@ -81,13 +81,19 @@ building the wrong thing confidently is worse than no grilling.
 - The answers describe work too big for one session: `/yw-workflow:wayfinder` charts it.
 - Sized for one session: `/yw-workflow:git-worktrees` if anyone else may be in the repo, then
   `/yw-workflow:ship-loop`.
-- A decision changed one already recorded: write it in the PR's `## Handoff notes`
-  (on a branch) or in `docs/HANDOFF.md` (on a handoff pass), and mark the old one
-  superseded with the date. A decision is superseded, never deleted.
+- A decision passes three tests: it is hard to reverse, it is surprising without
+  context, and it is the result of a real trade-off. Write it as one ADR,
+  `docs/adr/NNNN-slug.md`, in the format of `ADR-FORMAT.md` in
+  `/mattpocock-skills:domain-modeling`. Make `docs/adr/` only with its first ADR.
+- Any other decision goes into the skill, code or doc it changes.
+- Record one decision in one place only. The PR's `## Handoff notes` can link to
+  the ADR, but do not copy it.
+- A decision changed one in an ADR: write a new ADR. In the old ADR, set the
+  status to `superseded by ADR-NNNN` and change nothing else. A decision is
+  superseded, never deleted.
+- `docs/DECISIONS.md` is frozen. Read it for older decisions. Add nothing to it.
 - A domain term needs one fixed meaning: `/mattpocock-skills:domain-modeling` can
-  write it to `GLOSSARY.md`. Keep decisions out of its ADRs. A decision stays in
-  the PR's `## Handoff notes`, `docs/HANDOFF.md` or `docs/DECISIONS.md`. Never
-  record one decision both in an ADR and in those notes.
+  write it to `GLOSSARY.md`.
 - You could not get an answer: `/yw-workflow:need-me` puts the open question in front of the
   human in the format they can act on.
 - They cannot answer because they do not yet understand what is being decided:
