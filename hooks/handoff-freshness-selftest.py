@@ -252,6 +252,35 @@ assert TRAILING != GOOD
 CRLF = GOOD.replace("\n", "\r\n")
 OLD_PREAMBLE = ("# Handoff\n\n## Start here\n\nWritten at the end of a session, "
                 "this file says where things stand.\n")
+# Issue #201: a path in backticks in docs/HANDOFF.md or docs/adr/*.md that
+# does not exist warns, with the file and the line. Each skip case below
+# holds a path that does not exist, so a skip rule that breaks warns. A dead
+# path is no shape problem: it gets its own label, and no migrate order.
+DEAD = "which does not exist"
+PATH_LABEL = "HANDOFF PATH"
+DEAD_PATH = GOOD + "\nSee `docs/nope.md`.\n"
+DEAD_LINE = len(GOOD.splitlines()) + 2
+LIVE_PATH = GOOD + "\nSee `docs/real.md`.\n"
+ADR = "docs/adr/0001-pick.md"
+DEAD_ADR = "# 1. Pick\n\nThe rule lives in `docs/gone.py`.\n"
+FENCE = GOOD + "\n```\ncat `docs/nope.md`\n```\n"
+# (label, token, extra files). Each token's first part is a folder that the
+# repo has, so only its own skip rule keeps it quiet.
+IGNORE = {".gitignore": "*.local.*\n"}
+SKIPS = [("a URL", "`https://example.org/docs/nope.md`", {}),
+         ("a path with <", "`docs/<name>.md`", {}),
+         ("a path with *", "`docs/adr/*.md`", {}),
+         ("a path with ~", "`docs/~nope.md`", {}),
+         ("a path with $", "`docs/${NAME}.md`", {}),
+         ("a path under .scratch/", "`.scratch/notes/nope.md`",
+          {".scratch/keep.md": "x\n"}),
+         ("a gitignored path", "`docs/demo-data.local.ts`", IGNORE),
+         # the first part is no top-level entry of the repo, e.g. a GCP role
+         ("a role like roles/aiplatform.user", "`roles/aiplatform.user`", {}),
+         ("a path under $VAR", "`${CLAUDE_PLUGIN_ROOT}/hooks/x.py`", {}),
+         # git check-ignore refuses a path outside the repo, which stopped
+         # the whole check
+         ("a path that leaves the repo", "`../../anything.md`", {})]
 
 # (name, files to write, files to `git add`, substrings stderr must carry,
 #  substrings stderr must not carry)
@@ -333,6 +362,21 @@ CASES = [
      {"docs/HANDOFF.md": CRLF}, ["docs/HANDOFF.md"], [], ["HANDOFF"]),
     ("preamble phrase past line 40 is body text, no warning",
      {"docs/HANDOFF.md": LATE_PREAMBLE}, ["docs/HANDOFF.md"], [], ["HANDOFF SHAPE"]),
+    ("a dead path in the handoff warns with its file and line",
+     {"docs/HANDOFF.md": DEAD_PATH}, ["docs/HANDOFF.md"],
+     [PATH_LABEL, f"docs/HANDOFF.md:{DEAD_LINE}", "`docs/nope.md`", DEAD],
+     ["HANDOFF SHAPE"]),
+    ("a live path in the handoff warns nothing",
+     {"docs/HANDOFF.md": LIVE_PATH, "docs/real.md": "x\n"}, ["docs/HANDOFF.md"],
+     [], ["HANDOFF SHAPE", PATH_LABEL]),
+    ("a dead path in an ADR warns with its file and line",
+     {"docs/HANDOFF.md": GOOD, ADR: DEAD_ADR}, ["docs/HANDOFF.md"],
+     [PATH_LABEL, f"{ADR}:3", "`docs/gone.py`", DEAD], ["HANDOFF SHAPE"]),
+    ("a path in a fenced code block is skipped",
+     {"docs/HANDOFF.md": FENCE}, ["docs/HANDOFF.md"], [], [PATH_LABEL]),
+    *[(f"{label} is skipped",
+       {"docs/HANDOFF.md": GOOD + f"\nSee {tok}.\n", **extra},
+       ["docs/HANDOFF.md"], [], [PATH_LABEL, DEAD]) for label, tok, extra in SKIPS],
 ]
 
 
@@ -403,6 +447,32 @@ def session_start_failures():
     if "s1 " in kept or "HANDOFF SHAPE" not in got.stdout:
         failures += 1
         print(f"FAIL SessionStart wrote a Stop record: {kept!r}\n{got.stdout}")
+    # Issue #201: a dead path is one line with the file and the line at
+    # SessionStart. It never adds the migrate order or the block help, also
+    # not for an ADR beside a correct handoff. A real shape problem beside a
+    # dead path still gets the migrate order.
+    for label, files, want, forbid in (
+            ("dead path in the handoff", {"docs/HANDOFF.md": DEAD_PATH},
+             [PATH_LABEL, f"docs/HANDOFF.md:{DEAD_LINE}"],
+             [FIRST_TASK, "HANDOFF SHAPE", "block to paste"]),
+            ("dead path in an ADR", {"docs/HANDOFF.md": GOOD, ADR: DEAD_ADR},
+             [PATH_LABEL, f"{ADR}:3"],
+             [FIRST_TASK, "HANDOFF SHAPE", "block to paste"]),
+            ("dead path and no block", {"docs/HANDOFF.md": NO_BLOCK, ADR: DEAD_ADR},
+             [PATH_LABEL, f"{ADR}:3", "HANDOFF SHAPE", FIRST_TASK], [])):
+        with tempfile.TemporaryDirectory() as tmp:
+            make_repo(tmp, files, list(files))
+            got = run_hook(tmp, event="SessionStart")
+        try:
+            text = json.loads(got.stdout)["hookSpecificOutput"]["additionalContext"]
+        except Exception:
+            text = ""
+        missing = [w for w in want if w not in text]
+        present = [f for f in forbid if f in text]
+        if missing or present or got.returncode != 0 or got.stderr:
+            failures += 1
+            print(f"FAIL SessionStart, {label}: missing={missing} "
+                  f"unwanted={present}\n{got.stdout}{got.stderr}")
     # The skip switch silences SessionStart too.
     with tempfile.TemporaryDirectory() as tmp:
         make_repo(tmp, {"docs/HANDOFF.md": NO_BLOCK}, ["docs/HANDOFF.md"])
@@ -688,8 +758,15 @@ def failed_read_failures():
         git(tmp, "add", "AGENT_HANDOFF.md")
         pathlib.Path(tmp, ".git", "index").write_bytes(b"junk")
 
+    def unreadable_adr(tmp):
+        pathlib.Path(tmp, "docs", "adr").mkdir()
+        pathlib.Path(tmp, ADR).write_text(DEAD_ADR)
+        pathlib.Path(tmp, ADR).chmod(0)
+
     cases = [("an unreadable docs/HANDOFF.md", *chmod("docs/HANDOFF.md", 0, 0o644),
-              ["cannot read docs/HANDOFF.md at "], ["has no `## Start here` line"])]
+              ["cannot read docs/HANDOFF.md at "], ["has no `## Start here` line"]),
+             ("an unreadable ADR", unreadable_adr, (ADR, 0o644),
+              [f"cannot read {ADR} at ", "its path check did not run"], [DEAD])]
     if os.geteuid() == 0:
         cases = []
     cases.append(("a git index that cannot be read", junk_index, None,
