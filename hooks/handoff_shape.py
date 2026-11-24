@@ -19,7 +19,12 @@ skill describes. shape_problems() returns one string per problem:
     block has no Start here block or an empty one.
   - its first 40 lines still carry the old "end of a session" preamble
   - a file named like a handoff is tracked outside docs/
-  - a read that fails (docs/HANDOFF.md or git ls-files) gets a warning that names that read and says which check did
+  - a path in backticks in docs/HANDOFF.md or a docs/adr/*.md file does not
+    exist (issue #201). A path is a token with a `/` and a file extension,
+    e.g. `docs/nope.md`, read from the repo top. Skipped: fenced code, a URL
+    or any token with `:`, a token with `<`, `*` or `~`, an absolute path,
+    and a path under .scratch/. A `#heading` after the path is dropped.
+  - a read that fails (docs/HANDOFF.md, an ADR, or git ls-files) gets a warning that names that read and says which check did
     not run (issue #145). It never warns for the problem the check would
     have looked for, and it never passes silently.
 
@@ -103,6 +108,63 @@ def drift_problems(lines: list[str]) -> list[str]:
     return []
 
 
+ADR_DIR = "docs/adr"
+TICKED = re.compile(r"`([^`\s]+)`")
+FENCE = re.compile(r"\s*(```|~~~)")
+SKIP_CHARS = ":<*~"
+SKIP_DIRS = (".scratch/",)
+
+
+def is_path(tok: str) -> bool:
+    """A repo-relative file path, by shape: e.g. `docs/HANDOFF.md`, never
+    `origin/main`, `/dump` or `https://x.org/a.md`."""
+    base = tok.rstrip("/").rsplit("/", 1)[-1]
+    return ("/" in tok and not tok.startswith("/") and "." in base.lstrip(".")
+            and not any(c in tok for c in SKIP_CHARS)
+            and not tok.startswith(SKIP_DIRS))
+
+
+def dead_paths(top: str, rel: str, lines: list[str]) -> list[str]:
+    """One warning per backticked path in rel that is not on disk."""
+    problems, fenced = [], False
+    for n, line in enumerate(lines, 1):
+        if FENCE.match(line):
+            fenced = not fenced
+            continue
+        if fenced:
+            continue
+        for tok in TICKED.findall(line):
+            path = tok.split("#", 1)[0]
+            if is_path(path) and not os.path.exists(os.path.join(top, path)):
+                problems.append(f"{rel}:{n} points to `{path}`, which does not "
+                                f"exist. Fix the path or drop the pointer.")
+    return problems
+
+
+def adr_problems(top: str) -> list[str]:
+    """dead_paths() for each docs/adr/*.md. A read that fails names it."""
+    adr_dir = os.path.join(top, ADR_DIR)
+    if not os.path.isdir(adr_dir):
+        return []
+    try:
+        names = sorted(f for f in os.listdir(adr_dir) if f.endswith(".md"))
+    except OSError as exc:
+        return [f"cannot list {ADR_DIR} at {adr_dir} ({exc.strerror}), "
+                f"so its path check did not run. Fix its permissions."]
+    problems = []
+    for name in names:
+        rel = f"{ADR_DIR}/{name}"
+        try:
+            with open(os.path.join(adr_dir, name), encoding="utf-8",
+                      errors="replace") as fh:
+                problems += dead_paths(top, rel, fh.read().splitlines())
+        except OSError as exc:
+            problems.append(f"cannot read {rel} at {os.path.join(adr_dir, name)} "
+                            f"({exc.strerror}), so its path check did not run. "
+                            f"Fix its permissions.")
+    return problems
+
+
 def shape_problems(top: str) -> list[str]:
     """Each string is one warning; empty means the handoff has the right shape."""
     problems = []
@@ -129,6 +191,8 @@ def shape_problems(top: str) -> list[str]:
                 f"{HANDOFF} still says \"{hit}\" in its first {PREAMBLE_LINES} "
                 f"lines. That preamble told the reader the file was written at "
                 f"close; the file is written as work happens. Delete it.")
+        problems += dead_paths(top, HANDOFF, lines)
+    problems += adr_problems(top)
     try:
         tracked = git("-C", top, "ls-files", "-z", check=True).split("\0")
     except RuntimeError as exc:
