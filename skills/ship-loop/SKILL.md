@@ -3,7 +3,7 @@ name: ship-loop
 description: Run work as a closing loop instead of a trailing-off one. Ticket, branch, implement test-first, dispatch an independent review, fix what blocks, file what does not, and repeat until a review round comes back clean. Use when asked to "run the loop", "keep going until it's right", "loop until the feedback is perfect", "babysit this to done", or when handed a backlog of tickets to work through. Also use to decide what happens to review findings.
 origin: authored
 tags: [workflow, review, tdd, subagents, loop, tickets]
-version: 1.5.5
+version: 1.5.6
 ---
 
 # Ship loop
@@ -40,11 +40,14 @@ yw-workflow repo:
 - **Mutation check.** Whether one is expected, i.e. reverting the fix must
   fail something.
 
-Name the function or behaviour the ticket changes, e.g. "`_log` takes the
-singular object name from a map". Give a file path only as a hint, e.g.
-"(in `scripts/live_write.py` when this was filed)". A file can move or be cut
-up before the work starts. In twenty, ticket 521 named `scripts/live_write.py`.
-PR 630 then cut that file into three, so the worker lost time to find the code.
+In the ticket's description, name the function or behavior it changes, e.g.
+"`_log` takes the singular object name from a map". Give a file path there
+only as a hint, e.g. "(in `scripts/live_write.py` when this was filed)". The
+Reproduction and Verification commands keep their literal paths. A file can
+move or be cut up before the work starts. In twenty, ticket 521 named the
+behavior, but its Reproduction said only "Read `scripts/live_write.py`". PR
+630 then cut that file into three and moved `_log` out of it, so the worker
+lost time to find the code.
 
 In any repo, write the ticket with these four parts, each as a `## ` heading.
 The plugin's own check, `tools/check-repo.py` in the yw-workflow repo, fails

@@ -4,7 +4,7 @@ about: One unit of work in the ship-loop format (skills/ship-loop/SKILL.md, step
 ---
 
 Say what is wrong in one or two sentences, with a real example.
-Name the function or behaviour that changes. Give a file path only as a hint, because files move.
+Name the function or behavior that changes. Give a file path only as a hint, because files move.
 
 Run each command in this ticket in the terminal where the work will run, and paste its output.
 
