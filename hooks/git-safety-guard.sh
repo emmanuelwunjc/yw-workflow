@@ -183,6 +183,9 @@ fi
 # error would brick every commit the user makes.
 harness_pid_in_tree() {
   local dir="$1" here p comm hcwd
+  # macOS keeps lsof in /usr/sbin, which a minimal PATH leaves out. Without
+  # it this check fails open and the harness rules stop guarding (#263).
+  local PATH="$PATH:/usr/sbin:/sbin"
   command -v pgrep >/dev/null 2>&1 || return 0
   command -v lsof  >/dev/null 2>&1 || return 0
   here="$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null)"
