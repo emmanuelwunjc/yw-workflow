@@ -46,7 +46,10 @@ whole briefing. Nobody writes you a separate prompt. Do these in order.
    ticket with a branch linked to it, in its own worktree (`git-worktrees`):
    `gh issue develop <N> --name <type>/<N>-<short> --base <trunk> --checkout --worktree .worktrees/<NN>-<short>`
    The linked branch marks the ticket taken. If gh refuses, change
-   nothing, stop, and tell the owner.
+   nothing, stop, and tell the owner. Then run `gh issue develop --list <N>`.
+   It lists a branch other than yours: another session took the ticket at
+   the same time. Delete your branch on GitHub and your worktree, and take
+   the next ticket.
 4. Read the recent sections of this file for traps. Run the recount
    commands before trusting any number. Start more tickets as earlier ones
    merge. Ask the owner nothing that this file or the tickets answer.
@@ -1058,6 +1061,9 @@ def main():
     if "gh issue develop" not in BLOCK:
         failures += 1
         print("FAIL the pinned block does not take a ticket with gh issue develop")
+    if "gh issue develop --list" not in BLOCK:
+        failures += 1
+        print("FAIL the pinned block does not say what to do when a ticket is already linked")
 
     # the block pinned above is the block the skill tells repos to paste, and
     # the block this repo's own handoff opens with

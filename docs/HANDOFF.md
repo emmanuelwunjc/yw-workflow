@@ -17,7 +17,10 @@ whole briefing. Nobody writes you a separate prompt. Do these in order.
    ticket with a branch linked to it, in its own worktree (`git-worktrees`):
    `gh issue develop <N> --name <type>/<N>-<short> --base <trunk> --checkout --worktree .worktrees/<NN>-<short>`
    The linked branch marks the ticket taken. If gh refuses, change
-   nothing, stop, and tell the owner.
+   nothing, stop, and tell the owner. Then run `gh issue develop --list <N>`.
+   It lists a branch other than yours: another session took the ticket at
+   the same time. Delete your branch on GitHub and your worktree, and take
+   the next ticket.
 4. Read the recent sections of this file for traps. Run the recount
    commands before trusting any number. Start more tickets as earlier ones
    merge. Ask the owner nothing that this file or the tickets answer.
@@ -1447,6 +1450,17 @@ backlog. Its first task is the grilling for #101.
 
 ### Next
 
-Open work is in the `lane` issues. List them with
-`gh issue list --label lane --state open`. Lane #47 holds this repo's
-backlog. Its first tasks are #165 and #131.
+Lane issues are retired (#228, 2026-11-24). Open work is the open tickets:
+`gh issue list --state open --json number,title,labels`. A ticket is free
+when `gh issue develop --list <N>` prints no branch, no open issue blocks
+it, and it has no `needs-owner` or `wayfinder:grilling` label. Take free
+tickets as step 3 of the block above says, two to four at once.
+
+1. First, once both #228 PRs merge: finish the retirement that the
+   "Handoff notes" of the retire-lane-issues PR list. Copy each remaining
+   `## Next` step of the open `lane` issues to its ticket as a comment.
+   Open a ticket for each step that has none. Then close each `lane` issue
+   with a pointer, and close the `lane_claim.py` tickets it names as
+   retired.
+2. Then any free ticket. The old lane order is now held by "blocked by"
+   links.

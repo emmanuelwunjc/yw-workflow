@@ -127,10 +127,13 @@ commit." Any other ticket gets the first spec only.
 ### 3. Run each ticket as a `ship-loop`
 
 The PM takes the ticket before it starts the builder: it links the branch
-with `gh issue develop <N> --name <branch> --base main`, as step 3 of the
-`## Start here` block in `docs/HANDOFF.md` says. If gh refuses, start no
-builder, and say why in the report. The linked branch marks the ticket
-taken until the PR merges and the branch is deleted.
+with `gh issue develop <N> --name <branch> --base "$(gh repo view --json defaultBranchRef --jq .defaultBranchRef.name)"`,
+as step 3 of the `## Start here` block in `docs/HANDOFF.md` says. If gh
+refuses, start no builder, and say why in the report. Then run
+`gh issue develop --list <N>`. It lists a second branch: another session took
+the ticket. Delete the new branch on GitHub, start no builder, and say so.
+The linked branch marks the ticket taken until the PR merges and the branch
+is deleted.
 
 `.worktrees/` must be in the repo's `.gitignore`, per `git-worktrees`. When
 `git -C "$MAIN" check-ignore -q .worktrees/` exits 1, the first builder spec

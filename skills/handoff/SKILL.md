@@ -85,7 +85,10 @@ whole briefing. Nobody writes you a separate prompt. Do these in order.
    ticket with a branch linked to it, in its own worktree (`git-worktrees`):
    `gh issue develop <N> --name <type>/<N>-<short> --base <trunk> --checkout --worktree .worktrees/<NN>-<short>`
    The linked branch marks the ticket taken. If gh refuses, change
-   nothing, stop, and tell the owner.
+   nothing, stop, and tell the owner. Then run `gh issue develop --list <N>`.
+   It lists a branch other than yours: another session took the ticket at
+   the same time. Delete your branch on GitHub and your worktree, and take
+   the next ticket.
 4. Read the recent sections of this file for traps. Run the recount
    commands before trusting any number. Start more tickets as earlier ones
    merge. Ask the owner nothing that this file or the tickets answer.
@@ -228,8 +231,7 @@ miss is blocking:
 - Every merged PR in the pass whose Handoff notes name a next step for work
   still open has a ticket, or a comment on a ticket, that carries that step.
 - No two open tickets name the same task.
-- Every "after #X" in the notes is a "blocked by" link on GitHub, not only
-  text.
+- Every "after #X" in the notes is a "blocked by" link on GitHub.
 
 A PR with no notes prints `(no handoff notes)`. List it for the owner in the
 pass's PR body, as step 5 says.
