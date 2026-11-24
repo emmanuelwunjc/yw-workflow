@@ -13,6 +13,7 @@ plugin path only.
 | **require-code-review.py** | PreToolUse | Blocks `gh pr merge <number>` on a 25+ line PR with no review, looked up in the repo the command targets (`cd`, `-R`, a PR URL, `GH_REPO`) rather than the folder the session started in. A merge it finds and cannot tie to a literal PR and repo is blocked with a request for `-R owner/repo`. It reads the merge from the command text, so a command that only mentions one with a number is judged as a merge, and a merge with no number is invisible to it (#17). Override: `export SKIP_REVIEW_GATE=1;` in front of the command, announced on stderr when honored. |
 | **no-ai-attribution.py** | PreToolUse | Keeps AI-generation footers, session URLs and the triage skill's AI disclaimer out of anything people read, commit messages included. Also blocks a co-author trailer at an anthropic.com address. A co-author trailer that names a person passes. It also reads the message file of a git or gh command. The file must be named after its own flag (`-F path`, `--file`, `--body-file`, `--notes-file`, or `flag=path`). The hook must also find it. It reads the file as it is before the command runs, even when the same command writes or changes it. This is a best-effort check. CI also scans some published text: see [CI gate](#ci-gate) below. |
 | **zsh-trap-guard.py** | PreToolUse | The Bash tool runs commands under zsh. Blocks an unbraced `$name:` before a letter zsh reads as a modifier (`$s:refs` applies `:r`, so write `${s}:refs`), and `for v in $VAR`, which zsh does not split into words. Ignores single-quoted text and quoted heredocs. Switch: `[rules] zsh_traps`. |
+| **slack-language.py** | PreToolUse | Off by default. When on, blocks an `orca slack post` whose arguments, or the file `--text-file` names, hold a character in a disallowed script (default: the CJK set). Blocks `--text-file -`, because a hook cannot read stdin. Known misses: the final message of a Slack-woken turn is not a tool call, so this hook never sees it, and `orca-final-language.py` covers it only on the owner's machine. It also misses text the shell makes at run time (`$VAR`, `$(cat file)`) and `orca bot reply`. Settings: `[rules] slack_language` and `[slack_language] disallowed` (a script name mapped to code point ranges). |
 | **claude-md-guard.py** | UserPromptSubmit, Stop | Blocks em-dashes, negation-then-correction, and prose questions where checkboxes are required. |
 | **handoff-freshness.py** | SessionStart (`startup`, `clear`), Stop | On a work branch whose net diff from trunk changes real files, reminds it to write the PR body's `## Handoff notes` section, and warns any work branch (a detached HEAD included) whose net diff changes `docs/HANDOFF.md`. On trunk (`main`, `master`, or what `origin/HEAD` names) or a `docs/handoff-*` branch, catches work piling up against an untouched `docs/HANDOFF.md`. Also catches a `docs/HANDOFF.md` that lacks the `## Start here` block, has a block that does not open with the current block in skill `handoff` (naming the first line that differs), still opens with an "end of a session" preamble, or has a handoff-named `.md` tracked outside `docs/` (the shape in skill `handoff`). It also warns on an empty block. When it cannot read the plugin's copy, it says the check did not run. At SessionStart it runs only this shape check, and tells the session to look for an open PR that changes `docs/HANDOFF.md` and, with none, to migrate the file as its first task, before it takes a ticket. A resumed or compacted session is left alone. Where each warning appears: at SessionStart, `HANDOFF SHAPE` goes into the session's context as `additionalContext`. At Stop, `HANDOFF SHAPE`, `HANDOFF NOTES` and `HANDOFF STALE` go out as Stop `additionalContext` JSON on stdout, once per session per warning variant. The full rule is in [DECISIONS.md](DECISIONS.md), 2026-11-16 (#125). Override: `SKIP_HANDOFF_CHECK=1`. |
 | **context-handoff.py** | PostToolBatch, UserPromptSubmit, Stop | Winds a session down when its context passes about 300k tokens (about 30% of a 1M Opus window), the owner's setting, and again at every 100k past that. The notice tells the model to start no new work, spawn no subagents, let running ones finish for at most 15 minutes, then write the handoff and tell the user to start a fresh session. After the 15 minutes, with no handoff written, a second notice says to save what each running subagent has, stop it, and write the handoff now. Blocks one Stop per notice while `docs/HANDOFF.md` is untouched since the notice, on any branch or worktree. Known limits: it cannot see a branch's notes in a PR body, or anything in a folder that is not a git repo, so there the deadline notice and the one block always arrive. The hook instructs and the model acts: it stops no subagent itself. Reads the size from the last assistant message's usage in the transcript. Main thread only. Settings: `[rules] context_handoff` and `[context_handoff] first`, `step`, `grace_minutes` in `.handrail.toml`. |
@@ -131,10 +132,11 @@ branch-protection decision, and it belongs with the people who own the branch.
 ## Config
 
 **Read this first: only `claude-md-guard.py`, `no-ai-attribution.py`,
-`context-handoff.py` and `zsh-trap-guard.py` consult the config today.** The
-`[rules]` switches and `policy_doc` work for the first two,
-`context-handoff.py` reads its switch and its `[context_handoff]` values, and
-`zsh-trap-guard.py` reads only its switch.
+`context-handoff.py`, `zsh-trap-guard.py` and `slack-language.py` consult the
+config today.** The `[rules]` switches and `policy_doc` work for the first two,
+`context-handoff.py` reads its switch and its `[context_handoff]` values,
+`zsh-trap-guard.py` reads only its switch, and `slack-language.py` reads its
+switch and its `[slack_language]` values.
 The other value keys below are parsed and are not yet read by any guard, so
 `trivial_lines` and `protected` change nothing until the unit that wires them
 lands. `git-safety-guard.sh` still hardcodes `main` and `master`, and
@@ -142,8 +144,9 @@ lands. `git-safety-guard.sh` still hardcodes `main` and `master`, and
 either: the action runs the guards' `scan` entry points, which never read a
 config.
 
-Every rule is on by default except negation-then-correction, which is the one
-heuristic with known false positives. To change that, write `.handrail.toml` in
+Every rule is on by default except two. Negation-then-correction is the one
+heuristic with known false positives. `slack_language` is off because a team
+that writes Slack in more than one language would be blocked on every post. To change that, write `.handrail.toml` in
 a repo, or `~/.handrail.toml` for your machine.
 
 ```toml
@@ -152,6 +155,7 @@ policy_doc = "ENGINEERING.md"     # cited in block messages when the file exists
 [rules]
 negation = true                   # off by default
 em_dash = false                   # only your user config may switch one off
+slack_language = true             # off by default
 
 [git_safety]
 protected = ["main", "trunk"]
@@ -163,6 +167,9 @@ trivial_lines = 10
 first = 300000                    # tokens; the first wind-down notice
 step = 100000                     # tokens; the notice repeats per step past it
 grace_minutes = 15                # how long running subagents may finish
+
+[slack_language]
+disallowed = { cjk = [[0x3000, 0x303F], [0x4E00, 0x9FFF]] }   # name = ranges
 ```
 
 A repo config may switch a rule **on**. Only your user config may switch one
