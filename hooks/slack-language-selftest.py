@@ -41,7 +41,8 @@ def main():
     def expect(name, want, command, home, cwd, needle=""):
         nonlocal failures
         got = run(command, home, cwd)
-        if got.returncode != want or needle not in got.stderr:
+        if (got.returncode != want or needle not in got.stderr
+                or "Traceback" in got.stderr):
             failures += 1
             print(f"FAIL want={want} got={got.returncode}  {name}  "
                   f"stderr={got.stderr.strip()!r}")
@@ -88,6 +89,20 @@ def main():
         ]
         for name, want, command, needle in cases:
             expect(name, want, command, on_home, work, needle)
+
+        # A bad repo value must keep the user's switch and the default
+        # ranges, and no config shape may crash the hook.
+        for n, shape in enumerate(("disallowed = 5", "disallowed = { cjk = [['1', '99999']] }",
+                      "disallowed = { cjk = [[1]] }", "disallowed = { cjk = 5 }")):
+            repo = Path(work, "repo-%d" % n)
+            repo.mkdir()
+            Path(repo, ".handrail.toml").write_text(
+                "[slack_language]\n" + shape + "\n")
+            expect("bad repo value %r keeps the rule on" % shape, BLOCK,
+                   'orca slack post "#g" "' + HAN + '"', on_home, str(repo),
+                   "cjk")
+            expect("bad repo value %r passes English" % shape, ALLOW,
+                   'orca slack post "#g" "hi"', on_home, str(repo))
 
         expect("rule off (the default) passes", ALLOW,
                'orca slack post "#general" "' + HAN + '"', off_home, work)

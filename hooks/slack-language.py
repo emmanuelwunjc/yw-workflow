@@ -22,7 +22,8 @@ Misses:
 Limits:
   - A missing or unreadable text file passes, because `orca` itself fails on it.
   - A channel or person name in a disallowed script is blocked too.
-  - A broken config leaves the rule at its default, which is off.
+  - A config that cannot load leaves the rule at its default, which is off.
+    A bad `disallowed` value keeps the switch and uses the default ranges.
 
 Settings in `.handrail.toml`: `[rules] slack_language = true` turns it on.
 `[slack_language] disallowed` maps a script name to [first, last] code point
@@ -112,23 +113,40 @@ def problems(command, cwd, disallowed):
     return found
 
 
+def valid(disallowed):
+    """True when the value is a map of name to [first, last] integer pairs."""
+    def is_int(x):
+        return isinstance(x, int) and not isinstance(x, bool)
+    return isinstance(disallowed, dict) and all(
+        isinstance(ranges, list) and all(
+            isinstance(pair, list) and len(pair) == 2
+            and all(is_int(x) for x in pair) for pair in ranges)
+        for ranges in disallowed.values())
+
+
 def settings(cwd):
-    """(on, disallowed) from the config, the defaults when it cannot load."""
-    defaults = (False, {} if handrail_config is None else
-                handrail_config.VALUE_DEFAULTS["slack_language"]["disallowed"])
+    """(on, disallowed) from the config.
+
+    A config that cannot load leaves the rule at its default, off. A bad
+    `disallowed` value keeps the switch and uses the default ranges, so a repo
+    cannot switch off a rule the user switched on by writing a broken value.
+    """
     if handrail_config is None:
-        return defaults
+        return False, {}
+    default = handrail_config.VALUE_DEFAULTS["slack_language"]["disallowed"]
     try:
         config = handrail_config.load(cwd)
-        disallowed = config.value("slack_language", "disallowed")
-        for ranges in disallowed.values():
-            for lo, hi in ranges:
-                int(lo), int(hi)
-        return config.enabled("slack_language"), disallowed
     except Exception as exc:
         sys.stderr.write("handrail: config unreadable (%s), slack_language "
                          "stays off\n" % handrail_config.safe_error(exc))
-        return defaults
+        return False, default
+    disallowed = config.value("slack_language", "disallowed")
+    if not valid(disallowed):
+        sys.stderr.write("handrail: [slack_language] disallowed is not a map of "
+                         "name to [first, last] integer pairs, using the "
+                         "default\n")
+        disallowed = default
+    return config.enabled("slack_language"), disallowed
 
 
 def main():
