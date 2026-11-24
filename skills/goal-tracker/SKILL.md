@@ -3,7 +3,7 @@ name: goal-tracker
 description: Set up a pinned goal tracker issue whose progress bars update with no hand edits, from layer sub-issues, one slice label per work issue, and a sync script. Use when the owner asks for a "north star tracker", a "pinned tracker", a "progress bar issue", a "goal tracker", to "track a project to done", to "make this issue a tracker", or to follow the "tracker style", or when a backlog serves one goal with a target date and more than one part.
 origin: authored
 tags: [github-issues, tracker, sub-issues, progress, planning]
-version: 1.0.0
+version: 1.1.0
 ---
 
 # Goal tracker
@@ -32,18 +32,16 @@ page.
 Skip it for one ticket, or for a short backlog with no date. The open issue
 list is enough there.
 
-## How it differs from `lane` issues
+## How it differs from the free work check
 
-Both are GitHub issues. They do different jobs, so keep them apart.
-
-- A `lane` issue (skill `handoff`) tells the next session what to do. Its body
-  holds the `Held by:` line and the lane's `## Next`. A session claims one
-  with `scripts/lane_claim.py`.
-- The tracker tells the owner how far the goal is. No session claims it, and
+- The repo's free work check (skill `handoff`) tells the next session which
+  ticket to take. A ticket's state is on GitHub: a "blocked by" link, a
+  `needs-owner` label, a linked branch.
+- The tracker tells the owner how far the goal is. No session takes it, and
   no session starts its work from it.
 
-A session starts from a `lane` issue. It reads the tracker body only to pick
-the `slice:` label of a new ticket.
+A session starts from the free work check. It reads the tracker body only to
+pick the `slice:` label of a new ticket.
 
 ## Setup
 
@@ -205,8 +203,7 @@ After it syncs, each `--sync` run lists each open issue of the repo with no
 
     #581 has no slice: label (Cut scripts/person_match_eval.py below the module size limit)
 
-It skips the top issue, each layer, and each issue with a `lane` or `tracker`
-label. Add other labels to skip, e.g. maps that are no work item, as an
+It skips the top issue, each layer, and each issue with a `tracker` label. Add other labels to skip, e.g. maps that are no work item, as an
 `exempt:` list at the end of the map file:
 
     exempt:
@@ -227,5 +224,6 @@ owner before you add a workflow or a schedule for this check.
 - The owner questions of step 1: `/yw-workflow:need-me` is the format.
 - A part of the finished product with no ticket: `/yw-workflow:ship-loop`
   says what a ticket needs, and builds each one.
-- The next session needs to know what to do: `/yw-workflow:handoff` and its
-  `lane` issues. The tracker shows progress, and a lane says what is next.
+- The next session needs to know what to do: `/yw-workflow:handoff` and the
+  repo's free work check. The tracker shows progress, and the check says
+  what is next.

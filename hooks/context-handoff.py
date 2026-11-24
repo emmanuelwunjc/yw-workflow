@@ -32,7 +32,7 @@ the input carries `agent_id`, and the hook does nothing there.
 
 "Handoff written" is handoff_touch.touched_since, the same test
 handoff-freshness.py uses: a commit to docs/HANDOFF.md since the notice, or an
-uncommitted edit to it. A lane's `## Handoff notes` in a PR body is invisible
+uncommitted edit to it. A branch's `## Handoff notes` in a PR body is invisible
 to it, and so is everything in a folder that is not a git repo. There the
 deadline notice and the one Stop block always arrive. Both say which case it
 is, and the model answers by stopping again. With the detector missing or
@@ -81,12 +81,9 @@ TAIL_BYTES = 2 * 1024 * 1024
 
 WRITE = ("write the handoff now: load the yw-workflow:handoff skill, then %s "
          "on a docs/handoff-* branch, or a `## Handoff notes` section in the "
-         "PR body on a lane, per the repo's rules. If you hold a lane, rewrite "
-         "its `## Next` with `python3 scripts/lane_claim.py write <N> \"<name>\" "
-         "<file>`, then free it with `python3 scripts/lane_claim.py release "
-         "<N> \"<name>\"`. Write a lane body only with `scripts/lane_claim.py "
-         "write` or `release`, and if it refuses, change nothing, stop, and "
-         "tell the owner. Then tell the user to start a fresh session."
+         "PR body on any other branch, per the repo's rules. For a ticket you "
+         "did not finish, push its branch and comment on the ticket where the "
+         "work stopped. Then tell the user to start a fresh session."
          % HANDOFF)
 # A plain folder has no branch and no PR, so its text names neither.
 WRITE_FOLDER = ("write the handoff now: load the yw-workflow:handoff skill, and "

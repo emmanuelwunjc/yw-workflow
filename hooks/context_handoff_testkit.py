@@ -21,7 +21,6 @@ Time is passed in, never slept through. A case that needs a clock calls the
 hook's main(stdin_text, now) through DRIVER. A case without one runs the
 script itself, which is what Claude Code runs.
 """
-import importlib.util
 import json
 import os
 import pathlib
@@ -35,13 +34,6 @@ DRIVER = ("import importlib.util, sys\n"
           "hook = importlib.util.module_from_spec(spec)\n"
           "spec.loader.exec_module(hook)\n"
           "sys.stdout.write(hook.main(sys.stdin.read(), float(sys.argv[2])))\n")
-# The one stop rule, from the hook that owns it, so this test checks the
-# notice against that text and never against a copy of its own.
-_spec = importlib.util.spec_from_file_location(
-    "freshness", pathlib.Path(__file__).with_name("handoff-freshness.py"))
-_freshness = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(_freshness)
-STOP_RULE = _freshness.STOP_RULE
 T0 = 1_790_000_000.0  # any fixed clock
 MIN = 60
 

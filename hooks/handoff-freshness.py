@@ -7,8 +7,9 @@ session, and the reasoning that mattered (why an alternative was rejected, what
 trap cost an hour) is exactly what drops out first.
 
 Where it is written depends on the branch. The owner decided on 2026-09-21
-that lanes do not edit docs/HANDOFF.md, because every concurrent lane that
-appended to it hit a merge conflict there. A lane writes its notes in a
+that only a handoff branch edits docs/HANDOFF.md, because every concurrent
+branch that appended to it hit a merge conflict there. Any other branch writes
+its notes in a
 "## Handoff notes" section of its PR body. After merges, one handoff pass on a
 docs/handoff-* branch copies those notes into the log.
 
@@ -26,25 +27,25 @@ The full rule, and why, is in docs/DECISIONS.md, 2026-11-16.
 Fires on Stop, in a git repo. What it checks depends on the branch.
 
 Trunk is main, master, and whatever refs/remotes/origin/HEAD names if that
-ref exists. A lane is any other branch, and a detached HEAD too. A lane is
-judged by its net diff from a base, never by its commits one at a time, so
-a lane that reverts a handoff edit is clean again:
-  - named lane: base is the merge-base with the closest trunk ref (origin/
+ref exists. A work branch is any other branch, and a detached HEAD too. A
+work branch is judged by its net diff from a base, never by its commits one
+at a time, so a branch that reverts a handoff edit is clean again:
+  - named branch: base is the merge-base with the closest trunk ref (origin/
     or local, whichever is nearer HEAD)
   - detached HEAD (a reviewer worktree, by design): only commits on no
     branch and no remote are its own; base is the parent of the oldest
   - no base (a shallow clone, no trunk ref): the hook says nothing
-There is no time window for lanes.
+There is no time window for work branches.
 
-A named lane whose diff changes real files gets HANDOFF NOTES: put the notes
-in the PR body's "## Handoff notes" section. A lane has edited the handoff
+A named work branch whose diff changes real files gets HANDOFF NOTES: put the notes
+in the PR body's "## Handoff notes" section. A branch has edited the handoff
 only when its copy differs from the copy in every trunk ref (a detached HEAD:
 from its base), because the closest base can be a local trunk that diverged
 from origin. A stale trunk ref, one whose merge-base with HEAD is an ancestor
 of another's, is left out, since matching it would delete the newer passes.
-Such a lane is told lanes do not edit it, with the exact command that
-restores the file from where the work left trunk. A detached HEAD, or a
-lane that changes nothing but docs, hears only that warning. The hook does not look at the PR itself, because that needs the
+Such a branch is told that only a handoff branch edits it, with the exact
+command that restores the file from where the work left trunk. A detached
+HEAD, or a branch that changes nothing but docs, hears only that warning. The hook does not look at the PR itself, because that needs the
 network and a Stop hook must work offline.
 
 On trunk or a docs/handoff-* branch it prints HANDOFF STALE, as before, only
@@ -55,15 +56,15 @@ when ALL of these hold:
 
 A second check runs on the same Stop whenever the cwd is a git repo, whatever
 the commit count: the shape check in handoff_shape.py. It warns when the
-file lacks the Start here block, when that block or scripts/lane_claim.py
-differs from the plugin's current copy (issue #118), and on a few other
-shape problems that module lists.
+file lacks the Start here block, when that block differs from the plugin's
+current copy (issue #118), and on a few other shape problems that module
+lists.
 
 The same script runs on SessionStart (issue #117), for a new session or a
 /clear only. There it runs only the shape check, offline, and never the
 branch checks. A problem goes out as additionalContext with one more step:
 run a `gh pr list` command that finds an open PR changing the file, and with
-none, migrate the file as the first task, before claiming a lane. So an old repo migrates when a session opens in it,
+none, migrate the file as the first task, before taking a ticket. So an old repo migrates when a session opens in it,
 and the session does not follow the old block for its whole first turn.
 
 Escape hatch: SKIP_HANDOFF_CHECK=1 in the environment, for all of it.
@@ -90,29 +91,22 @@ DOC_SUFFIXES = (".md", ".txt", ".rst")
 # Below this, a session is too small to be worth a handoff entry.
 MIN_COMMITS = 2
 
-# Branches where the handoff itself is written. Anything else is a lane.
+# Branches where the handoff itself is written. Anything else is a work branch.
 # Fallback trunk names, used only when refs/remotes/origin/HEAD is not set.
 FALLBACK_TRUNKS = ("main", "master")
 HANDOFF_BRANCH_PREFIX = "docs/handoff-"
 NOTES_HEADING = "## Handoff notes"
-# The one stop rule of skills/handoff, word for word. The self-test checks it.
-STOP_RULE = ("Write a lane body only with `scripts/lane_claim.py write` or "
-             "`release`, and if it refuses, change nothing, stop, and tell "
-             "the owner.")
-# Step 5's rule for an exit that is no refusal, word for word. Self-tested.
-EXIT_RULE = ("Any other exit, e.g. no `scripts/lane_claim.py` or a failed "
-             "`gh`: change nothing, stop, and tell the owner.")
 
 SHAPE_HELP = ("The shape, with the block to paste, is in the yw-workflow skill "
               "skills/handoff (invoke /yw-workflow:handoff).")
-# Added at SessionStart, so an old repo migrates before its first lane claim.
+# Added at SessionStart, so an old repo migrates before it takes a ticket.
 # The session runs the command. The hook itself makes no network call.
 OPEN_PR_CMD = ("gh pr list --state open --limit 100 --json number,title,files "
                "--jq '.[] | select(any(.files[]; .path == \"" + HANDOFF + "\")) "
                "| \"#\\(.number) \\(.title)\"'")
 FIRST_TASK = (f"First run `{OPEN_PR_CMD}`. It prints a PR: a migration is "
               f"open, so skip it. It prints nothing: migrate {HANDOFF} to this "
-              f"shape as your first task, before you claim a lane or start any "
+              f"shape as your first task, before you take a ticket or start any "
               f"other work.")
 
 
@@ -133,8 +127,8 @@ def trunks() -> set[str]:
     return names
 
 
-def lane_base(branch: str, names: set[str]) -> tuple[str, list[str]]:
-    """The commit a lane's work is diffed from ("" when none exists), and the
+def branch_base(branch: str, names: set[str]) -> tuple[str, list[str]]:
+    """The commit a branch's work is diffed from ("" when none exists), and the
     refs its handoff is compared with, closest first."""
     if not branch:
         # ponytail: a detached HEAD that merged another unpushed line is
@@ -159,20 +153,20 @@ def lane_base(branch: str, names: set[str]) -> tuple[str, list[str]]:
     return (keep[0][2] if keep else ""), [ref for _, ref, _ in keep]
 
 
-def lane_notes(touched_handoff: bool, real: bool, ref: str, detached: bool) -> str:
+def branch_notes(touched_handoff: bool, real: bool, ref: str, detached: bool) -> str:
     who = "these commits" if detached else "this branch"
-    edited = (f"Lanes do not edit {HANDOFF}: {who} touched it, and every "
-              f"concurrent lane that does hits a merge conflict there. Move "
+    edited = (f"Only a handoff branch edits {HANDOFF}: {who} touched it, and "
+              f"every concurrent branch that does hits a merge conflict there. Move "
               f"those lines into the PR body and restore the file from where "
               f"this work left trunk:\n"
               f"  git checkout $(git merge-base HEAD {ref}) -- {HANDOFF}\n"
-              f"One exception: a lane that changes the `{START_HERE}` block "
+              f"One exception: a branch that changes the `{START_HERE}` block "
               f"itself edits {HANDOFF}, and this warning is expected there.\n\n"
               if touched_handoff else "")
     if not real:
         return f"HANDOFF NOTES: {edited}Deliberate skip: SKIP_HANDOFF_CHECK=1\n"
     return (
-        f"HANDOFF NOTES: this lane changes real files.\n\n"
+        f"HANDOFF NOTES: this branch changes real files.\n\n"
         f"{edited}"
         f"Write what the next session needs in a `{NOTES_HEADING}` section of "
         f"this branch's PR body, now, while you still remember why: decisions "
@@ -218,18 +212,18 @@ def main() -> None:
 
 
 def branch_warning() -> list[tuple[str, str]]:
-    """[(key, HANDOFF NOTES)] on a lane, [(key, HANDOFF STALE)] on trunk, or
+    """[(key, HANDOFF NOTES)] on a work branch, [(key, HANDOFF STALE)] on trunk, or
     [] for neither. The key names the variant send_once records."""
     branch = git("branch", "--show-current").strip()
     names = trunks()
     if branch not in names and not branch.startswith(HANDOFF_BRANCH_PREFIX):
-        base, refs = lane_base(branch, names)
+        base, refs = branch_base(branch, names)
         if not base:
             return []
         files = git("diff", "--name-only", f"{base}..HEAD").splitlines()
         real = bool(branch) and any(not f.endswith(DOC_SUFFIXES) for f in files)
         # Edited only if the handoff differs from EVERY trunk ref. The closest
-        # base can be a local trunk that diverged from origin, and a lane that
+        # base can be a local trunk that diverged from origin, and a branch that
         # merged origin's handoff pass must not be told to revert it.
         touched = bool(refs) and all(
             git("diff", "--name-only", ref, "HEAD", "--", HANDOFF).strip()
@@ -237,7 +231,7 @@ def branch_warning() -> list[tuple[str, str]]:
         if not (touched or real):
             return []
         key = "NOTES/" + "+".join(v for v, on in (("real", real), ("edited", touched)) if on)
-        return [(key, lane_notes(touched, real, refs[0], not branch))]
+        return [(key, branch_notes(touched, real, refs[0], not branch))]
 
     # Trunk or a handoff branch: commits made in roughly this session.
     # Wall-clock is the only signal available here, so it is deliberately
@@ -261,7 +255,7 @@ def branch_warning() -> list[tuple[str, str]]:
     if exists:
         what = (f"run the handoff pass now, on a {HANDOFF_BRANCH_PREFIX}* "
                 f"branch: copy the `{NOTES_HEADING}` of each PR merged since "
-                f"the last pass into {HANDOFF}, and rewrite `## Next` (or the closing section) "
+                f"the last pass into {HANDOFF}, and rewrite the closing section "
                 f"if its tasks changed")
     else:
         what = (f"{HANDOFF} does not exist yet. Create it in a handoff pass "
@@ -273,14 +267,11 @@ def branch_warning() -> list[tuple[str, str]]:
         f"CLAUDE.md Section 6: the handoff is written down AS WORK HAPPENS. "
         f"Written at the end, it is composed from a compacted memory of the "
         f"session, and the reasoning that mattered is what drops out first.\n\n"
-        f"So: {what}. Put each next step for open work in its `lane` issue's "
-        f"`## Next`: claim the lane first with `python3 scripts/lane_claim.py "
-        f"claim <N> \"<name>\"`, then write with `python3 scripts/lane_claim.py "
-        f"write <N> \"<name>\" <file>` and release it. A claim that exits 1 "
-        f"is a refusal: leave that lane to its holder. {EXIT_RULE} "
-        f"{STOP_RULE} Then close a `lane` "
-        f"issue only when a "
-        f"merged PR's notes have the exact line `Lane: #<N>. finished`. A few lines per meaningful step. Judgment, not derivable "
+        f"So: {what}. Turn each next step for open work into ticket state: "
+        f"a ticket, or a comment on the ticket it names. Each \"after #X\" "
+        f"is a \"blocked by\" link on GitHub, and a question for the owner is "
+        f"the label `needs-owner` on the ticket it holds back. A few lines per "
+        f"meaningful step. Judgment, not derivable "
         f"state: why a decision went the way it did, what was deliberately not "
         f"done, which alternative was rejected and why, what trap cost time. "
         f"No test counts, no SHAs, no issue counts.\n\n"

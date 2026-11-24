@@ -388,7 +388,7 @@ def run_main(argv, open_issues, map_text=HEAD + '  "slice:core": "Layer: Core"\n
 COVERAGE = [issue(12, [], title="Goal"),                       # the tracker itself
             issue(201, [], title="Layer: Core"),               # a layer, known by title
             issue(401, [], title="Lost ticket"),               # the one to list
-            issue(402, ["Lane"], title="Lane: docs"),          # exempt by default
+            issue(402, ["Lane"], title="Lane: docs"),          # listed: lane retired (#228)
             issue(403, ["tracker"], title="Tracker: other"),   # exempt by default
             issue(404, ["wayfinder:map"], title="Map: x"),     # exempt in the map file
             issue(405, ["slice:nits"], title="A nit"),         # any slice: label counts
@@ -400,7 +400,8 @@ def test_sync_lists_each_open_issue_with_no_slice_label():
     code, out = run_main(["--sync", "--dry-run"], COVERAGE, text)
     assert code == 0, (code, out)
     lines = [line for line in out.splitlines() if "has no slice: label" in line]
-    assert lines == ["#401 has no slice: label (Lost ticket)"], out
+    assert lines == ["#401 has no slice: label (Lost ticket)",
+                     "#402 has no slice: label (Lane: docs)"], out
 
 
 def test_strict_exits_1_while_an_issue_has_no_slice_label():

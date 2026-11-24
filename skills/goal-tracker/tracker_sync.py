@@ -22,7 +22,7 @@ events: opened, labeled, unlabeled, closed and reopened. Each run:
 Then it lists each open issue of the repo that no tracker can see, one line
 each: "#N has no slice: label (title)". It skips an issue with any slice:
 label, the tracker, a layer (by title), and an issue with an exempt label:
-lane, tracker, or a label in the exempt: list of the map file. The list is a
+tracker, or a label in the exempt: list of the map file. The list is a
 warning and the exit code stays 0. With --strict the exit code is 1 while the
 list has a line, so a CI step or a weekly check fails on it.
 
@@ -71,7 +71,8 @@ ACCEPTED = ('Write tracker: <number of the top issue>, then layers:, then each l
             'An optional exempt: line takes - "<label>" lines, indented two spaces.')
 SLICE = "slice:"
 # Labels of issues that serve the work but are no work item, so no tracker lists them.
-DEFAULT_EXEMPT = ("lane", "tracker")
+# "lane" left this list when lane issues retired (#228, from twenty #672).
+DEFAULT_EXEMPT = ("tracker",)
 
 
 def slices_of(labels):
