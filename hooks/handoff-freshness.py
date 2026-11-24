@@ -80,7 +80,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 try:
     from handoff_touch import HANDOFF, git, touched_since
-    from handoff_shape import START_HERE, shape_problems
+    from handoff_shape import START_HERE, path_problems, shape_problems
     from handoff_sent import send_once
 except Exception:  # a missing or broken helper: no check, and never a crash
     sys.exit(0)
@@ -194,11 +194,17 @@ def main() -> None:
     shape = [f"HANDOFF SHAPE: {problem}\n{SHAPE_HELP}\n"
              f"Deliberate skip: SKIP_HANDOFF_CHECK=1\n\n"
              for problem in problems]
+    # A dead pointer (issue #201) is one line: no block help, no migrate order.
+    dead = path_problems(top)
+    paths = "".join(f"HANDOFF PATH: {p}\n" for p in dead)
+    if dead:
+        paths += "Deliberate skip: SKIP_HANDOFF_CHECK=1\n\n"
     if event == "SessionStart":
-        if shape:
+        if shape or dead:
             print(json.dumps({"hookSpecificOutput": {
                 "hookEventName": event,
-                "additionalContext": "".join(shape) + FIRST_TASK}}))
+                "additionalContext": paths + "".join(shape)
+                + (FIRST_TASK if shape else "")}}))
         sys.exit(0)
     # Stop. A warning reaches the model only as JSON on stdout (issue #125):
     # Claude never sees stderr from a hook that exits 0. While a Stop hook
@@ -207,6 +213,8 @@ def main() -> None:
         sys.exit(0)
     keyed = [(f"SHAPE/{p.splitlines()[0]}", w)
              for p, w in zip(problems, shape)] + branch_warning()
+    if dead:
+        keyed.insert(0, ("PATH/" + "|".join(dead), paths))
     send_once(str(data.get("session_id") or ""), keyed)
     sys.exit(0)
 
