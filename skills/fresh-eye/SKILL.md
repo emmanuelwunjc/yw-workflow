@@ -440,7 +440,7 @@ The second reviewer, on round 1 of a code PR over 50 changed lines:
 
 ## Hands off to
 
-- Always run in its own worktree: `/yw-workflow:git-lanes` covers that, and a reviewer never
+- Always run in its own worktree: `/yw-workflow:git-worktrees` covers that, and a reviewer never
   works in the author's tree.
 - Findings come back: `/yw-workflow:ship-loop` step 5 triages them, and the fix gets its own
   review round. The fix is where the next defect usually is.

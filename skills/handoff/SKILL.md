@@ -65,7 +65,7 @@ else, and leave it alone afterwards:
 You are a fresh session. This file and the open `lane` issues are your
 whole briefing. Nobody writes you a separate prompt. Do these in order.
 
-1. Load skills `ship-loop`, `git-lanes` and `fresh-eye` before touching
+1. Load skills `ship-loop`, `git-worktrees` and `fresh-eye` before touching
    anything. Read the repo `CLAUDE.md`.
 2. Check that the repo has the label. This prints `lane` if it does:
    `gh label list --search lane --json name --jq '.[] | select(.name == "lane") | .name'`
@@ -100,7 +100,7 @@ whole briefing. Nobody writes you a separate prompt. Do these in order.
    Read the recent sections of this file for traps. Run the recount
    commands before trusting any number. A task with no mark is `parallel`
    unless it names another task it waits for. Start every `parallel`
-   task it names in the same turn, each in its own worktree (`git-lanes`), two
+   task it names in the same turn, each in its own worktree (`git-worktrees`), two
    to four at once. Start any more as earlier tasks merge or stop. Start an
    `after` task when its dependency merges. If you stop before that,
    leave it in `## Next` with its `after` mark for the next session. Ask
@@ -235,7 +235,7 @@ PRs runs it before it stops. A lane session never closes one this way.
 1. Branch `docs/handoff-<date>` from trunk, in the session's own working
    directory. A shell `cd` into another worktree lasts for one command
    only. So this folder is the one the owner gets at the end. Use it when
-   `git status --short` prints nothing. The `git-lanes` branch test does
+   `git status --short` prints nothing. The `git-worktrees` branch test does
    not apply here: trunk, or the branch this session started on, is yours.
    A second pass on the same day adds `-2`, a third `-3`. To see the names
    in use, run `git fetch origin` and `git branch -a --list '*handoff-<date>*'`.
@@ -245,7 +245,7 @@ PRs runs it before it stops. A lane session never closes one this way.
    git switch --no-track -c docs/handoff-<date> origin/<trunk>
    ```
 
-   Else make a new worktree for the pass (`git-lanes`), and name that
+   Else make a new worktree for the pass (`git-worktrees`), and name that
    folder in step 7.
 2. Print the notes of every PR merged since the last pass. Change the date
    to the day of that pass. The heading must start its own line, so a body
@@ -377,5 +377,5 @@ committed.
   `/yw-workflow:ship-loop` says what a ticket needs before it is one.
 - What waits on the owner is more than a line: `/yw-workflow:need-me` is the
   format for asking it.
-- The next session has to work alongside another: `/yw-workflow:git-lanes`
+- The next session has to work alongside another: `/yw-workflow:git-worktrees`
   is the first thing the Start here block loads, for that reason.

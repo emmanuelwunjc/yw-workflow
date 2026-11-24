@@ -1114,3 +1114,20 @@ Why:
 
 To close the gap for issue comments or release notes later, the owner
 approves the new workflow first.
+
+## 2026-11-24: skill `git-lanes` is now `git-worktrees` (#228)
+
+The owner retired the word "lane" on 2026-11-23, in the grill of
+georgetown-mdi-gates4/twenty#672 (decision 13). One worktree and branch per
+agent stays, and its name is now worktree. So skill `git-lanes` moved to
+`skills/git-worktrees/`, and "lane" in its text became "worktree" or
+"branch". Skills ship-loop, need-me, grill and harden, agent `fixer`, and two
+hook docstrings follow.
+
+`skills/git-lanes/SKILL.md` stays as a stub that sends the reader to
+`git-worktrees`, because `~/CLAUDE.md` and other repos still name
+`git-lanes`. It counts as a skill, so the README and marketplace.json say
+fourteen. Delete it when no rule file names `git-lanes`.
+
+Older entries in this file keep the old name: they record what was true on
+their date. Lane issues and `lane_claim.py` retire in a separate PR.

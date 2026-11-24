@@ -150,7 +150,7 @@ Put it at `.pre-commit-config.yaml`.
    checks. Don't reference tooling that isn't tracked/public if the repo
    deliberately keeps some directories private, e.g. via `.gitignore`).
    Give it a `## Handoff notes` section too, the one `/yw-workflow:handoff`
-   carries, so each lane's notes reach the handoff pass without the lane
+   carries, so each branch's notes reach the handoff pass without the branch
    editing `docs/HANDOFF.md`.
 
 ## Step 5: Branch protection

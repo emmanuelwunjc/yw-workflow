@@ -2,7 +2,7 @@
 
 json.loads keeps the last of two equal keys and says nothing, so a merge
 that leaves two "SessionStart" blocks in hooks/hooks.json silently drops
-every hook in the first. A merge of the unpushed-branches lane nearly
+every hook in the first. A merge of the unpushed-branches branch nearly
 dropped the handoff shape check this way. `duplicate_keys()` returns one
 line per duplicate, and an empty list when there is none.
 tools/check-repo.py runs it on hooks/hooks.json.

@@ -138,7 +138,7 @@ options:
 - Every answer is in: `/yw-workflow:ship-loop` resumes, or `/yw-workflow:wayfinder` records the decision
   on the map and closes the ticket.
 - A decision here supersedes one already recorded: record the date and what
-  replaced it, in the PR's `## Handoff notes` on a lane, or in `docs/HANDOFF.md`
+  replaced it, in the PR's `## Handoff notes` on a branch, or in `docs/HANDOFF.md`
   on a handoff pass. `/yw-workflow:handoff` carries both.
 - The session is closing: `/yw-workflow:handoff` writes what the next one
   starts from, and this skill runs first so it inherits no hidden queue.

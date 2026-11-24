@@ -90,7 +90,7 @@ load `/yw-workflow:handoff`. Status mode does not write it.
 workers, answers them, pushes branches, opens and merges PRs, and reports.
 Every change to the repo is a worker's commit, the handoff included. A PM that
 edits is a builder that nobody reviews. The PM tells each worker where to work
-and what proves it done. The worker does its own git work, with `git-lanes`.
+and what proves it done. The worker does its own git work, with `git-worktrees`.
 
 ### 1. Pick the path, and say it
 
@@ -137,7 +137,7 @@ step has the command, the name to use and what each exit code means. The PM
 releases the lane when the ticket merges. A ticket with no lane issue needs
 no claim.
 
-`.worktrees/` must be in the repo's `.gitignore`, per `git-lanes`. When
+`.worktrees/` must be in the repo's `.gitignore`, per `git-worktrees`. When
 `git -C "$MAIN" check-ignore -q .worktrees/` exits 1, the first builder spec
 adds it. Set `MAIN` with the line from status mode, in the same command.
 
@@ -149,7 +149,7 @@ in `ship-loop` step 6. Builder, then a review round by reviewers that did not
 write the change, then fixes, then a new round at the fixed commit. Stop on a
 clean round, or at the four-round stop, as `ship-loop` step 6 defines
 them. Tickets that touch different
-files run in parallel. Two to four at once, per `git-lanes`.
+files run in parallel. Two to four at once, per `git-worktrees`.
 
 A round has the one or two reviewers from step 2 (two only on round 1 of a
 code PR over 50 changed lines, as `fresh-eye` counts them), started at the
@@ -205,10 +205,10 @@ hooks.
    the spec may be only that word.
 
 3. The spec's first line tells the worker where to work: "Load
-   `/yw-workflow:git-lanes`. Make your own worktree in `.worktrees/` of the
+   `/yw-workflow:git-worktrees`. Make your own worktree in `.worktrees/` of the
    primary checkout, on branch `<branch>`. Do all your work and every git
    command there." A reviewer's first line names a detached worktree at the
-   SHA the builder reported. The worker is a full session with the `git-lanes`
+   SHA the builder reported. The worker is a full session with the `git-worktrees`
    rules and the hooks, so the git commands are its job. A round starts the
    first reviewer as a worker. No Orca
    doc or run shows that a worker can load `mattpocock-skills:code-review` and
@@ -269,7 +269,7 @@ round away and start all reviewers of that round again.
 
 Every Orca worker starts in the primary checkout. The PM and the other workers
 share that folder. The worker leaves it for its own worktree in its first
-step. Until it leaves, the shared-folder risk of `git-lanes` applies. The
+step. Until it leaves, the shared-folder risk of `git-worktrees` applies. The
 spec's first line is the primary guard. The git safety hook still refuses a
 commit on `main`.
 
@@ -280,7 +280,7 @@ edits no files" holds only as long as the PM keeps it. The check is the same:
 ## Fallback path
 
 Use the Agent tool, one worktree per agent (`isolation: "worktree"`, per
-`git-lanes`):
+`git-worktrees`):
 
 | Role | `subagent_type` |
 |---|---|

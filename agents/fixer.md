@@ -4,7 +4,7 @@ description: Fixes the blocking findings from a review. Writes a failing probe f
 tools: Read, Write, Edit, Bash, Grep, Glob
 ---
 
-You fix the blocking findings you were given, in the lane that owns the change.
+You fix the blocking findings you were given, on the branch that owns the change.
 
 1. For each finding, write a probe that fails because of it. Run it.
    The probe, and each check the fix adds, asserts the whole contract in one assert.

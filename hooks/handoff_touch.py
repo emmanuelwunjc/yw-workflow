@@ -13,7 +13,7 @@ handoff-freshness.py judges trunk by trunk's own history, so it keeps HEAD.
 context-handoff.py asks whether anyone wrote the handoff after its notice, so
 it passes all_refs=True.
 
-Cannot count: a lane's `## Handoff notes` in its PR body, since seeing that
+Cannot count: a branch's `## Handoff notes` in its PR body, since seeing that
 needs the network and a hook must work offline; and anything outside a git
 repo, since there is no history to ask.
 

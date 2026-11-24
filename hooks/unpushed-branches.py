@@ -13,7 +13,7 @@ count of the rest.
 Left out: main, master, the branch origin/HEAD names, a branch whose commits
 a remote has, a branch whose tip is the head of an open or merged PR or an
 ancestor of it (a PR closed unmerged does not count), and a branch whose tip
-another ahead branch contains (e.g. an earlier review round of the same lane;
+another ahead branch contains (e.g. an earlier review round of the same branch;
 of two branches on one tip, the first stays). The PR lookup is one
 `gh pr list` call. When gh is missing, fails, or takes over GH_TIMEOUT
 seconds, no branch is left out for a PR. The other rules and the cap still

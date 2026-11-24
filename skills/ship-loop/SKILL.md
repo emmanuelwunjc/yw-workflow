@@ -76,17 +76,17 @@ gets built and never recorded, and then quietly cancelled by a later one.
 Short-lived branch off trunk, `type/short-description`. Never commit to
 `main`/`master`, even solo, even for one line.
 
-When the lane starts, read the open housekeeping tickets (step 7), even if this
+When the branch starts, read the open housekeeping tickets (step 7), even if this
 ticket is older than they are. A repo with no GitHub tracker reads its own
 tracker, or skips this if it has none:
 
     gh issue list --label housekeeping --state open
 
 If one lists this ticket, or this work fits its pattern, that housekeeping
-ticket goes first (step 7, "Moving it to the front"). The lane that runs the
+ticket goes first (step 7, "Moving it to the front"). The branch that runs the
 housekeeping ticket itself skips this check.
 
-If another agent or session might be working the repo, **load `/yw-workflow:git-lanes`**
+If another agent or session might be working the repo, **load `/yw-workflow:git-worktrees`**
 and take a worktree. Check first with `git status --short` and
 `git branch --show-current`: uncommitted changes, or a branch you did not
 create, mean someone else is in there. This applies to you, not only to agents
@@ -108,7 +108,7 @@ the install predates these types, the Agent tool errors on them: start a
 **End the brief with the commit line.** Every builder, fixer or documenter brief ends
 with "commit your work on your own branch before you return (on a detached
 HEAD, `git switch -c wip/<folder>` first), as a WIP commit if it is
-unfinished, and report the branch and SHA". `/yw-workflow:git-lanes` says why.
+unfinished, and report the branch and SHA". `/yw-workflow:git-worktrees` says why.
 
 **UI or on-screen copy: get the owner's calls before you build.** An owner's
 call is one of three things: a claim the sources do not settle, a design or
@@ -163,7 +163,7 @@ dispatches `fresh-eye`.
 `implement-spec` runs in the coordinating session, because a builder has no
 Agent tool. Start each implementer subagent as `yw-workflow:builder` ("Name
 the role"). End each brief with the commit line. At most four implementers run
-at once (`/yw-workflow:git-lanes`).
+at once (`/yw-workflow:git-worktrees`).
 
 Refuse the branch it merges every ticket into, its merger subagent, its draft
 PR and its step 7. Each ticket ships through this loop on its own.
@@ -298,7 +298,7 @@ command, which reads the first `Rounds:` line of each PR:
 For a backlog, run steps 1 to 5 per ticket and batch the review across a related
 group rather than one review per one-line fix.
 
-Each lane writes what the next session needs in a `## Handoff notes` section
+Each branch writes what the next session needs in a `## Handoff notes` section
 of its PR body, and never edits `docs/HANDOFF.md`. The session that merges the
 PRs runs the handoff pass before it stops: one `docs/handoff-*` branch that
 copies those notes into the log. `/yw-workflow:handoff` has the steps.
@@ -332,24 +332,24 @@ still reports a real error:
 ### Moving it to the front
 
 The housekeeping ticket waits in the queue as ordinary work. It moves to the
-front at two points: when a lane starts on work it lists or that fits its
+front at two points: when a branch starts on work it lists or that fits its
 pattern (step 2), and when a review finding fits its pattern (step 5). Do not
 wait for a batch, because each recurrence costs a full review loop.
 
-1. Freeze the lane: commit its work on its own branch. Never put the general
-   fix into the lane's branch.
+1. Freeze the branch: commit its work. Never put the general fix into that
+   branch.
 2. Run the housekeeping ticket through this loop, in a new worktree
-   (`git-lanes`) on a branch from trunk. Put `Closes #N` in its PR body, so the
-   ticket closes on merge and the check at lane start stops finding it. Merge
+   (`git-worktrees`) on a branch from trunk. Put `Closes #N` in its PR body, so the
+   ticket closes on merge and the check at branch start stops finding it. Merge
    it.
-3. Rebase the lane on trunk and continue. The rebase changes the work, so the
+3. Rebase the branch on trunk and continue. The rebase changes the work, so the
    next review round is mandatory (step 6).
 
-Two lanes can start the same housekeeping ticket at the same time. This step
+Two branches can start the same housekeeping ticket at the same time. This step
 has no guard against that, because a rare duplicate costs less than the guard.
 
 If the general fix needs an owner call, queue the call for the owner and
-continue other lanes.
+continue other branches.
 
 ### A finding from `retro`
 
@@ -400,7 +400,7 @@ loop took three or more fix rounds (step 7).
 - The backlog serves one goal with a target date and more than one part:
   `/yw-workflow:goal-tracker` sets up a pinned issue whose progress bars
   update with no hand edits.
-- Anyone else may be in the repo: `/yw-workflow:git-lanes` for step 2. It is the
+- Anyone else may be in the repo: `/yw-workflow:git-worktrees` for step 2. It is the
   deep version of the rule stated there.
 - Step 4 is `/yw-workflow:fresh-eye`, always, and again on the fix. A round that
   found something is the middle of the loop.
