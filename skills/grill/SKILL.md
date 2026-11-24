@@ -79,10 +79,10 @@ building the wrong thing confidently is worse than no grilling.
 ## Hands off to
 
 - The answers describe work too big for one session: `/yw-workflow:wayfinder` charts it.
-- Sized for one session: `/yw-workflow:git-lanes` if anyone else may be in the repo, then
+- Sized for one session: `/yw-workflow:git-worktrees` if anyone else may be in the repo, then
   `/yw-workflow:ship-loop`.
 - A decision changed one already recorded: write it in the PR's `## Handoff notes`
-  (on a lane) or in `docs/HANDOFF.md` (on a handoff pass), and mark the old one
+  (on a branch) or in `docs/HANDOFF.md` (on a handoff pass), and mark the old one
   superseded with the date. A decision is superseded, never deleted.
 - A domain term needs one fixed meaning: `/mattpocock-skills:domain-modeling` can
   write it to `GLOSSARY.md`. Keep decisions out of its ADRs. A decision stays in

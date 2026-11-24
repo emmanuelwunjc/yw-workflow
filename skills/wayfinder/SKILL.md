@@ -128,7 +128,7 @@ route, so it stays out of Decisions so far.
 4. **Create the tickets you can specify**, then wire `--add-blocked-by` in a second
    pass, because issues need numbers before they can reference each other.
 5. **Fire the research subagents** in parallel on a throwaway `research/<name>`
-   branch each. Load `/yw-workflow:git-lanes` first: concurrent agents get worktrees.
+   branch each. Load `/yw-workflow:git-worktrees` first: concurrent agents get worktrees.
 6. **Stop.** Charting is one session. It resolves nothing.
 
 ## Mode 2: work the map
@@ -156,7 +156,7 @@ The map is done when the frontier is empty and the fog is empty. Hand off to
 ## Hands off to
 
 - Charting needs a destination first: `/yw-workflow:grill` supplies it.
-- Research tickets run in parallel, so `/yw-workflow:git-lanes` first. Concurrent agents get
+- Research tickets run in parallel, so `/yw-workflow:git-worktrees` first. Concurrent agents get
   worktrees.
 - The frontier and the fog are both empty: `/yw-workflow:ship-loop` builds the decisions.
 - A ticket has been open across sessions waiting on a human answer: `/yw-workflow:need-me`.

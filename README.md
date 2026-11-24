@@ -1,11 +1,11 @@
 # yw-workflow
 
-Thirteen skills and nine hooks that make an engineering workflow mechanical
+Fourteen skills and nine hooks that make an engineering workflow mechanical
 instead of remembered.
 
 ## Install
 
-Pick one. Both serve the same thirteen skills, and installing both leaves
+Pick one. Both serve the same fourteen skills, and installing both leaves
 duplicates that drift apart.
 
 ```bash
@@ -54,12 +54,12 @@ flowchart LR
     subgraph S3 [3 Ship one ticket: ship-loop]
         direction TB
         ticket([ticket]):::start
-        lanes[git-lanes]:::yw
+        wt[git-worktrees]:::yw
         build[tdd<br/>diagnosing-bugs for a bug<br/>implement, implement-spec]:::matt
         review[fresh-eye<br/>+ code-review]:::both
         fixer([fixer agent]):::start
         merge([PR and merge]):::start
-        ticket -->|repo shared| lanes --> build --> review
+        ticket -->|repo shared| wt --> build --> review
         ticket --> build
         review -->|blocking| fixer --> review
         review -->|clean| merge
@@ -76,7 +76,7 @@ flowchart LR
     tt -->|draft| ticket
     bug --> ticket
     merge --> handoff
-    handoff -->|next session| lanes
+    handoff -->|next session| wt
 
     classDef yw fill:#1f4e79,stroke:#1f4e79,color:#ffffff
     classDef matt fill:#8a4500,stroke:#8a4500,color:#ffffff
@@ -98,7 +98,7 @@ How to read it, one stage at a time:
    [#45](https://github.com/emmanuelwunjc/yw-workflow/issues/45) will replace
    it with Matt's copy.
 3. **Ship one ticket.** `ship-loop` runs each ticket around one loop.
-   `git-lanes` gives the agent its own worktree when others may share the repo.
+   `git-worktrees` gives the agent its own worktree when others may share the repo.
    A change to behavior is written test first with `tdd`. A bug starts with
    `diagnosing-bugs`, which finds one command that fails first. `implement`
    and `implement-spec` may write the code, but their own review is a
@@ -108,7 +108,7 @@ How to read it, one stage at a time:
    `code-review` beside it on the first round, when it is installed. A loop
    stops at four rounds.
    Blocking findings go to a `fixer` agent, and the fix gets a new review.
-   After a clean review, the lane merges (`git-lanes`). Its PR body records
+   After a clean review, the branch merges (`git-worktrees`). Its PR body records
    each review (`ship-loop` step 6).
 4. **After merge.** `handoff` writes what the next session needs, and the next
    session starts from it.
@@ -138,7 +138,8 @@ Each one carries a one-line summary at the top.
 |---|---|
 | **grill** | Asks you one decision at a time, in checkboxes, until nothing is left to guess. |
 | **wayfinder** | Turns work too big for one session into a map of decisions on GitHub Issues. |
-| **git-lanes** | Gives every concurrent agent its own worktree so they cannot corrupt each other. |
+| **git-worktrees** | Gives every concurrent agent its own worktree so they cannot corrupt each other. |
+| **git-lanes** | Sends you to skill `git-worktrees`, the new name of this skill. |
 | **ship-loop** | Runs work as a loop that closes: ticket, branch, test first, review, fix, repeat. |
 | **fresh-eye** | Sends someone who did not write the code to try to break it. |
 | **need-me** | Shows only what is waiting on you, answerable in one word. |

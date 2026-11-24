@@ -34,7 +34,7 @@ BLOCK = r"""# Handoff
 You are a fresh session. This file and the open `lane` issues are your
 whole briefing. Nobody writes you a separate prompt. Do these in order.
 
-1. Load skills `ship-loop`, `git-lanes` and `fresh-eye` before touching
+1. Load skills `ship-loop`, `git-worktrees` and `fresh-eye` before touching
    anything. Read the repo `CLAUDE.md`.
 2. Check that the repo has the label. This prints `lane` if it does:
    `gh label list --search lane --json name --jq '.[] | select(.name == "lane") | .name'`
@@ -69,7 +69,7 @@ whole briefing. Nobody writes you a separate prompt. Do these in order.
    Read the recent sections of this file for traps. Run the recount
    commands before trusting any number. A task with no mark is `parallel`
    unless it names another task it waits for. Start every `parallel`
-   task it names in the same turn, each in its own worktree (`git-lanes`), two
+   task it names in the same turn, each in its own worktree (`git-worktrees`), two
    to four at once. Start any more as earlier tasks merge or stop. Start an
    `after` task when its dependency merges. If you stop before that,
    leave it in `## Next` with its `after` mark for the next session. Ask
@@ -104,7 +104,7 @@ OLD_BLOCK = """# Handoff
 You are a fresh session and this file is your whole briefing. Nobody
 writes you a separate prompt. Do these in order, then work.
 
-1. Load skills `ship-loop`, `git-lanes` and `fresh-eye` before touching
+1. Load skills `ship-loop`, `git-worktrees` and `fresh-eye` before touching
    anything. Read the repo `CLAUDE.md`.
 2. Read the LAST section of this file (the most recent date). It names
    the first task, the tickets in order, and what waits on the owner.
