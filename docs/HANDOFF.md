@@ -9,8 +9,8 @@ whole briefing. Nobody writes you a separate prompt. Do these in order.
    anything. Read the repo `CLAUDE.md`.
 2. Run the repo's free work check, the command its `CLAUDE.md` names. It
    prints the tickets that may start now, first one first. The repo names
-   no free work check: read the LAST section of this file for the tasks,
-   and go to step 4.
+   no free work check: read `## Next` in this file for the tasks, and go
+   to step 4.
 3. Take tickets. The owner named one: take it. If the check does not print
    it, tell the owner why, and stop. Else take the first two to four the
    check prints. It prints none: tell the owner, and stop. Take each
@@ -21,9 +21,9 @@ whole briefing. Nobody writes you a separate prompt. Do these in order.
    It lists a branch other than yours: another session took the ticket at
    the same time. Delete your branch on GitHub and your worktree, and take
    the next ticket.
-4. Read the recent sections of this file for traps. Run the recount
-   commands before trusting any number. Start more tickets as earlier ones
-   merge. Ask the owner nothing that this file or the tickets answer.
+4. Read `## Now` in this file. Run the recount commands before trusting
+   any number. Start more tickets as earlier ones merge. Ask the owner
+   nothing that this file or the tickets answer.
 
 A ticket's state lives on GitHub, never in this file. A "blocked by" link
 holds it back. The label `needs-owner` or `wayfinder:grilling` makes it
