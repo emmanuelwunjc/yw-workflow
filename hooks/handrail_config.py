@@ -66,14 +66,17 @@ DEFAULTS = {
     "git_safety": True,
     "context_handoff": True,
     "zsh_traps": True,
+    # Off by default, the owner's call on 2026-11-24: a team writing Slack in
+    # more than one language would otherwise be blocked on every post.
+    "slack_language": False,
 }
 
-# What the CI action enforces no matter what a repo's config says. Four rules are
+# What the CI action enforces no matter what a repo's config says. Five rules are
 # absent because they cannot run server-side rather than by choice:
 # ask_user_question needs a live turn to inspect, git_safety blocks a git
 # command as it is typed, which branch protection covers in CI,
 # context_handoff reads a live session's transcript, which CI has none of, and
-# zsh_traps blocks a shell command as it is typed.
+# zsh_traps and slack_language block a shell command as it is typed.
 CI_FLOOR = ("em_dash", "ai_attribution", "require_review", "handoff_freshness")
 
 # Rules a repo may add to the CI floor. Enabling is one-way: CI ignores a later
@@ -95,6 +98,15 @@ VALUE_DEFAULTS = {
     # 1M Opus window). docs/DECISIONS.md, 2026-11-20, records why. `grace_minutes` is how long running subagents may take
     # to finish after a notice, the owner's call on 2026-09-30.
     "context_handoff": {"first": 300000, "step": 100000, "grace_minutes": 15},
+    # Scripts a Slack post may not contain: a name, then its code point ranges
+    # as [first, last] pairs. The default is the CJK set english-only.py uses.
+    "slack_language": {
+        "disallowed": {
+            "cjk": [[0x3000, 0x303F], [0x3040, 0x30FF], [0x3100, 0x312F],
+                    [0x3400, 0x4DBF], [0x4E00, 0x9FFF], [0xAC00, 0xD7AF],
+                    [0xF900, 0xFAFF], [0xFF00, 0xFFEF], [0x20000, 0x2FFFF]],
+        },
+    },
     "require_review": {
         "trivial_lines": 25,
         "code_suffixes": [".py", ".yml", ".yaml", ".toml", ".cfg", ".sh", ".ts", ".js"],
