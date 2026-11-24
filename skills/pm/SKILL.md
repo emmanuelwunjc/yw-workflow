@@ -41,7 +41,7 @@ Then read authored judgment:
 
 | Question | Source |
 |---|---|
-| Where is it heading | the last section of `$MAIN/docs/HANDOFF.md`, and the free work check that the repo `CLAUDE.md` names |
+| Where is it heading | the `## Next` of `$MAIN/docs/HANDOFF.md`, and the free work check that the repo `CLAUDE.md` names |
 | Which tickets are taken | each open issue with a linked branch: `gh issue develop --list <N>` prints its branches |
 | Who is live now | ListAgents, if the harness has it |
 | Why a decision went that way | `$MAIN/docs/DECISIONS.md`, if it exists |
@@ -70,7 +70,7 @@ repo's free work check, step 2 of the `## Start here` block in
 order, with steps 2 and 3 of batch mode, while the limit holds. The check
 decides what is free: a ticket with an open blocker, a `needs-owner` or
 `wayfinder:grilling` label, or a linked branch never starts. The repo names
-no free work check: take the tasks of the last section of `docs/HANDOFF.md`
+no free work check: take the tasks of the `## Next` of `docs/HANDOFF.md`
 instead. The report names each worker started. When the check prints
 nothing, the report says so in one line.
 

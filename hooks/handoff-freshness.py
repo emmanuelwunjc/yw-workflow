@@ -254,9 +254,9 @@ def branch_warning() -> list[tuple[str, str]]:
     exists = bool(git("ls-files", HANDOFF).strip())
     if exists:
         what = (f"run the handoff pass now, on a {HANDOFF_BRANCH_PREFIX}* "
-                f"branch: copy the `{NOTES_HEADING}` of each PR merged since "
-                f"the last pass into {HANDOFF}, and rewrite the closing section "
-                f"if its tasks changed")
+                f"branch: send each line of the `{NOTES_HEADING}` of each PR "
+                f"merged since the last pass to one place, and rewrite "
+                f"`## Now` and `## Next` in {HANDOFF}")
     else:
         what = (f"{HANDOFF} does not exist yet. Create it in a handoff pass "
                 f"on a {HANDOFF_BRANCH_PREFIX}* branch")
@@ -275,7 +275,7 @@ def branch_warning() -> list[tuple[str, str]]:
         f"state: why a decision went the way it did, what was deliberately not "
         f"done, which alternative was rejected and why, what trap cost time. "
         f"No test counts, no SHAs, no issue counts.\n\n"
-        f"Reorganize only at a real milestone, not on every touch.\n"
+        f"Add no dated section: the pass rewrites the file in place.\n"
         f"Deliberate skip: SKIP_HANDOFF_CHECK=1\n"
     ))]
 

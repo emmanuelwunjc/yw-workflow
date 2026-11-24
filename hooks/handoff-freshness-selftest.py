@@ -38,6 +38,47 @@ whole briefing. Nobody writes you a separate prompt. Do these in order.
    anything. Read the repo `CLAUDE.md`.
 2. Run the repo's free work check, the command its `CLAUDE.md` names. It
    prints the tickets that may start now, first one first. The repo names
+   no free work check: read `## Next` in this file for the tasks, and go
+   to step 4.
+3. Take tickets. The owner named one: take it. If the check does not print
+   it, tell the owner why, and stop. Else take the first two to four the
+   check prints. It prints none: tell the owner, and stop. Take each
+   ticket with a branch linked to it, in its own worktree (`git-worktrees`):
+   `gh issue develop <N> --name <type>/<N>-<short> --base <trunk> --checkout --worktree .worktrees/<NN>-<short>`
+   The linked branch marks the ticket taken. If gh refuses, change
+   nothing, stop, and tell the owner. Then run `gh issue develop --list <N>`.
+   It lists a branch other than yours: another session took the ticket at
+   the same time. Delete your branch on GitHub and your worktree, and take
+   the next ticket.
+4. Read `## Now` in this file. Run the recount commands before trusting
+   any number. Start more tickets as earlier ones merge. Ask the owner
+   nothing that this file or the tickets answer.
+
+A ticket's state lives on GitHub, never in this file. A "blocked by" link
+holds it back. The label `needs-owner` or `wayfinder:grilling` makes it
+wait. A linked branch marks it taken. When you stop with a ticket not
+finished, push its branch and comment on the ticket where the work stopped.
+Delete the branch only when it holds no work: that frees the ticket.
+Leave this block alone.
+
+Judgment and reasoning only. No counts, no SHAs, no issue tallies: those rot
+within hours. Derive them with `gh issue list` and the scripts in the repo.
+"""
+
+# The free work block, in use from 2026-11-24 until each pass rewrote
+# `## Now` and `## Next` (#198). Its step 2 reads the LAST section, so a
+# repo still on it must warn.
+OLD_FREE_WORK_BLOCK = r"""# Handoff
+
+## Start here
+
+You are a fresh session. This file and the repo's open tickets are your
+whole briefing. Nobody writes you a separate prompt. Do these in order.
+
+1. Load skills `ship-loop`, `git-worktrees` and `fresh-eye` before touching
+   anything. Read the repo `CLAUDE.md`.
+2. Run the repo's free work check, the command its `CLAUDE.md` names. It
+   prints the tickets that may start now, first one first. The repo names
    no free work check: read the LAST section of this file for the tasks,
    and go to step 4.
 3. Take tickets. The owner named one: take it. If the check does not print
@@ -251,6 +292,9 @@ CASES = [
     ("a repo that still tracks the retired script gets no script warning",
      {"docs/HANDOFF.md": GOOD, SCRIPT: "x\n"}, ["docs/HANDOFF.md", SCRIPT],
      [], ["HANDOFF", *RETIRED]),
+    ("the free work block that reads the LAST section warns",
+     {"docs/HANDOFF.md": OLD_FREE_WORK_BLOCK + TAIL}, ["docs/HANDOFF.md"],
+     ["HANDOFF SHAPE", DRIFT, "read the LAST section"], RETIRED),
     ("the retired lane block warns and names its first line",
      {"docs/HANDOFF.md": OLD_LANE}, ["docs/HANDOFF.md"],
      ["HANDOFF SHAPE", DRIFT, "open `lane` issues"], RETIRED),
