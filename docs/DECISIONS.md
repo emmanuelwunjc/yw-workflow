@@ -720,6 +720,8 @@ that takes an argument is cheaper as an ordinary test beside the check.
 
 ## 2026-11-10: one GitHub issue per open lane holds its next task
 
+Superseded 2026-11-24: lane issues and `lane_claim.py` retired (#228). See the entry of that date.
+
 Supports `handoff`. The case is EdSim on 2026-11-10. Two lanes were open: a
 wage fix, run by a live session, and drafts of redesign tickets. A new session
 read the Start here block of `docs/HANDOFF.md`, which sent it to the last
@@ -828,6 +830,8 @@ Check: `./hooks/handoff-freshness-selftest.py`.
 
 ## 2026-11-10: the lane claim cut to four rules
 
+Superseded 2026-11-24: lane issues and `lane_claim.py` retired (#228). See the entry of that date.
+
 Supports `handoff`. Six review rounds on the lane claim found 2, 3, 3, 2,
 1, then 3 blocking findings. The count rose again, and each new branch of
 the protocol was a new gap: a separate first-push check, a separate "names
@@ -866,6 +870,8 @@ Check: `./hooks/handoff-freshness-selftest.py` and
 `./hooks/context-handoff-selftest.py`.
 
 ## 2026-11-10: the lane claim moves into a script
+
+Superseded 2026-11-24: lane issues and `lane_claim.py` retired (#228). See the entry of that date.
 
 Supports `handoff`. Review round 7 found two blocking faults in the claim
 as prose. First: the claim read the body in one tool call and wrote it in
@@ -1131,3 +1137,33 @@ fourteen. Delete it when no rule file names `git-lanes`.
 
 Older entries in this file keep the old name: they record what was true on
 their date. Lane issues and `lane_claim.py` retire in a separate PR.
+
+## 2026-11-24: lane issues and `lane_claim.py` retire (#228)
+
+The owner decided in the grill of georgetown-mdi-gates4/twenty#672
+(2026-11-23) that GitHub features hold a ticket's state, never text that
+goes stale. Decision 13 sends every fix to this plugin too. So:
+
+- The Start here block of skill `handoff` runs the repo's free work check
+  and takes tickets with `gh issue develop`. It has no claim step and no
+  `Held by:` line. A repo with no free work check reads the closing section
+  of its handoff, as a repo with no `lane` label did before.
+- `skills/handoff/lane_claim.py`, `scripts/lane_claim.py` and
+  `hooks/lane-claim-selftest.py` are deleted. `hooks/handoff_shape.py` no
+  longer checks for a copy of the script or for the lane list past line 40.
+  An old block that still claims a lane fails the drift check, which names
+  the first line that differs.
+- The handoff pass turns each next step into a ticket, a comment, a
+  "blocked by" link or the label `needs-owner`. It writes no `## Next`.
+- Skill `pm` starts a worker on each ticket the free work check prints. The
+  check decides what is free, so the PM keeps no file list of its own.
+- `tracker_sync.py` no longer exempts the `lane` label.
+
+The plugin ships no free work check. Order and caps differ per repo, e.g.
+twenty orders by its `slice:` labels and caps open PRs at 6. A generic one
+would be a guess at the next repo's rules.
+
+Supersedes the 2026-11-10 lane issue decision (yw-workflow #52). Why it
+went: a lane's `## Next` held back every ticket it did not name, and its
+holder line needed a script, a self-test and a 24-hour rule to stay true.
+A linked branch is true without upkeep: delete it and the ticket is free.

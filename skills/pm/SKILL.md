@@ -1,9 +1,9 @@
 ---
 name: pm
-description: The one chat the owner talks to. Status mode reports what changed, where it is heading, what it lacks and who holds which lane, and first starts a worker on each idle lane, unless the work-in-progress limit is reached. It reads git, gh, docs/HANDOFF.md and the lane issues. Batch mode writes a spec per ticket, starts builder and reviewer agents, and loops to a clean review. It reports once per batch and never edits files itself. Batch mode wants Orca (the `orca` CLI) and falls back to the yw-workflow builder, reviewer and fixer subagents and a `general-purpose` code-review reviewer without it. Use when asked for project status, what happened, what to work on next, to "run these tickets", "run a batch", or "be the PM".
+description: The one chat the owner talks to. Status mode reports what changed, where it is heading, what it lacks and which tickets are taken, and first starts a worker on each free ticket, unless the work-in-progress limit is reached. It reads git, gh, docs/HANDOFF.md and the repo's free work check. Batch mode writes a spec per ticket, starts builder and reviewer agents, and loops to a clean review. It reports once per batch and never edits files itself. Batch mode wants Orca (the `orca` CLI) and falls back to the yw-workflow builder, reviewer and fixer subagents and a `general-purpose` code-review reviewer without it. Use when asked for project status, what happened, what to work on next, to "run these tickets", "run a batch", or "be the PM".
 origin: authored
 tags: [project-management, orchestration, orca, status, coordination]
-version: 1.0.4
+version: 1.1.0
 ---
 
 # PM
@@ -13,7 +13,7 @@ version: 1.0.4
 Say that line back when you start, so whoever invoked this knows what they
 got.
 
-Two modes. Status mode reads, and starts a worker on each idle lane. Batch
+Two modes. Status mode reads, and starts a worker on each free ticket. Batch
 mode runs other agents and edits nothing.
 
 ## The one rule
@@ -25,7 +25,7 @@ claim with a timer on it. Run the command instead.
 ## Status mode
 
 Answer four questions: what changed, where is it heading, what does it lack,
-who holds which lane. Read from the primary checkout, because a worktree can
+which tickets are taken. Read from the primary checkout, because a worktree can
 lag trunk:
 
 ```bash
@@ -41,12 +41,12 @@ Then read authored judgment:
 
 | Question | Source |
 |---|---|
-| Where is it heading | the last section of `$MAIN/docs/HANDOFF.md`, and each open lane issue's `## Next` |
-| Who holds which lane | the lane list command in step 3 of the `## Start here` block of `$MAIN/docs/HANDOFF.md`. Run it from there. A copy here would drift from the one the hook checks |
+| Where is it heading | the last section of `$MAIN/docs/HANDOFF.md`, and the free work check that the repo `CLAUDE.md` names |
+| Which tickets are taken | each open issue with a linked branch: `gh issue develop --list <N>` prints its branches |
 | Who is live now | ListAgents, if the harness has it |
 | Why a decision went that way | `$MAIN/docs/DECISIONS.md`, if it exists |
 
-**Before any status report, fill each idle lane.** First apply the owner's
+**Before any status report, start the free work.** First apply the owner's
 limit on work in progress. List the branches that wait for review or merge:
 each open PR, and each worktree branch with a commit from the last 24 hours
 that is not on main and has no merged PR.
@@ -64,20 +64,15 @@ that is not on main and has no merged PR.
 Leave out the branches of running workers. Running means started, with no
 `worker_done` on the Orca path, or no completion notice from the subagent on
 the fallback path. More than four left: start no new ticket. Start a
-reviewer or fixer on one of them, and say so in the report. Else read line
-one of each open lane issue. A lane is idle when it is free by step 4 of the
-`## Start here` block, or when it holds this PM's own name and no worker the
-PM started for it is running. For each idle lane, take the first ticket in
-its `## Next` that is open (`gh issue view <N> --json state`), has no
-`after` mark on an unmerged item, and names no file that other work edits.
-Those files are the "may edit" list in each running worker's spec, and the
-files each listed branch changes (`git -C "$MAIN" diff --name-only
-origin/main...<branch>`, with `origin/<branch>` for a PR branch that is not
-local). Start a worker on it with steps 2 and 3 of batch mode. A claim that
-exits 1 means another session holds the lane, and that is its reason. The
-report names each worker started, and gives each idle lane with none a
-one-line reason, e.g. "lane #12: its one ticket waits on #40 (the wage table
-fix)". Done when every lane has a running worker or a one-line reason.
+reviewer or fixer on one of them, and say so in the report. Else run the
+repo's free work check, step 2 of the `## Start here` block in
+`$MAIN/docs/HANDOFF.md`. Start a worker on each ticket it prints, in its
+order, with steps 2 and 3 of batch mode, while the limit holds. The check
+decides what is free: a ticket with an open blocker, a `needs-owner` or
+`wayfinder:grilling` label, or a linked branch never starts. The repo names
+no free work check: take the tasks of the last section of `docs/HANDOFF.md`
+instead. The report names each worker started. When the check prints
+nothing, the report says so in one line.
 
 In the answer, keep a derived fact ("4 PRs open") apart from a judgment ("the
 weakest area is X"), and name whose judgment it is. Name the source of each
@@ -114,7 +109,7 @@ the owner before anything else, then use the fallback path:
 A spec stands alone. The worker sees nothing else. It holds:
 
 - the ticket number and its acceptance boxes, copied in.
-- "The PM assigns your work, so skip the lane menu." Add "The PM holds lane #N for you" when the PM claimed one.
+- "The PM assigns your work, so skip step 3 of the Start here block. The PM linked branch <branch> to ticket #N for you."
 - the branch name, `type/short-description`.
 - what the worker may edit, and what it must not touch.
 - the evidence that proves it is done: the literal commands and their expected result.
@@ -131,11 +126,11 @@ commit." Any other ticket gets the first spec only.
 
 ### 3. Run each ticket as a `ship-loop`
 
-When a ticket has a `lane` issue, the PM claims it before it starts the
-builder, with step 5 of the `## Start here` block in `docs/HANDOFF.md`. That
-step has the command, the name to use and what each exit code means. The PM
-releases the lane when the ticket merges. A ticket with no lane issue needs
-no claim.
+The PM takes the ticket before it starts the builder: it links the branch
+with `gh issue develop <N> --name <branch> --base main`, as step 3 of the
+`## Start here` block in `docs/HANDOFF.md` says. If gh refuses, start no
+builder, and say why in the report. The linked branch marks the ticket
+taken until the PR merges and the branch is deleted.
 
 `.worktrees/` must be in the repo's `.gitignore`, per `git-worktrees`. When
 `git -C "$MAIN" check-ignore -q .worktrees/` exits 1, the first builder spec
@@ -143,7 +138,7 @@ adds it. Set `MAIN` with the line from status mode, in the same command.
 
 Each ticket gets its own branch, its own review and its own PR, so each merge
 is one reviewed commit. The owner chose this on 2026-11-13, over the combined
-PR for several small lanes in the owner's `CLAUDE.md`. A combined head would
+PR for several small reviewed branches in the owner's `CLAUDE.md`. A combined head would
 need a review of its own. This also replaces the one review per related group
 in `ship-loop` step 6. Builder, then a review round by reviewers that did not
 write the change, then fixes, then a new round at the fixed commit. Stop on a

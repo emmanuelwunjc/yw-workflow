@@ -145,7 +145,7 @@ Each one carries a one-line summary at the top.
 | **need-me** | Shows only what is waiting on you, answerable in one word. |
 | **harden** | Gives a repo the CI and branch protection that make its review gate real. |
 | **mutation-gate** | Proves each self-check can fail, by breaking the code it covers and requiring it to notice. |
-| **handoff** | Keeps `docs/HANDOFF.md` and the `lane` issues in the shape that lets a fresh session start from them alone. |
+| **handoff** | Keeps `docs/HANDOFF.md` in the shape that lets a fresh session start from it and the open tickets alone. |
 | **goal-tracker** | One pinned issue shows how far a goal is, and a script keeps its progress bars current with no hand edits. |
 | **eli5** | Explains a topic to someone with zero background, as a page of big pictures and few words. |
 | **eli5-text** | Explains a topic to someone with zero background, in the conversation, with nothing to open. |
@@ -166,7 +166,7 @@ plugin path only. The full rules, the CI gate and the config are in
 | **no-ai-attribution.py** | PreToolUse | Keeps AI-generation footers, session URLs and the triage skill's AI disclaimer out of anything people read, commit messages included. Also blocks a co-author trailer at an anthropic.com address. A co-author trailer that names a person passes. It also reads the message file of a git or gh command. The file must be named after its own flag (`-F path`, `--file`, `--body-file`, `--notes-file`, or `flag=path`). The hook must also find it. It reads the file as it is before the command runs, even when the same command writes or changes it. This is a best-effort check. CI also scans some published text: see [CI gate](docs/HOOKS.md#ci-gate) in `docs/HOOKS.md`. |
 | **zsh-trap-guard.py** | PreToolUse | Blocks two zsh traps in Bash commands, e.g. `$s:refs` (write `${s}:refs`). |
 | **claude-md-guard.py** | UserPromptSubmit, Stop | Blocks em-dashes, negation-then-correction, and prose questions where checkboxes are required. |
-| **handoff-freshness.py** | SessionStart (`startup`, `clear`), Stop | At session start, tells the session to fix a `docs/HANDOFF.md` with an old Start here block before any other work. On a lane that changes real files, reminds it to write the PR body's `## Handoff notes`, and warns if the lane changes `docs/HANDOFF.md`. On trunk or a `docs/handoff-*` branch, warns when work piles up against an untouched `docs/HANDOFF.md`. Override: `SKIP_HANDOFF_CHECK=1`. |
+| **handoff-freshness.py** | SessionStart (`startup`, `clear`), Stop | At session start, tells the session to fix a `docs/HANDOFF.md` with an old Start here block before any other work. On a branch that changes real files, reminds it to write the PR body's `## Handoff notes`, and warns if the branch changes `docs/HANDOFF.md`. On trunk or a `docs/handoff-*` branch, warns when work piles up against an untouched `docs/HANDOFF.md`. Override: `SKIP_HANDOFF_CHECK=1`. |
 | **context-handoff.py** | PostToolBatch, UserPromptSubmit, Stop | Winds a session down past about 300k tokens of context, and has it write the handoff. |
 | **unpushed-branches.py** | SessionStart (`startup`, `clear`) | Lists local branches with commits that no remote and no open or merged PR has. |
 | **plugin-lag.py** | SessionStart (`startup`, `clear`) | Prints one line with the update command when the installed plugin is older than its marketplace. Silent when current. |

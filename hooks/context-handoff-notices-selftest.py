@@ -7,7 +7,7 @@ Fixtures and check() live in context_handoff_testkit.py.
 Run: ./hooks/context-handoff-notices-selftest.py
 """
 from context_handoff_testkit import (
-    MIN, STOP_RULE, T0, Env, blocked, check, context, deadline, finish,
+    MIN, T0, Env, blocked, check, context, deadline, finish,
     output, silent, warned)
 
 # --- thresholds and steps ------------------------------------------------
@@ -32,10 +32,10 @@ check("the notice says where the handoff goes",
 check("the notice ends with a fresh session", "fresh session" in text, True)
 check("the notice names the skill with its plugin prefix",
       "load the yw-workflow:handoff skill" in text, True)
-check("the notice hands the lane off on its issue",
-      STOP_RULE in text
-      and '`python3 scripts/lane_claim.py write <N> "<name>" <file>`' in text
-      and '`python3 scripts/lane_claim.py release <N> "<name>"`' in text, True)
+check("the notice hands an unfinished ticket off on GitHub",
+      "push its branch and comment on the ticket" in text, True)
+check("the notice names no retired lane script (#228)",
+      "lane_claim" in text, False)
 check("the time of the notice is recorded", e.state().get("noticed"), T0)
 check("330k, same step: no second notice", silent(e.at(330_000, now=T0 + 1)), True)
 check("399,999: still step 0, silent", silent(e.at(399_999, now=T0 + 2)), True)
@@ -148,7 +148,7 @@ e.at(310_000, now=T0)
 check("a new untracked docs/HANDOFF.md counts: Stop is allowed",
       silent(e.stop(T0 + 1)), True)
 
-# the lane case: the notes may be in a PR body the check cannot read
+# the branch case: the notes may be in a PR body the check cannot read
 e = Env()
 e.repo()
 e.at(310_000, now=T0)

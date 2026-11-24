@@ -2,55 +2,32 @@
 
 ## Start here
 
-You are a fresh session. This file and the open `lane` issues are your
+You are a fresh session. This file and the repo's open tickets are your
 whole briefing. Nobody writes you a separate prompt. Do these in order.
 
 1. Load skills `ship-loop`, `git-worktrees` and `fresh-eye` before touching
    anything. Read the repo `CLAUDE.md`.
-2. Check that the repo has the label. This prints `lane` if it does:
-   `gh label list --search lane --json name --jq '.[] | select(.name == "lane") | .name'`
-   It prints nothing: this repo has no lane label yet. Read the LAST
-   section of this file for the tasks, and go to step 6.
-3. List the open lanes. Free lanes come first, lowest issue number
-   first. Held lanes follow, oldest time first:
+2. Run the repo's free work check, the command its `CLAUDE.md` names. It
+   prints the tickets that may start now, first one first. The repo names
+   no free work check: read the LAST section of this file for the tasks,
+   and go to step 4.
+3. Take tickets. The owner named one: take it. If the check does not print
+   it, tell the owner why, and stop. Else take the first two to four the
+   check prints. It prints none: tell the owner, and stop. Take each
+   ticket with a branch linked to it, in its own worktree (`git-worktrees`):
+   `gh issue develop <N> --name <type>/<N>-<short> --base <trunk> --checkout --worktree .worktrees/<NN>-<short>`
+   The linked branch marks the ticket taken. If gh refuses, change
+   nothing, stop, and tell the owner.
+4. Read the recent sections of this file for traps. Run the recount
+   commands before trusting any number. Start more tickets as earlier ones
+   merge. Ask the owner nothing that this file or the tickets answer.
 
-   gh issue list --label lane --state open --limit 100 --json number,title,body --jq '(now | strftime("%Y-%m-%dT%H:%MZ")) as $now | map(((.body // "") | split("\n") | first // "" | rtrimstr("\r")) as $h | {n: .number, t: .title, h: $h, s: (($h | capture("^Held by: (?<name>.+), since (?<time>[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}Z)$") | select(.name != "nobody" and .time <= $now) | .time) // null)}) | sort_by(if .s then [1, .s, .n] else [0, .n] end) | .[] | "#\(.n) \(.t) | \(if .s or .h == "Held by: nobody" then .h else "Held by: (malformed)" end)"'
-
-   No lines: no lane is open. Read the LAST section of this file for the
-   tasks, and go to step 6. 100 lines: raise `--limit`, list again.
-4. Pick a lane. A lane is free when its `Held by:` line says nobody or
-   is malformed, or its time is over 24 hours old and ListAgents does
-   not show that session live. Else it is held. The owner named a lane:
-   take it, and if it is held, tell the owner and stop. Else, one free
-   lane: take it. More than one: ask the owner with one AskUserQuestion,
-   one option per free lane in list order, the first recommended. No
-   owner present (a cloud routine, a headless run): take the first free
-   lane. No free lane: tell the owner, and stop.
-5. Claim it, after any answer from the owner:
-   `python3 scripts/lane_claim.py claim <N> "<name>"`. Add
-   `--holder-not-live` only when step 4 found the lane free by its
-   24-hour rule. Exit 0: you hold the lane. Exit 1: it says why. Change
-   nothing. The owner named this lane: tell the owner and stop. Else go
-   back to step 4. Any other exit, e.g. no `scripts/lane_claim.py` or a
-   failed `gh`: change nothing, stop, and tell the owner. <name> is your
-   session name as ListAgents prints it. With no ListAgents, use your
-   harness and worktree, e.g. `laptop:04-handoff-lanes`. A cloud routine
-   adds its run start, e.g. `cloud routine nightly 2026-11-10T06:17Z`.
-6. Read the lane issue's `## Next`, or with no lane the LAST section.
-   Read the recent sections of this file for traps. Run the recount
-   commands before trusting any number. A task with no mark is `parallel`
-   unless it names another task it waits for. Start every `parallel`
-   task it names in the same turn, each in its own worktree (`git-worktrees`), two
-   to four at once. Start any more as earlier tasks merge or stop. Start an
-   `after` task when its dependency merges. If you stop before that,
-   leave it in `## Next` with its `after` mark for the next session. Ask
-   the owner nothing it already answers.
-
-Write a lane body only with `scripts/lane_claim.py write` or `release`,
-and if it refuses, change nothing, stop, and tell the owner. Update
-`## Next` with `python3 scripts/lane_claim.py write <N> "<name>" <file>`,
-and free the lane with `python3 scripts/lane_claim.py release <N> "<name>"`
-when you stop. Leave this block alone.
+A ticket's state lives on GitHub, never in this file. A "blocked by" link
+holds it back. The label `needs-owner` or `wayfinder:grilling` makes it
+wait. A linked branch marks it taken. When you stop with a ticket not
+finished, push its branch and comment on the ticket where the work stopped.
+Delete the branch only when it holds no work: that frees the ticket.
+Leave this block alone.
 
 Judgment and reasoning only. No counts, no SHAs, no issue tallies: those rot
 within hours. Derive them with `gh issue list` and the scripts in the repo.

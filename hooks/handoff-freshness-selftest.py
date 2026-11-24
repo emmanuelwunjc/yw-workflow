@@ -31,6 +31,43 @@ BLOCK = r"""# Handoff
 
 ## Start here
 
+You are a fresh session. This file and the repo's open tickets are your
+whole briefing. Nobody writes you a separate prompt. Do these in order.
+
+1. Load skills `ship-loop`, `git-worktrees` and `fresh-eye` before touching
+   anything. Read the repo `CLAUDE.md`.
+2. Run the repo's free work check, the command its `CLAUDE.md` names. It
+   prints the tickets that may start now, first one first. The repo names
+   no free work check: read the LAST section of this file for the tasks,
+   and go to step 4.
+3. Take tickets. The owner named one: take it. If the check does not print
+   it, tell the owner why, and stop. Else take the first two to four the
+   check prints. It prints none: tell the owner, and stop. Take each
+   ticket with a branch linked to it, in its own worktree (`git-worktrees`):
+   `gh issue develop <N> --name <type>/<N>-<short> --base <trunk> --checkout --worktree .worktrees/<NN>-<short>`
+   The linked branch marks the ticket taken. If gh refuses, change
+   nothing, stop, and tell the owner.
+4. Read the recent sections of this file for traps. Run the recount
+   commands before trusting any number. Start more tickets as earlier ones
+   merge. Ask the owner nothing that this file or the tickets answer.
+
+A ticket's state lives on GitHub, never in this file. A "blocked by" link
+holds it back. The label `needs-owner` or `wayfinder:grilling` makes it
+wait. A linked branch marks it taken. When you stop with a ticket not
+finished, push its branch and comment on the ticket where the work stopped.
+Delete the branch only when it holds no work: that frees the ticket.
+Leave this block alone.
+
+Judgment and reasoning only. No counts, no SHAs, no issue tallies: those rot
+within hours. Derive them with `gh issue list` and the scripts in the repo.
+"""
+
+# The lane block, in use from 2026-11-10 until lane issues retired on
+# 2026-11-24 (#228, from twenty #672). A repo still on it must warn.
+OLD_LANE_BLOCK = r"""# Handoff
+
+## Start here
+
 You are a fresh session. This file and the open `lane` issues are your
 whole briefing. Nobody writes you a separate prompt. Do these in order.
 
@@ -92,7 +129,7 @@ OPEN_PR_CMD = ("gh pr list --state open --limit 100 --json number,title,files "
                "| \"#\\(.number) \\(.title)\"'")
 FIRST_TASK = (f"First run `{OPEN_PR_CMD}`. It prints a PR: a migration is "
               "open, so skip it. It prints nothing: migrate docs/HANDOFF.md to "
-              "this shape as your first task, before you claim a lane or start "
+              "this shape as your first task, before you take a ticket or start "
               "any other work.")
 
 # The block before 2026-11-10: one first task for every session, so two
@@ -121,64 +158,49 @@ within hours. Derive them with `gh issue list` and the scripts in the repo.
 """
 
 GOOD = BLOCK + "\n## 2026-09-16\n\nFirst task: x.\n"
-# The block runs this script, so a repo without it gets a copy command
-# naming the plugin's file (review round 8).
+# The old checks for a copy of scripts/lane_claim.py and for the lane list
+# past line 40 retired with lane issues (#228). Their messages must not come
+# back, e.g. for a repo that still has the script.
 SCRIPT = "scripts/lane_claim.py"
-PLUGIN_SCRIPT = SKILL.parent / "lane_claim.py"
-NO_SCRIPT = f"has no {SCRIPT}"
-# Step 5 treats exit 1 and any other exit apart, so a missing script or a
-# failed `gh` stops the session instead of walking every lane (round 8).
-EXIT_RULE = ("Any other exit, e.g. no `scripts/lane_claim.py` or a failed "
-             "`gh`: change nothing, stop, and tell the owner.")
+RETIRED = ["lane_claim.py differs", "has no scripts/lane_claim.py",
+           "is not tracked", "past line 40"]
 # the phrase past the 40-line window is body text, e.g. a quote of the old rule
 LATE_PREAMBLE = GOOD + "\n" * 20 + "The old rule said: written at the end of the session.\n"
 NO_BLOCK = "# Handoff\n\n## 2026-09-16\n\nFirst task: x.\n"
 # Each wrong Start here block below must warn, each with its own text.
-CMD = "   gh issue list --label lane --state open"
-CMD_LINE = BLOCK.splitlines().index(next(l for l in BLOCK.splitlines() if l.startswith(CMD))) + 1
-assert CMD_LINE < 40, "the pinned block's lane list must sit inside the 40-line window"
 TAIL = "\n## 2026-09-16\n\nFirst task: x.\n"
-OTHER_LABEL = GOOD.replace(CMD, CMD.replace("--label lane", "--label lanes"), 1)
-STEP2 = "2. Check that the repo has the label."
+STEP2 = "2. Run the repo's free work check, the command its `CLAUDE.md` names. It"
 LAST_STEP = GOOD.replace(STEP2, "2. Read the LAST section. It names the first task.", 1)
-OUTSIDE = ("# Handoff\n\ngh issue list --label lane --state open\n" + "\n" * 41
-           + OLD_BLOCK.split("# Handoff\n", 1)[1] + TAIL)
-# the command in the dated section under the block, still inside 40 lines
-BELOW = OLD_BLOCK + "\n## 2026-09-16\n\ngh issue list --label lane\n"
-assert len(BELOW.splitlines()) <= 40
+assert LAST_STEP != GOOD
+# the old lane block, as a repo that has not migrated still has it
+OLD_LANE = OLD_LANE_BLOCK + TAIL
 H3_START = GOOD.replace("## Start here\n", "### Start here\n", 1)
 LATER_START = GOOD.replace("## Start here\n", "## Start here later\n", 1)
 # "1. Read the LAST section" in a dated section below the block is history
 OLD_STEP_BELOW = GOOD + "\n## 2026-09-17\n\n1. Read the LAST section of this file.\n"
 LATER_ONLY = "# Handoff\n\n## Start here later\n\nFirst task: x.\n"
-# pad above the block, which stays verbatim, so the lane list sits exactly
-# at line 40, then 41
-AT = {n: BLOCK.replace("## Start here\n", "\n" * (n - CMD_LINE) + "## Start here\n", 1) + TAIL
-      for n in (40, 41)}
+# the block pasted low, past line 40, is still the block
+LOW = BLOCK.replace("## Start here\n", "\n" * 41 + "## Start here\n", 1) + TAIL
 OLD_SINGLE_TASK = OLD_BLOCK + "\n## 2026-09-16\n\nFirst task: x.\n"
-# the lane command only past the 40-line window is body text, not the block
-LATE_LANE = (OLD_BLOCK + "\n" * 40 + "gh issue list --label lane\n")
 # Issue #118: the block PR #90 replaced. Step 6 said "Start the first task it
 # names". No old-form pattern caught it, so only the comparison with the
 # plugin's block does. The warning names the first line that differs.
-STEP6 = "   unless it names another task it waits for. Start every `parallel`"
-OLD_STEP6 = GOOD.replace(STEP6, "   unless it names another task it waits for. Start the first task it names", 1)
+STEP6 = "   it, tell the owner why, and stop. Else take the first two to four the"
+OLD_STEP6 = GOOD.replace(STEP6, "   it, tell the owner why, and stop. Start the first task it names the", 1)
+assert OLD_STEP6 != GOOD
 STEP6_LINE = GOOD.splitlines().index(STEP6) + 1
 DRIFT = "block differs from the plugin's"
 # a block cut short ends where the plugin's block goes on
 LAST_LINE = "within hours. Derive them with `gh issue list` and the scripts in the repo."
 CUT = GOOD.replace(LAST_LINE + "\n", "", 1)
 CUT_LINE = GOOD.splitlines().index(LAST_LINE) + 1
-# a tracked copy of the script older than the plugin's
-SCRIPT_DRIFT = f"{SCRIPT} differs from the plugin's copy"
 # Round 1 of the #118 review: an empty Start here block is drift too, and
 # the warning names the plugin's first line as missing.
 EMPTY = "block differs from the plugin's: it is empty"
-FIRST_PLUGIN_LINE = "You are a fresh session. This file and the open `lane` issues are your"
+FIRST_PLUGIN_LINE = "You are a fresh session. This file and the repo's open tickets are your"
 EMPTY_BLOCK = "# Handoff\n\n## Start here\n\n## Next\nx\n"
 BLANK_BLOCK = "# Handoff\n\n## Start here\n\n   \n\t\n\n## Next\nx\n"
 LAST_HEADING = "# Handoff\n\n## Start here"
-LANE_ABOVE_EMPTY = "# Handoff\n\ngh issue list --label lane\n\n## Start here\n\n## Next\nx\n"
 # trailing spaces and CRLF line ends are no drift
 TRAILING = GOOD.replace("   anything. Read the repo `CLAUDE.md`.\n",
                         "   anything. Read the repo `CLAUDE.md`.   \n", 1)
@@ -223,30 +245,19 @@ CASES = [
     ("a block cut short warns where the plugin's block goes on",
      {"docs/HANDOFF.md": CUT}, ["docs/HANDOFF.md"],
      ["HANDOFF SHAPE", f"{DRIFT}, first at line {CUT_LINE}", LAST_LINE], []),
-    ("a tracked script older than the plugin's warns with the copy",
-     {"docs/HANDOFF.md": GOOD, SCRIPT: PLUGIN_SCRIPT.read_text() + "# old\n"},
-     ["docs/HANDOFF.md", SCRIPT],
-     ["HANDOFF SHAPE", SCRIPT_DRIFT, f"cp '{PLUGIN_SCRIPT}' '"], [DRIFT]),
+    ("a repo that still tracks the retired script gets no script warning",
+     {"docs/HANDOFF.md": GOOD, SCRIPT: "x\n"}, ["docs/HANDOFF.md", SCRIPT],
+     [], ["HANDOFF", *RETIRED]),
+    ("the retired lane block warns and names its first line",
+     {"docs/HANDOFF.md": OLD_LANE}, ["docs/HANDOFF.md"],
+     ["HANDOFF SHAPE", DRIFT, "open `lane` issues"], RETIRED),
     ("the repo's own lines after the plugin's block pass",
      {"docs/HANDOFF.md": BLOCK + "\nWhat this repo is: x.\n" + TAIL},
      ["docs/HANDOFF.md"], [], ["HANDOFF SHAPE"]),
-    ("a block and script that match the plugin warn nothing",
-     {"docs/HANDOFF.md": GOOD, SCRIPT: PLUGIN_SCRIPT.read_text()},
-     ["docs/HANDOFF.md", SCRIPT], [], ["HANDOFF"]),
-    ("lane command past line 40 does not count as the block",
-     {"docs/HANDOFF.md": LATE_LANE}, ["docs/HANDOFF.md"],
-     ["HANDOFF SHAPE", "past line 40"], []),
     # The old-form checks went in #118. The comparison catches these now.
-    ("lane list for label lanes warns",
-     {"docs/HANDOFF.md": OTHER_LABEL}, ["docs/HANDOFF.md"],
-     ["HANDOFF SHAPE", DRIFT, "--label lanes"], []),
     ("a step that opens with Read the LAST section warns",
      {"docs/HANDOFF.md": LAST_STEP}, ["docs/HANDOFF.md"],
      ["HANDOFF SHAPE", DRIFT, "2. Read the LAST section"], []),
-    ("lane list above a Start here at line 45 warns",
-     {"docs/HANDOFF.md": OUTSIDE}, ["docs/HANDOFF.md"], ["HANDOFF SHAPE", DRIFT], []),
-    ("lane list under the next heading is outside the block",
-     {"docs/HANDOFF.md": BELOW}, ["docs/HANDOFF.md"], ["HANDOFF SHAPE", DRIFT], []),
     ("### Start here is no Start here line",
      {"docs/HANDOFF.md": H3_START}, ["docs/HANDOFF.md"],
      ["HANDOFF SHAPE", "has no `## Start here` line"], []),
@@ -257,26 +268,9 @@ CASES = [
      {"docs/HANDOFF.md": OLD_STEP_BELOW}, ["docs/HANDOFF.md"], [], ["HANDOFF SHAPE"]),
     ("## Start here later alone gets only the missing-block warning",
      {"docs/HANDOFF.md": LATER_ONLY}, ["docs/HANDOFF.md"],
-     ["has no `## Start here` line"], ["--label lane"]),
-    ("lane list at line 40 is inside the window",
-     {"docs/HANDOFF.md": AT[40]}, ["docs/HANDOFF.md"], [], ["HANDOFF SHAPE"]),
-    ("lane list at line 41 is past the window",
-     {"docs/HANDOFF.md": AT[41]}, ["docs/HANDOFF.md"],
-     ["HANDOFF SHAPE", "at line 41, past line 40"], [DRIFT]),
-    ("missing block gets one warning, the lane one stays quiet",
-     {"docs/HANDOFF.md": NO_BLOCK}, ["docs/HANDOFF.md"],
-     ["## Start here"], ["--label lane"]),
-    ("a block that runs the script, in a repo without it, warns with the copy",
-     {"docs/HANDOFF.md": GOOD, SCRIPT: None}, ["docs/HANDOFF.md"],
-     ["HANDOFF SHAPE", NO_SCRIPT, f"cp '{PLUGIN_SCRIPT}' '"], []),
-    ("a copy git does not track warns",
-     {"docs/HANDOFF.md": GOOD, SCRIPT: "x\n"}, ["docs/HANDOFF.md"],
-     ["HANDOFF SHAPE", f"{SCRIPT} is not tracked"], [NO_SCRIPT]),
-    ("a repo with the script gets no copy warning",
-     {"docs/HANDOFF.md": GOOD}, ["docs/HANDOFF.md"], [], [NO_SCRIPT]),
-    ("the script named only below the block needs no copy",
-     {"docs/HANDOFF.md": OLD_BLOCK + f"\n## 2026-09-17\n\nRun `python3 {SCRIPT}`.\n",
-      SCRIPT: None}, ["docs/HANDOFF.md"], ["HANDOFF SHAPE"], [NO_SCRIPT]),
+     ["has no `## Start here` line"], RETIRED),
+    ("a block pasted past line 40 warns nothing",
+     {"docs/HANDOFF.md": LOW}, ["docs/HANDOFF.md"], [], ["HANDOFF SHAPE"]),
     ("an empty block warns and names the plugin's first line",
      {"docs/HANDOFF.md": EMPTY_BLOCK}, ["docs/HANDOFF.md"],
      ["HANDOFF SHAPE", EMPTY, FIRST_PLUGIN_LINE], []),
@@ -286,9 +280,6 @@ CASES = [
     ("## Start here as the last line warns as empty",
      {"docs/HANDOFF.md": LAST_HEADING}, ["docs/HANDOFF.md"],
      ["HANDOFF SHAPE", EMPTY, FIRST_PLUGIN_LINE], ["has no `## Start here` line"]),
-    ("a lane list above an empty block warns",
-     {"docs/HANDOFF.md": LANE_ABOVE_EMPTY}, ["docs/HANDOFF.md"],
-     ["HANDOFF SHAPE", EMPTY], []),
     ("trailing spaces in the block are no drift",
      {"docs/HANDOFF.md": TRAILING}, ["docs/HANDOFF.md"], [], ["HANDOFF"]),
     ("CRLF line ends are no drift",
@@ -296,66 +287,6 @@ CASES = [
     ("preamble phrase past line 40 is body text, no warning",
      {"docs/HANDOFF.md": LATE_PREAMBLE}, ["docs/HANDOFF.md"], [], ["HANDOFF SHAPE"]),
 ]
-
-
-# Step 3's jq, run on sample lanes. The expected lines are the whole rule:
-# free (nobody or malformed) by issue number, then held by oldest since.
-LANES = [
-    (9, "held late", "Held by: alpha, since 2026-11-10T09:00Z\n\n## Next\n1. a"),
-    (3, "nobody", "Held by: nobody\n\n## Next\n1. b"),
-    (8, "seconds", "Held by: beta, since 2026-11-10T09:00:30Z\n## Next"),
-    (7, "future", "Held by: gamma, since 2099-01-01T00:00Z\n## Next"),
-    (6, "nobody with since", "Held by: nobody, since 2026-11-01T00:00Z\n## Next"),
-    (5, "no line", "## Next\nHeld by: delta, since 2026-11-01T00:00Z"),
-    (4, "empty body", ""),
-    (2, "crlf held", "Held by: eta, since 2026-11-08T05:00Z\r\n\r\n## Next"),
-    (11, "same since, higher", "Held by: theta, since 2026-11-09T12:00Z\n## Next"),
-    (10, "same since, lower", "Held by: iota, since 2026-11-09T12:00Z\n## Next"),
-    (13, "text after the time", "Held by: a, since 2026-11-10T08:00Z (back at 3)"),
-    (14, "quoted", "> Held by: a, since 2026-11-10T08:00Z"),
-    (15, "empty name", "Held by: , since 2026-11-10T08:00Z"),
-    (16, "one minute ahead", "Held by: b, since 2026-11-10T09:01Z"),
-]
-# "now" for the fixtures. Lane 9's time equals it, so `<=` must hold.
-FIXED_NOW = "2026-11-10T09:00Z"
-NOW_PREFIX = '(now | strftime("%Y-%m-%dT%H:%MZ")) as $now | ' 
-LANE_ORDER = """#3 nobody | Held by: nobody
-#4 empty body | Held by: (malformed)
-#5 no line | Held by: (malformed)
-#6 nobody with since | Held by: (malformed)
-#7 future | Held by: (malformed)
-#8 seconds | Held by: (malformed)
-#13 text after the time | Held by: (malformed)
-#14 quoted | Held by: (malformed)
-#15 empty name | Held by: (malformed)
-#16 one minute ahead | Held by: (malformed)
-#2 crlf held | Held by: eta, since 2026-11-08T05:00Z
-#10 same since, lower | Held by: iota, since 2026-11-09T12:00Z
-#11 same since, higher | Held by: theta, since 2026-11-09T12:00Z
-#9 held late | Held by: alpha, since 2026-11-10T09:00Z
-"""
-
-
-def check_lane_jq():
-    """0 on pass, 1 on a wrong order or label, or when jq is missing."""
-    import json
-    if not shutil.which("jq"):
-        print("FAIL step 3 jq: no jq on PATH. The block pins a jq program that "
-              "must be run. Install jq (e.g. `brew install jq`) and run again.")
-        return 1
-    line = next(l for l in BLOCK.splitlines() if l.startswith(CMD))
-    program = re.search(r"--jq '(.*)'$", line).group(1)
-    if not program.startswith(NOW_PREFIX):
-        print(f"FAIL step 3 jq does not start with {NOW_PREFIX!r}")
-        return 1
-    data = json.dumps([{"number": n, "title": t, "body": b} for n, t, b in LANES])
-    got = subprocess.run(["jq", "-r", "--arg", "now", FIXED_NOW,
-                          program[len(NOW_PREFIX):]],
-                         input=data, capture_output=True, text=True)
-    if got.returncode != 0 or got.stdout != LANE_ORDER:
-        print(f"FAIL step 3 jq printed (exit {got.returncode}):\n{got.stdout}{got.stderr}")
-        return 1
-    return 0
 
 
 def git(cwd, *args):
@@ -393,12 +324,12 @@ def session_start_failures():
     # A shape problem: the Stop text, word for word, in additionalContext,
     # plus the first-task sentence. Nothing on stderr, exit 0. The old block
     # has two problems, so sending only the first one fails.
-    # Issue #118: the block and script comparisons reach the session too.
-    old_script = {SCRIPT: PLUGIN_SCRIPT.read_text() + "# old\n"}
+    # Issue #118: the block comparison reaches the session too, and so does
+    # the retired lane block (#228).
     for label, extra, count, want in (
             ("no block", {"docs/HANDOFF.md": NO_BLOCK}, 1, ""),
             ("old block", {"docs/HANDOFF.md": OLD_PREAMBLE}, 2, DRIFT),
-            ("old script", {"docs/HANDOFF.md": GOOD, **old_script}, 1, SCRIPT_DRIFT)):
+            ("lane block", {"docs/HANDOFF.md": OLD_LANE}, 1, DRIFT)):
         with tempfile.TemporaryDirectory() as tmp:
             make_repo(tmp, extra, list(extra))
             stop = run_hook(tmp, event="Stop")
@@ -529,7 +460,7 @@ def stop_once_failures():
     commit = lambda tmp, rel, text: (pathlib.Path(tmp, rel).write_text(text),
                                      git(tmp, "add", rel),
                                      git(tmp, "commit", "-q", "-m", rel))
-    edited = "Lanes do not edit"
+    edited = EDITED
     failures = 0
 
     def check(label, ok, got):
@@ -539,17 +470,17 @@ def stop_once_failures():
             print(f"FAIL once per session, {label}: exit={got.returncode}"
                   f"\n--- told the model ---\n{got.warn}\n--- stderr ---\n{got.stderr}")
 
-    def lane(tmp, handoff=GOOD):
+    def on_branch(tmp, handoff=GOOD):
         make_repo(tmp, {"docs/HANDOFF.md": handoff}, ["docs/HANDOFF.md"])
         git(tmp, "commit", "-q", "-m", "base")
         git(tmp, "checkout", "-q", "-b", "feat/x")
 
     # NOTES "write your notes", then NOTES "you edited the handoff"
     with tempfile.TemporaryDirectory() as tmp:
-        lane(tmp)
+        on_branch(tmp)
         commit(tmp, "a.py", "1\n")
         first = stop(tmp)
-        commit(tmp, "docs/HANDOFF.md", GOOD + "\nlane edit\n")
+        commit(tmp, "docs/HANDOFF.md", GOOD + "\nbranch edit\n")
         second = stop(tmp)
     check("NOTES first variant", NOTES_ASK in first.warn, first)
     check("NOTES edited variant after the first", edited in second.warn, second)
@@ -557,8 +488,8 @@ def stop_once_failures():
     # the other order: NOTES "you edited the handoff", then real work
     # (key NOTES/real+edited differs from NOTES/edited, so it is sent again)
     with tempfile.TemporaryDirectory() as tmp:
-        lane(tmp)
-        commit(tmp, "docs/HANDOFF.md", GOOD + "\nlane edit\n")
+        on_branch(tmp)
+        commit(tmp, "docs/HANDOFF.md", GOOD + "\nbranch edit\n")
         first = stop(tmp)
         commit(tmp, "a.py", "1\n")
         second = stop(tmp)
@@ -579,7 +510,7 @@ def stop_once_failures():
 
     # SHAPE sent first, then NOTES created in the same session
     with tempfile.TemporaryDirectory() as tmp:
-        lane(tmp, NO_BLOCK)
+        on_branch(tmp, NO_BLOCK)
         first = stop(tmp)
         commit(tmp, "a.py", "1\n")
         second = stop(tmp)
@@ -711,18 +642,13 @@ def failed_read_failures():
         pathlib.Path(tmp, ".git", "index").write_bytes(b"junk")
 
     cases = [("an unreadable docs/HANDOFF.md", *chmod("docs/HANDOFF.md", 0, 0o644),
-              ["cannot read docs/HANDOFF.md at "], ["has no `## Start here` line"]),
-             ("a scripts/ folder that cannot be searched", *chmod("scripts", 0o600, 0o755),
-              [f"cannot look for {SCRIPT} at "], [NO_SCRIPT]),
-             ("an unreadable repo copy of the script", *chmod(SCRIPT, 0, 0o644),
-              [f"cannot read {SCRIPT} in this repo"], [])]
+              ["cannot read docs/HANDOFF.md at "], ["has no `## Start here` line"])]
     if os.geteuid() == 0:
         cases = []
     cases.append(("a git index that cannot be read", junk_index, None,
-                  [f"git cannot say whether {SCRIPT} is tracked",
-                   "git cannot list the tracked files, so the check for "
+                  ["git cannot list the tracked files, so the check for "
                    "handoff files outside docs/ did not run"],
-                  [f"{SCRIPT} is not tracked"]))
+                  RETIRED))
     failures = 0
     for label, breaks, restore, want, forbid in cases:
         with tempfile.TemporaryDirectory() as tmp:
@@ -743,11 +669,8 @@ def failed_read_failures():
 
 
 def make_repo(tmp, files, tracked):
-    """Every repo has the script the block runs, tracked, unless files names
-    it: None leaves it out, text writes it untracked unless listed."""
+    """Write files (None skips one) and `git add` the tracked ones."""
     git(tmp, "init", "-q")
-    if SCRIPT not in files:
-        files, tracked = {SCRIPT: PLUGIN_SCRIPT.read_text(), **files}, [SCRIPT, *tracked]
     for rel, text in files.items():
         if text is None:
             continue
@@ -769,12 +692,13 @@ def make_repo(tmp, files, tracked):
 #                             and the hook run in the clone
 BASE = ("commit", {"README.md": "x\n"})
 WORK = [("commit", {"a.py": "1\n"}), ("commit", {"b.py": "2\n"})]
-LANE_WORK = [("commit", {"c.py": "3\n"}), ("commit", {"d.py": "4\n"})]
+BRANCH_WORK = [("commit", {"c.py": "3\n"}), ("commit", {"d.py": "4\n"})]
 PASS = ("commit", {"docs/HANDOFF.md": GOOD})
-TOUCH = ("commit", {"docs/HANDOFF.md": GOOD + "\nlane edit\n"})
+TOUCH = ("commit", {"docs/HANDOFF.md": GOOD + "\nbranch edit\n"})
 OTHER_WORK = [("commit", {"e.py": "5\n"}), ("commit", {"f.py": "6\n"})]
-LANE = ["HANDOFF NOTES", "## Handoff notes"]
-QUIET = ["HANDOFF NOTES", "Lanes do not edit", "HANDOFF STALE"]
+NOTES = ["HANDOFF NOTES", "## Handoff notes"]
+EDITED = "Only a handoff branch edits"
+QUIET = ["HANDOFF NOTES", EDITED, "HANDOFF STALE"]
 NOTES_ASK = "section of this branch's PR body"
 # Round 4: two passes land on origin/main while the local trunk stays stale.
 H1 = GOOD + "\n## pass 1\n"
@@ -788,31 +712,25 @@ REVERT_ADVICE = "git checkout $(git merge-base HEAD origin/main) -- docs/HANDOFF
 # a handoff pass lands on origin/main from elsewhere; cwd ends on branch up
 UPSTREAM_PASS = [("git", "checkout", "-q", "-b", "up", "origin/main"), PASS,
                  ("git", "push", "-q", "origin", "up:main")]
-CLOSE_RULE = "close a `lane` issue only when a merged PR's notes have the exact line `Lane: #<N>. finished`"
-# The one stop rule. The skill rules, the block, this hook's STALE text and
-# context-handoff.py's wind-down notice each carry it word for word.
-STOP_RULE = ("Write a lane body only with `scripts/lane_claim.py write` or "
-             "`release`, and if it refuses, change nothing, stop, and tell "
-             "the owner.")
-# the pass claims a lane before it writes its `## Next` (review round 7)
-CLAIM_FIRST = 'claim the lane first with `python3 scripts/lane_claim.py claim <N> "<name>"`'
-STALE = [STOP_RULE, "HANDOFF STALE", "handoff pass", "`lane` issue", CLOSE_RULE,
-         CLAIM_FIRST, EXIT_RULE]
+# The pass turns each next step into ticket state, never lane issue text (#228).
+BLOCKED_BY = 'Each "after #X" is a "blocked by" link on GitHub'
+NEEDS_OWNER = "the label `needs-owner` on the ticket it holds back"
+STALE = ["HANDOFF STALE", "handoff pass", BLOCKED_BY, NEEDS_OWNER]
 
 # (name, first branch, steps, stderr must carry, stderr must not carry)
 BRANCH_CASES = [
-    ("lane with real work is told to use the PR body",
-     "main", [BASE, ("branch", "feat/x"), *WORK], LANE, ["HANDOFF STALE"]),
-    ("lane that edited the handoff is told lanes do not",
+    ("branch with real work is told to use the PR body",
+     "main", [BASE, ("branch", "feat/x"), *WORK], NOTES, ["HANDOFF STALE"]),
+    ("branch that edited the handoff is told only a handoff branch edits it",
      "main", [BASE, ("branch", "feat/x"), WORK[0], TOUCH],
-     ["HANDOFF NOTES", "Lanes do not edit",
-      "a lane that changes the `## Start here` block itself edits docs/HANDOFF.md, "
+     ["HANDOFF NOTES", EDITED,
+      "a branch that changes the `## Start here` block itself edits docs/HANDOFF.md, "
       "and this warning is expected there"], ["HANDOFF STALE"]),
     ("handoff branch keeps the stale warning",
      "main", [BASE, ("branch", "docs/handoff-0921"), *WORK], ["HANDOFF STALE"],
      ["HANDOFF NOTES"]),
     ("trunk keeps the stale warning",
-     "main", [BASE, *WORK], STALE, ["HANDOFF NOTES"]),
+     "main", [BASE, *WORK], STALE, ["HANDOFF NOTES", "lane"]),
     ("master is trunk when origin/HEAD is unknown",
      "master", [BASE, *WORK], STALE, ["HANDOFF NOTES"]),
     ("origin/HEAD names the trunk",
@@ -820,31 +738,31 @@ BRANCH_CASES = [
     ("main stays trunk when origin/HEAD names another trunk",
      "develop", [BASE, ("origin_head", "develop"), ("branch", "main"), *WORK],
      STALE, ["HANDOFF NOTES"]),
-    ("docs/handoffish is a lane, the prefix carries its dash",
-     "main", [BASE, ("branch", "docs/handoffish"), *WORK], LANE, ["HANDOFF STALE"]),
-    ("fresh lane does not inherit trunk's handoff pass",
+    ("docs/handoffish is a branch, the prefix carries its dash",
+     "main", [BASE, ("branch", "docs/handoffish"), *WORK], NOTES, ["HANDOFF STALE"]),
+    ("fresh branch does not inherit trunk's handoff pass",
      "main", [BASE, *WORK, PASS, ("branch", "feat/new")], [],
-     ["HANDOFF NOTES", "Lanes do not edit", "HANDOFF STALE"]),
-    ("lane after trunk's handoff pass counts only its own commits",
-     "main", [BASE, *WORK, PASS, ("branch", "feat/new"), *LANE_WORK],
-     LANE, ["Lanes do not edit", "HANDOFF STALE"]),
-    ("detached HEAD is a lane and gets no trunk message",
-     "main", [BASE, ("detach",), *LANE_WORK], [],
+     ["HANDOFF NOTES", EDITED, "HANDOFF STALE"]),
+    ("branch after trunk's handoff pass counts only its own commits",
+     "main", [BASE, *WORK, PASS, ("branch", "feat/new"), *BRANCH_WORK],
+     NOTES, [EDITED, "HANDOFF STALE"]),
+    ("detached HEAD is a branch and gets no trunk message",
+     "main", [BASE, ("detach",), *BRANCH_WORK], [],
      ["HANDOFF STALE", "handoff pass", "HANDOFF NOTES"]),
     ("detached HEAD that edited the handoff hears only the edit warning",
-     "main", [BASE, ("detach",), LANE_WORK[0], TOUCH],
-     ["HANDOFF NOTES", "Lanes do not edit", "these commits touched it"],
+     "main", [BASE, ("detach",), BRANCH_WORK[0], TOUCH],
+     ["HANDOFF NOTES", EDITED, "these commits touched it"],
      ["HANDOFF STALE", "changes real files", NOTES_ASK]),
-    ("lane whose only change is the handoff hears only the edit warning",
+    ("branch whose only change is the handoff hears only the edit warning",
      "main", [BASE, ("branch", "feat/doc"), TOUCH],
-     ["HANDOFF NOTES", "Lanes do not edit"],
+     ["HANDOFF NOTES", EDITED],
      ["HANDOFF STALE", "changes real files", NOTES_ASK]),
     # Round 2: judged by the net diff against the closest trunk ref, with a
     # real origin so origin/main and main can differ.
-    ("lane that reverted its handoff edit is not told to revert again",
+    ("branch that reverted its handoff edit is not told to revert again",
      "main", [BASE, ("branch", "feat/x"), *WORK, TOUCH,
               ("git", "revert", "--no-edit", "HEAD")],
-     LANE, ["Lanes do not edit", "HANDOFF STALE"]),
+     NOTES, [EDITED, "HANDOFF STALE"]),
     ("reviewer detached at a pushed handoff-pass branch is silent",
      "main", [BASE, ("remote",), ("git", "push", "-q", "origin", "main"),
               ("branch", "docs/handoff-0921"), PASS,
@@ -857,66 +775,66 @@ BRANCH_CASES = [
      "main", [BASE, ("git", "symbolic-ref", "refs/remotes/origin/HEAD",
                      "refs/remotes/origin/master"), *WORK],
      STALE, ["HANDOFF NOTES"]),
-    ("origin/HEAD naming a deleted feature branch leaves that local lane a lane",
+    ("origin/HEAD naming a deleted feature branch leaves that local branch a branch",
      "main", [BASE, ("git", "symbolic-ref", "refs/remotes/origin/HEAD",
                      "refs/remotes/origin/feat/x"), ("branch", "feat/x"), *WORK],
-     LANE, ["HANDOFF STALE"]),
-    ("lane cut from local main ahead of origin by work and a pass is silent",
+     NOTES, ["HANDOFF STALE"]),
+    ("branch cut from local main ahead of origin by work and a pass is silent",
      "main", [BASE, ("remote",), ("git", "push", "-q", "origin", "main"),
               *WORK, PASS, ("branch", "feat/new")], [], QUIET),
-    ("lane cut from origin/main ahead of local main is silent",
+    ("branch cut from origin/main ahead of local main is silent",
      "main", [BASE, ("remote",), ("git", "push", "-q", "origin", "main"),
               ("branch", "up"), PASS, ("git", "push", "-q", "origin", "up:main"),
               ("git", "checkout", "-q", "main"), ("git", "branch", "-q", "-D", "up"),
               ("git", "checkout", "-q", "-b", "feat/new", "origin/main")],
      [], QUIET),
-    ("shallow lane with no merge-base says nothing",
+    ("shallow branch with no merge-base says nothing",
      "main", [BASE, ("remote",), ("git", "push", "-q", "origin", "main"),
-              ("branch", "feat/x"), LANE_WORK[0],
+              ("branch", "feat/x"), BRANCH_WORK[0],
               ("git", "push", "-q", "origin", "feat/x"),
               ("git", "checkout", "-q", "main"), *WORK, PASS,
               ("git", "push", "-q", "origin", "main"),
               ("shallow", "feat/x"), *OTHER_WORK],
      [], QUIET),
-    # Round 3: a local trunk that diverged from origin is closest to the lane,
-    # but the lane's handoff matches origin/main, so the lane did not edit it.
-    ("lane merged origin/main's pass while local main is 2 unpushed ahead",
+    # Round 3: a local trunk that diverged from origin is closest to the branch,
+    # but the branch's handoff matches origin/main, so the branch did not edit it.
+    ("branch merged origin/main's pass while local main is 2 unpushed ahead",
      "main", [BASE, ("remote",), ("git", "push", "-q", "origin", "main"),
               ("commit", {"local1.py": "1\n"}), ("commit", {"local2.py": "2\n"}),
               ("branch", "feat/x"), ("commit", {"x.py": "x\n"}),
               *UPSTREAM_PASS, ("git", "checkout", "-q", "feat/x"),
               ("git", "merge", "-q", "--no-edit", "origin/main")],
-     LANE, ["Lanes do not edit", "HANDOFF STALE"]),
-    ("lane off a local-only master merged origin/main's pass",
+     NOTES, [EDITED, "HANDOFF STALE"]),
+    ("branch off a local-only master merged origin/main's pass",
      "master", [BASE, ("remote",), ("git", "push", "-q", "origin", "master:main"),
-                *WORK, ("branch", "feat/x"), *LANE_WORK,
+                *WORK, ("branch", "feat/x"), *BRANCH_WORK,
                 *UPSTREAM_PASS, ("git", "checkout", "-q", "feat/x"),
                 ("git", "merge", "-q", "--no-edit", "origin/main")],
-     LANE, ["Lanes do not edit", "HANDOFF STALE"]),
+     NOTES, [EDITED, "HANDOFF STALE"]),
     # Round 4: a stale trunk ref must not count as a match. Its merge-base is
     # an ancestor of origin/main's, so matching it deletes origin's passes.
-    ("lane reverted to a stale local main's handoff is still warned",
+    ("branch reverted to a stale local main's handoff is still warned",
      "main", [TRUNK_BASE, ("remote",), ("git", "push", "-q", "origin", "main"),
               *TWO_PASSES, ("git", "checkout", "-q", "main"),
               ("git", "checkout", "-q", "-b", "feat/x", "origin/main"),
               ("commit", {"x.py": "x\n", "docs/HANDOFF.md": H2 + "my notes\n"}),
               ("git", "checkout", "main", "--", "docs/HANDOFF.md"),
               ("git", "commit", "-q", "-m", "revert as told")],
-     ["Lanes do not edit", REVERT_ADVICE], ["HANDOFF STALE"]),
-    ("lane off an in-sync origin/main with real work gets the notes",
+     [EDITED, REVERT_ADVICE], ["HANDOFF STALE"]),
+    ("branch off an in-sync origin/main with real work gets the notes",
      "main", [BASE, ("remote",), ("git", "push", "-q", "origin", "main"),
-              ("branch", "feat/x"), *WORK], LANE, ["Lanes do not edit"]),
-    ("lane with no work of its own, off a diverged local main, is silent",
+              ("branch", "feat/x"), *WORK], NOTES, [EDITED]),
+    ("branch with no work of its own, off a diverged local main, is silent",
      "main", [BASE, ("remote",), ("git", "push", "-q", "origin", "main"),
               ("commit", {"local1.py": "1\n"}), ("commit", {"local2.py": "2\n"}),
               ("branch", "feat/x"), *UPSTREAM_PASS, ("git", "checkout", "-q", "feat/x"),
               ("git", "merge", "-q", "--no-edit", "origin/main")], [], QUIET),
-    ("lane trimmed to a stale local master's handoff is still warned",
+    ("branch trimmed to a stale local master's handoff is still warned",
      "master", [TRUNK_BASE, ("remote",), ("git", "push", "-q", "origin", "master:main"),
                 *TWO_PASSES, ("git", "checkout", "-q", "master"),
                 ("git", "checkout", "-q", "-b", "feat/x", "origin/main"),
                 ("commit", {"x.py": "x\n", "docs/HANDOFF.md": GOOD})],
-     ["Lanes do not edit"], ["HANDOFF STALE"]),
+     [EDITED], ["HANDOFF STALE"]),
 ]
 
 
@@ -970,25 +888,15 @@ def main():
             print(f"FAIL {name}: exit={got.returncode} missing={missing} "
                   f"unwanted={present}\n--- told the model ---\n{err}")
 
-    # Round 9: run from a subfolder, the hook checks the script at the repo
-    # top, and the copy command it prints targets the repo top.
-    for label, files, want, forbid in (
-            ("missing", {"docs/HANDOFF.md": GOOD, SCRIPT: None},
-             [NO_SCRIPT, "{top}/" + SCRIPT, "mkdir -p '{top}/scripts'"], []),
-            ("present", {"docs/HANDOFF.md": GOOD}, [], [NO_SCRIPT, "not tracked"])):
-        with tempfile.TemporaryDirectory() as tmp:
-            make_repo(tmp, files, ["docs/HANDOFF.md"])
-            sub = pathlib.Path(tmp, "src", "deep")
-            sub.mkdir(parents=True)
-            top = subprocess.run(["git", "rev-parse", "--show-toplevel"], cwd=tmp,
-                                 capture_output=True, text=True).stdout.strip()
-            got = run_hook(sub)
-        missing = [w.format(top=top) for w in want if w.format(top=top) not in got.warn]
-        present = [f for f in forbid if f in got.warn]
-        if missing or present or got.returncode != 0:
-            failures += 1
-            print(f"FAIL from a subfolder, script {label}: missing={missing} "
-                  f"unwanted={present}\n--- told the model ---\n{got.warn}")
+    # Round 9: run from a subfolder, the hook checks the handoff at the top.
+    with tempfile.TemporaryDirectory() as tmp:
+        make_repo(tmp, {"docs/HANDOFF.md": NO_BLOCK}, ["docs/HANDOFF.md"])
+        sub = pathlib.Path(tmp, "src", "deep")
+        sub.mkdir(parents=True)
+        got = run_hook(sub)
+    if "has no `## Start here` line" not in got.warn or got.returncode != 0:
+        failures += 1
+        print(f"FAIL from a subfolder: exit={got.returncode}\n{got.warn}")
 
     failures += failed_read_failures()
 
@@ -1080,25 +988,24 @@ def main():
             failures += 1
             print(f"FAIL helper {label}: exit={got.returncode}\n{got.warn}")
 
-    # Round 1 of the #118 review: when the plugin's skill or script cannot be
-    # read, the hook says so in one warning each and does not crash.
+    # Round 1 of the #118 review: when the plugin's skill cannot be read,
+    # the hook says so in one warning and does not crash.
     no_block = "cannot read the plugin's `## Start here` block at "
-    no_copy = f"cannot read the plugin's {SCRIPT} at "
     # Round 2: a fence with no Start here line, an empty block, or a skill
     # that is not UTF-8 is a failed read too. Each runs against a stale
     # repo block. So the forbid list catches a hook that both warns and
     # compares. The bad byte sits inside a well-formed Start here block, so
     # a lenient decode would read a block and give no warning.
     fence = "# Handoff skill\n\n```\n# Handoff\n\n%s```\n"
-    for label, skill_text, script, want, forbid in (
-            ("no skill file, no script", None, False, [no_block, no_copy], []),
-            ("a skill with no fenced block", "# Handoff skill\n", True, [no_block], [no_copy]),
-            ("a fence with no Start here line", fence % "Some text.\n", True,
-             [no_block], [no_copy, DRIFT]),
-            ("a fence with an empty block", fence % "## Start here\n\n", True,
-             [no_block], [no_copy, DRIFT]),
-            ("a skill that is not UTF-8", b"```\n# Handoff\n\n## Start here\n\nYou are \xff here.\n```\n", True,
-             [no_block], [no_copy, DRIFT, "Traceback"])):
+    for label, skill_text, want, forbid in (
+            ("no skill file", None, [no_block], []),
+            ("a skill with no fenced block", "# Handoff skill\n", [no_block], []),
+            ("a fence with no Start here line", fence % "Some text.\n",
+             [no_block], [DRIFT]),
+            ("a fence with an empty block", fence % "## Start here\n\n",
+             [no_block], [DRIFT]),
+            ("a skill that is not UTF-8", b"```\n# Handoff\n\n## Start here\n\nYou are \xff here.\n```\n",
+             [no_block], [DRIFT, "Traceback"])):
         with tempfile.TemporaryDirectory() as tmp:
             hooks = pathlib.Path(tmp, "plugin", "hooks")
             hooks.mkdir(parents=True)
@@ -1110,8 +1017,6 @@ def main():
                 skill_dir.mkdir(parents=True)
                 (skill_dir / "SKILL.md").write_bytes(
                     skill_text if isinstance(skill_text, bytes) else skill_text.encode())
-            if script:
-                shutil.copy(PLUGIN_SCRIPT, skill_dir / "lane_claim.py")
             repo = pathlib.Path(tmp, "repo")
             repo.mkdir()
             make_repo(repo, {"docs/HANDOFF.md": OLD_STEP6}, ["docs/HANDOFF.md"])
@@ -1121,8 +1026,6 @@ def main():
                                  capture_output=True, text=True)
             got.warn = stop_text(got)
         want = want + [str(skill_dir / "SKILL.md")]
-        if not script:
-            want.append(str(skill_dir / "lane_claim.py"))
         missing = [w for w in want if w not in got.warn]
         present = [f for f in forbid if f in got.warn]
         if missing or present or got.returncode != 0 or "Traceback" in got.stderr:
@@ -1130,7 +1033,7 @@ def main():
             print(f"FAIL unreadable plugin copy, {label}: exit={got.returncode} "
                   f"missing={missing} unwanted={present}\n{got.warn}")
 
-    # Branch-aware freshness. Owner rule, 2026-09-21: lanes write notes in the
+    # Branch-aware freshness. Owner rule, 2026-09-21: branches write notes in the
     # PR body's "## Handoff notes" section and never edit the handoff; a
     # docs/handoff-* branch (or trunk) is where the log gets written.
     for name, first, steps, want, forbid in BRANCH_CASES:
@@ -1143,21 +1046,18 @@ def main():
             print(f"FAIL {name}: exit={got.returncode} missing={missing} "
                   f"unwanted={present}\n--- told the model ---\n{got.warn}")
 
-    failures += check_lane_jq()
     failures += session_start_failures()
     failures += stop_channel_failures()
     failures += stop_once_failures()
 
-    # the stop rule, word for word, in the block and in the skill's rules
-    flat = lambda text: " ".join(text.split())
-    rules = SKILL.read_text().split("## The rules", 1)[-1].split("\n## ", 1)[0]
-    for where, text in (("the pinned block", BLOCK), ("the skill rules", rules)):
-        if STOP_RULE not in flat(text):
+    # the block takes tickets, and names no lane issue or lane script (#228)
+    for word in ("lane", "Held by"):
+        if word in BLOCK:
             failures += 1
-            print(f"FAIL {where} does not carry the stop rule word for word")
-        if EXIT_RULE not in flat(text):
-            failures += 1
-            print(f"FAIL {where} does not tell exit 1 from any other exit")
+            print(f"FAIL the pinned block still says {word!r}")
+    if "gh issue develop" not in BLOCK:
+        failures += 1
+        print("FAIL the pinned block does not take a ticket with gh issue develop")
 
     # the block pinned above is the block the skill tells repos to paste, and
     # the block this repo's own handoff opens with

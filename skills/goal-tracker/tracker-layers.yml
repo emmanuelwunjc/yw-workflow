@@ -10,7 +10,7 @@
 # <part> is lower-case letters, digits and -. A title holds no " and no \.
 # An optional exempt: line comes last, with one - "<label>" line per label,
 # indented two spaces. --sync lists each open issue with no slice: label, and
-# skips an issue with an exempt label. lane and tracker are always exempt.
+# skips an issue with an exempt label. tracker is always exempt.
 # Comment lines and blank lines are skipped. Any other line stops the script.
 tracker:
 layers:
