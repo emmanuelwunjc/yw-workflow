@@ -1,9 +1,9 @@
 ---
 name: handoff
-description: Keep a repo's docs/HANDOFF.md in the one shape that lets a fresh session start from the file and the repo's open tickets alone, with a Start here block on top that runs the repo's free work check and takes free tickets, and dated sections added by a handoff pass after merges, from the Handoff notes each PR carries. Use when asked for "a handoff", "/handoff", "write the handoff", "update the handoff", at the close of a session, or when the handoff-freshness hook warns HANDOFF STALE or HANDOFF SHAPE. A progress tracker with progress bars is skill goal-tracker.
+description: Keep a repo's docs/HANDOFF.md in the one shape that lets a fresh session start from the file and the repo's open tickets alone, with a Start here block on top that runs the repo's free work check and takes free tickets, and a `## Now` and `## Next` that each handoff pass rewrites in place after merges, adding no dated section. The pass sends each line of the Handoff notes each PR carries to the one place it belongs. Use when asked for "a handoff", "/handoff", "write the handoff", "update the handoff", at the close of a session, or when the handoff-freshness hook warns HANDOFF STALE or HANDOFF SHAPE. A progress tracker with progress bars is skill goal-tracker.
 origin: authored
 tags: [handoff, docs, session, continuity]
-version: 2.0.0
+version: 3.0.0
 ---
 
 # Handoff
@@ -77,8 +77,8 @@ whole briefing. Nobody writes you a separate prompt. Do these in order.
    anything. Read the repo `CLAUDE.md`.
 2. Run the repo's free work check, the command its `CLAUDE.md` names. It
    prints the tickets that may start now, first one first. The repo names
-   no free work check: read the LAST section of this file for the tasks,
-   and go to step 4.
+   no free work check: read `## Next` in this file for the tasks, and go
+   to step 4.
 3. Take tickets. The owner named one: take it. If the check does not print
    it, tell the owner why, and stop. Else take the first two to four the
    check prints. It prints none: tell the owner, and stop. Take each
@@ -89,9 +89,9 @@ whole briefing. Nobody writes you a separate prompt. Do these in order.
    It lists a branch other than yours: another session took the ticket at
    the same time. Delete your branch on GitHub and your worktree, and take
    the next ticket.
-4. Read the recent sections of this file for traps. Run the recount
-   commands before trusting any number. Start more tickets as earlier ones
-   merge. Ask the owner nothing that this file or the tickets answer.
+4. Read `## Now` in this file. Run the recount commands before trusting
+   any number. Start more tickets as earlier ones merge. Ask the owner
+   nothing that this file or the tickets answer.
 
 A ticket's state lives on GitHub, never in this file. A "blocked by" link
 holds it back. The label `needs-owner` or `wayfinder:grilling` makes it
@@ -106,11 +106,11 @@ within hours. Derive them with `gh issue list` and the scripts in the repo.
 
 ## The rules
 
-- **One committed file for the log, one ticket per piece of work.**
-  `docs/HANDOFF.md` holds the decisions, traps and judgment that every
-  branch shares. A ticket holds its own task. Never `/tmp`, never a
-  scratchpad, never a second file named `HANDOFF.md` or `AGENT_HANDOFF.md`
-  somewhere else: two log files means the next session reads the wrong one.
+- **One committed file for the present, one ticket per piece of work.**
+  `docs/HANDOFF.md` holds where things stand now and what comes next. A
+  ticket holds its own task. Never `/tmp`, never a scratchpad, never a
+  second file named `HANDOFF.md` or `AGENT_HANDOFF.md` somewhere else: two
+  files means the next session reads the wrong one.
 - **A next step is a ticket, or a comment on the ticket it names.** An
   order between two tickets is a "blocked by" link, set on the ticket that
   waits. A question for the owner is the label `needs-owner` on the ticket
@@ -138,13 +138,17 @@ within hours. Derive them with `gh issue list` and the scripts in the repo.
   by failing any other branch that touches the file. One exception: a
   change to the Start here block itself edits `docs/HANDOFF.md` on any
   branch. The HANDOFF NOTES warning on that branch is expected.
-- **Dated sections, `## YYYY-MM-DD: what happened`, newest last.** The
-  reader scrolls to the end and finds the present. The dated closing
-  section is always the final `##` heading in the file, below any
-  topic-grouped sections such as traps or decisions. The block reads it
-  when the repo names no free work check.
-- **The closing section is the briefing of a repo with no free work
-  check.** It names, in this order:
+- **Four parts, in this order: the block, `## Now`, `## Next`,
+  `## Read next`.** Each handoff pass rewrites `## Now` and `## Next` in
+  place and adds no dated section, so the file stays short. The owner
+  decided this on 2026-11-19 (#193): each pass added a dated section and
+  nothing moved out, so twenty's `docs/HANDOFF.md` reached 4,288 lines.
+  Old dated sections are deleted. Git and the PR bodies keep them.
+- **`## Now` is the current truth.** The facts a session needs before it
+  works: what is live, what is half done, which command recounts what.
+  A fact that a skill or `GLOSSARY.md` already holds is a pointer here.
+- **`## Next` is the briefing of a repo with no free work check.** It
+  names, in this order:
   1. The tasks to work, each marked `parallel` or `after <item>`, e.g.
      `#186 (the mutation list is data), parallel` and
      `#187 (the writer reads the list), after #186`. An item with no mark
@@ -159,18 +163,27 @@ within hours. Derive them with `gh issue list` and the scripts in the repo.
   what was deliberately not done, which alternative lost and on what
   grounds, which trap cost an hour. Counts, SHAs and issue tallies belong
   to the commands that derive them.
-- **Reorganize only at a milestone.** A large feature landing, an
-  architecture change, or the log growing long enough to bury what
-  matters. On any other day, append.
-- **A decision is superseded, never deleted.** Mark it with the date and
-  what replaced it. When the decisions outgrow the handoff, split them to
-  `docs/DECISIONS.md` and leave a pointer.
+- **`## Read next` is the way into the history.** It is the last part of
+  the file, and it lists these three, as is:
+
+  ```
+  ## Read next
+
+  - `docs/adr/`: one file per decision, and why it went that way.
+  - `gh pr list --state merged --limit 50`: what merged. Each PR body's
+    `## Handoff notes` says why.
+  - `git log -p -- docs/HANDOFF.md`: every earlier version of this file.
+  ```
+
+- **A decision is superseded, never deleted.** An ADR that a later
+  decision replaces gets the status line `superseded by ADR-NNNN` and no
+  other edit.
 
 ## The handoff pass
 
-After PRs merge, one pass on a `docs/handoff-*` branch folds their notes into
-the log and turns each next step into ticket state. The session that merges
-the PRs runs it before it stops.
+After PRs merge, one pass on a `docs/handoff-*` branch sends each line of
+their notes to one place, and rewrites `## Now` and `## Next`. The session
+that merges the PRs runs it before it stops.
 
 1. Branch `docs/handoff-<date>` from trunk, in the session's own working
    directory. A shell `cd` into another worktree lasts for one command
@@ -195,9 +208,21 @@ the PRs runs it before it stops.
    gh pr list --state merged --limit 200 --search "merged:>=2026-09-21" --json number,title,body --jq '.[] | "### #\(.number) \(.title)\n" + ((.body | capture("(^|\\n)## Handoff notes[ \\t]*\\r?\\n(?<n>[\\s\\S]*?)(\\n## |$)") | .n) // "(no handoff notes)") + "\n"'
    ```
 
-3. Fold each into the log under its own dated heading, keeping
-   the closing section last.
-4. Rewrite the closing section if its tasks changed.
+3. Send each line of the notes to one place:
+
+   | The line is | It goes to |
+   |---|---|
+   | a decision that is hard to reverse, surprising without context, and the result of a real trade-off (all three) | a new `docs/adr/NNNN-slug.md` |
+   | a fact about now | the file that holds it: `## Now`, a skill, or `GLOSSARY.md` |
+   | a trap that a mechanism can fix (a hook, a check, a config) | a `housekeeping` ticket |
+   | a habit, a trap only a person can avoid | `LESSONS.md` |
+   | a next step | its ticket, or `## Next` (step 5) |
+   | "PR merged", what changed | nowhere: it stays in the PR body |
+
+   A decision that fails one of the three tests is a fact about now, or
+   nothing. Add no dated section.
+4. Rewrite `## Now` and `## Next` in place, so each says what is true
+   after these PRs. Delete what is no longer true. Git keeps it.
 5. Turn each next step in the notes into ticket state. A step for work
    with no ticket: open one. A step for a ticket that exists: comment on
    that ticket. "After #X": link the waiting ticket as blocked by #X. A
@@ -240,7 +265,7 @@ To make each PR carry the section, add it to `.github/pull_request_template.md`:
 
 ```
 ## Handoff notes
-What the next session needs: decisions and why, traps that cost time, what was deliberately not done, and each next step with the ticket it belongs to. The handoff pass copies this into `docs/HANDOFF.md` after merge. Only a handoff branch edits that file.
+What the next session needs: decisions and why, traps that cost time, what was deliberately not done, and each next step with the ticket it belongs to. After merge, the handoff pass sends each line to one place, e.g. a decision to `docs/adr/`. Only a handoff branch edits `docs/HANDOFF.md`.
 ```
 
 ## When the hook warns
@@ -277,20 +302,21 @@ reason.
 
 ## Migrating an existing handoff
 
-Put the block on top. Leave the body as it is; a rewrite on migration day is
-the churn the rules forbid. Name the repo's free work check in its
-`CLAUDE.md`, or write the closing section for today, so step 2 of the block
-is true the moment the file is committed.
+Put the block on top. Send each line of the old body that is still true to
+one place, as step 3 of the pass says. Then write `## Now`, `## Next` and
+`## Read next`, and delete the old dated sections. Git keeps them. Name the
+repo's free work check in its `CLAUDE.md`, or write `## Next` for today, so
+step 2 of the block is true the moment the file is committed.
 
 A repo that still has `lane` issues retires them first. Turn each `## Next`
 step into a ticket or a comment on the ticket it names. Turn each "after
-#X" into a "blocked by" link, and each trap note into a line in the
-closing section of `docs/HANDOFF.md`. Then close each lane issue with a
+#X" into a "blocked by" link, and send each trap note to one place, as
+step 3 of the pass says. Then close each lane issue with a
 comment that points to where its steps went. Delete `scripts/lane_claim.py`.
 
 ## Hands off to
 
-- The closing section names a task that is not agent-ready:
+- `## Next` names a task that is not agent-ready:
   `/yw-workflow:ship-loop` says what a ticket needs before it is one.
 - What waits on the owner is more than a line: `/yw-workflow:need-me` is the
   format for asking it.
