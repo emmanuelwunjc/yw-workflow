@@ -177,7 +177,9 @@ those calls into one AskUserQuestion, each with a recommended option.
 
 One digest when every ticket has settled. Per ticket: the outcome, the
 evidence (PR, review verdict, the command output that proves it), and what is
-still open. Bold only what the owner must do.
+still open. Bold only what the owner must do. Each owner step says why
+only the owner can do it, and gives the literal command or link, per the
+owner-step rule in `/yw-workflow:need-me`.
 
 ## Orca path
 
