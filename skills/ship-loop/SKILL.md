@@ -69,8 +69,8 @@ Each sync lists the open issues with none (`goal-tracker` step 9).
 
 A ticket from `mattpocock-skills:to-tickets` is a draft. Its template has
 acceptance criteria only, and it leaves out paths and code on purpose. Before
-work starts, add the ELI5 on top, the reproduction, the verification commands
-and the mutation check. Tell `to-tickets` to leave off its `ready-for-agent`
+work starts, add the ELI5 on top, the problem, the reproduction, the
+verification commands and the mutation check. Tell `to-tickets` to leave off its `ready-for-agent`
 label and its `**Status:** ready-for-agent` line until the six parts are in.
 
 A ticket without an acceptance criterion is a wish. Write the demand down when

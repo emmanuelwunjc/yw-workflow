@@ -20,6 +20,10 @@ spec = importlib.util.spec_from_file_location("pr_eli5", TOOL)
 pe = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(pe)
 
+TEMPLATE = (ROOT / ".github" / "pull_request_template.md").read_text()
+# The template with every section after ELI5 filled in, ELI5 left as shipped.
+FILLED = TEMPLATE.replace("## What changed\n", "## What changed\n\nA real change.\n")
+
 GOOD = "## ELI5\n\nThe robot now says hello. People like hello.\n\n## What changed\n\nx\n"
 
 CASES = [
@@ -44,11 +48,20 @@ CASES = [
     ("ELI5 holds only blank lines", "## ELI5\n\n\n## What changed\n\nx\n",
      "ELI5 section is empty"),
     ("ELI5 is the whole body and empty", "## ELI5\n", "ELI5 section is empty"),
+    # A greedy comment strip would join the ELI5 hint to the last comment in
+    # the template and leave a later line as ELI5 "text". These pin it.
+    ("the PR template as shipped", TEMPLATE, "ELI5 section is empty"),
+    ("the PR template with ELI5 left blank", FILLED, "ELI5 section is empty"),
+    ("the PR template with ELI5 filled",
+     FILLED.replace("## ELI5\n", "## ELI5\n\nThe robot says hello now.\n"), None),
 ]
 
 failures = 0
 for name, body, want in CASES:
-    got = pe.problems(body)
+    try:
+        got = pe.problems(body)
+    except Exception as e:  # one crash must not hide the other cases
+        got = ["crashed: %r" % e]
     ok = (got == []) if want is None else any(want in p for p in got)
     if not ok:
         failures += 1

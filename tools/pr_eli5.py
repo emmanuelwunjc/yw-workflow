@@ -16,7 +16,8 @@ HEADING = "## ELI5"
 
 
 def problems(body):
-    text = re.sub(r"<!--.*?-->", "", body.replace("\r\n", "\n"), flags=re.S)
+    # rstrip() also drops the \r of a CRLF line end.
+    text = re.sub(r"<!--.*?-->", "", body, flags=re.S)
     lines = [l.rstrip() for l in text.split("\n")]
     content = [l for l in lines if l.strip()]
     if not content or content[0] != HEADING:

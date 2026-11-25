@@ -9,7 +9,9 @@ with an ELI5 section.
 
 Orca's PR template opens with `## ELI5`. Most Orca PRs keep it: 20 of the
 last 30 merged PRs start with that heading. Orca's issues have no fixed
-opening. They mostly start with "What happens", then "Expected" and "Steps".
+opening. Those filed through the bug form start with its first question,
+"Where were you using Orca?". Many others use "What happens", "Expected" and
+"Steps", as in issue #49329.
 yw-workflow now opens every issue and PR with `## ELI5`. It also takes four
 other Orca habits. It skips five, for the reasons below.
 
@@ -19,12 +21,12 @@ other Orca habits. It skips five, for the reasons below.
 |---|---|
 | [`.github/pull_request_template.md`](https://github.com/stablyai/orca/blob/main/.github/pull_request_template.md) | The PR template. Sections in order: ELI5, What Changed, Why, Linked Issue, Visual Proof, Testing, Performance, Risk, AI Disclosure, Review, Agent skill upstream boundary, Notes, Checklist. |
 | [`.github/CONTRIBUTING.md`](https://github.com/stablyai/orca/blob/main/.github/CONTRIBUTING.md), section "Pull Requests" | "Fill in every section", and keep "each PR small and focused on one topic". |
-| [`bug_report.yml`](https://github.com/stablyai/orca/blob/main/.github/ISSUE_TEMPLATE/bug_report.yml), [`feature_request.yml`](https://github.com/stablyai/orca/blob/main/.github/ISSUE_TEMPLATE/feature_request.yml), [`config.yml`](https://github.com/stablyai/orca/blob/main/.github/ISSUE_TEMPLATE/config.yml) | Issue forms. A bug asks where, which OS, which version, then one free "Details" box with summary and steps. A feature asks for the problem, the proposed solution and alternatives. Blank issues are off. |
+| [`bug_report.yml`](https://github.com/stablyai/orca/blob/main/.github/ISSUE_TEMPLATE/bug_report.yml), [`feature_request.yml`](https://github.com/stablyai/orca/blob/main/.github/ISSUE_TEMPLATE/feature_request.yml), [`config.yml`](https://github.com/stablyai/orca/blob/main/.github/ISSUE_TEMPLATE/config.yml) | Issue forms. A third form, `other.yml`, takes anything else. A bug asks where, which OS, which version, then one free "Details" box with summary and steps. A feature asks for the problem, the proposed solution and alternatives. Blank issues are off. |
 | [`.github/workflows/pr-description.yml`](https://github.com/stablyai/orca/blob/main/.github/workflows/pr-description.yml) | The one CI check on the PR body. It checks the Performance section only. Nothing checks ELI5. |
 | [PR #49300](https://github.com/stablyai/orca/pull/49300) | A typical merged PR. Its ELI5 is two sentences of plain words. "What Changed" gives a before and an after. "Testing" names which half of the change each test fails without. |
 | [PR #49337](https://github.com/stablyai/orca/pull/49337) | One of the PRs with no ELI5. It opens with "Problem" and "Change". |
 | [Issue #49329](https://github.com/stablyai/orca/issues/49329) | A typical issue: "What happens", "Expected", "Steps". |
-| Built-in bot templates | Skills that Orca's bot templates load. They ship inside the app, in `/Applications/Orca.app/Contents/Resources/orcad-template/orcad-server.js`. They are listed by `orca bot create --offer --template nope`, which prints the valid template ids. The ones about writing: `issue-triage`, `pr-review-checklist`, `release-notes-style`, `spec-format`, `status-brief`, `release-readiness`. |
+| Built-in bot templates | `orca bot create --offer --template nope` prints the valid template ids, e.g. `pr-review`, `issue-triage`, `release-notes`, `spec-drafts`, `briefing`. Each template loads skills that ship inside the app, in `/Applications/Orca.app/Contents/Resources/orcad-template/orcad-server.js`. The skills about writing: `issue-triage`, `pr-review-checklist`, `release-notes-style`, `spec-format`, `status-brief`, `release-readiness`. |
 
 Recount the PR and issue numbers above with these commands:
 
@@ -43,7 +45,7 @@ a "What happens" heading.
   it."). A bug needs version, platform, steps, expected and actual result.
 - `pr-review-checklist`: "One finding per bullet, most serious first." Each
   finding names file and line, "and says what goes wrong, for whom, and
-  when". "Three real findings beat ten guesses." End with one line: ready to
+  when". "three real findings beat ten guesses". End with one line: ready to
   merge, or what must change first.
 - `release-notes-style`: "Notes are for the people who use the product, not
   for the people who built it." Three groups: New, Fixed, Changed. For a fix,
