@@ -17,8 +17,8 @@ RULE 1 - AskUserQuestion for interview-style questions (CLAUDE.md section 6)
     Two layers counter that:
       remind -> re-inject the rule at the SAME recency as the skill text.
       check  -> refuse to end the turn if a grill-mode turn still asked in prose.
-    The check skips a "?" in code or a URL, and skips an Orca bot Home Chat,
-    where a decision goes on an item card (ticket 303).
+    The check skips a "?" in code or a URL, and skips an Orca bot Home Chat
+    (ticket 303, see in_orca_bot_home).
     A prior attempt to fix this with a memory file failed twice over: memory is
     advisory, and that one was scoped to a single project so it never loaded
     elsewhere. Hence a global hook.
@@ -415,9 +415,10 @@ def prose_only(text):
     return INLINE_CODE.sub("", strip_fences(text))
 
 
-# Any "?" counts, except one that a URL query character follows
-# ("issues?q=open"), because that "?" asks the owner nothing.
-PROSE_QUESTION = re.compile(r"\?(?![\w=&%/#-])")
+# A URL, so its query "?" ("issues?q=open") is not read as a question. It never
+# ends on a "?" or other closing punctuation, so "is it at https://x.org/y?"
+# keeps its question mark.
+URL = re.compile(r"\b[a-z][a-z0-9+.-]*://\S*[^\s?.,!:;)\]]")
 
 ORCA_BOTS_DIR = Path.home() / ".orca" / "bots"
 
@@ -505,8 +506,8 @@ def check(data):
             and in_grill_mode and "AskUserQuestion" not in tools
             and not in_orca_bot_home(data.get("cwd"))
             and spent["askuser"][1] < MAX_BLOCKS_PER_SESSION):
-        tail = prose_only(texts[-1]).strip()[-400:]
-        if PROSE_QUESTION.search(tail):
+        tail = URL.sub("", prose_only(texts[-1])).strip()[-400:]
+        if "?" in tail:
             charged.append("askuser")
             problems.append(
                 "This is a grilling/interview turn and you ended it by "

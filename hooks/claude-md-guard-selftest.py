@@ -235,13 +235,21 @@ ASK_CASES = [
      "Which option do you want?", str(_BOTS), True),
     ("a .. path that leaves the bot home",
      "Which option do you want?", str(_BOTS / "x" / ".." / ".." / "y"), True),
+    ("a ? only inside URL queries and fragments",
+     "Yiming, see https://x.org/a?ref=main#c and http://x.org/b?a=1&b=%20-x.",
+     "/tmp", False),
+    ("a question right after a URL",
+     "Yiming, is the list at https://x.org/issues?", "/tmp", True),
+    ("a URL that ends in a ? asks it",
+     "Yiming, do you mean https://x.org/search?", "/tmp", True),
     ("a cwd that cannot be read as a path",
      "Which option do you want?", str(_BOTS / "x") + "\x00y", True),
 ]
 # Each of these ended a turn with a question the base check blocked. Only a
 # "?" that a URL query character follows is exempt, so they still block.
 for tail in ("?!", "?:", "?.", "?,", "?\u201d", "?\U0001f642", "?|", "?~~",
-             "?<br>", "?\u2013"):
+             "?<br>", "?\u2013", "?_", "?__", "?Reply with A or B.", "?-",
+             "?/", "?#", "?=", "?&", "?%"):
     ASK_CASES.append(("a question ending in " + repr(tail),
                       "Yiming, which option do you want" + tail, "/tmp", True))
 for i, (name, reply, cwd, must_block) in enumerate(ASK_CASES):
