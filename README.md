@@ -1,12 +1,13 @@
 # yw-workflow
 
-Sixteen skills and ten hooks for Claude Code that make an engineering workflow
+Fifteen skills and ten hooks for Claude Code that make an engineering workflow
 mechanical instead of remembered. Everything works in plain Claude Code. Inside
-Orca, `pm` runs its agents as Orca workers, `orca-bot` sets up new Orca bots, and `orca-loop` runs a bot's work loop.
+Orca, `pm` runs its agents as Orca workers, `orca-bot` sets up new Orca bots,
+and `orca-loop` runs a bot's work loop.
 
 ## Install
 
-Pick one. Both serve the same sixteen skills, and installing both leaves
+Pick one. Both serve the same fifteen skills, and installing both leaves
 duplicates that drift apart.
 
 ```bash
@@ -147,7 +148,6 @@ Skills for any stage:
 | `triage` | matt | A repo's issues and PRs need sorting into agent-ready briefs. |
 | `wizard` | matt | A human step has many values to enter, e.g. CI secrets. |
 | `pm` | yw | You want status, or one chat that runs the agents. |
-| `mutation-gate` | yw | A check must prove it can fail. |
 | `goal-tracker` | yw | A goal with a date and several parts needs one progress page. |
 | `eli5`, `eli5-text` | yw | A topic needs the plain version. |
 | `wait-what` | matt | The last message did not land. |
@@ -169,7 +169,6 @@ Each one carries a one-line summary at the top.
 | **fresh-eye** | Sends someone who did not write the code to try to break it. |
 | **need-me** | Shows only what is waiting on you, answerable in one word. |
 | **harden** | Gives a repo the CI and branch protection that make its review gate real. |
-| **mutation-gate** | Proves each self-check can fail, by breaking the code it covers and requiring it to notice. |
 | **handoff** | Keeps `docs/HANDOFF.md` in the shape that lets a fresh session start from it and the open tickets alone. |
 | **goal-tracker** | One pinned issue shows how far a goal is, and a script keeps its progress bars current with no hand edits. |
 | **eli5** | Explains a topic to someone with zero background, as a page of big pictures and few words. |
