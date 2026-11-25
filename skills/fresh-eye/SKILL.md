@@ -191,43 +191,11 @@ tell a check that was written to fail first from one written after the code.
   of the diff and show the new test fails. For a bug fix, show the reproduction
   command fails on the base and passes on the branch. A test that passes with the
   code reverted is a finding.
-- On round 1 of a code PR that changes more than 50 lines, you also start a
-  second reviewer for `mattpocock-skills:code-review`, at the same time as
-  the first. Count the lines with
-  `gh pr view <n> --json additions,deletions --jq '.additions + .deletions'`.
-  A fix round, a PR of 50 lines or fewer, and a docs-only change get the
-  first reviewer only. The owner chose this rule on 2026-11-23. The spec
-  and the standards do not change between fix rounds. The
-  `yw-workflow:reviewer` type has no Skill or Agent tool, and code-review
-  needs both: it loads as a skill and runs its two axes as parallel
-  sub-agents. So start it with `subagent_type: "general-purpose"`
-  and `isolation: "worktree"`, and put the role first in its description (e.g.
-  "Code review: PR 12"). That type has Write and Edit, so its prompt tells it
-  to read only and fix nothing.
-- Its prompt carries the fixed point, the spec text, and the tracker and
-  standards lines. The fixed point is the branch's commit: it checks out that
-  commit detached and runs code-review against the base, since code-review
-  diffs against HEAD. The spec text is the ticket or PR body, pasted in, or
-  "no spec" if there is none.
-- Tell code-review where the tracker and the standards are. A reviewer worktree
-  is a fresh checkout, so it can lack `docs/agents/issue-tracker.md`. When that
-  file is missing, code-review tells the user to run
-  `/setup-matt-pocock-skills`. So tell it the tracker is given in the prompt.
-  The tracker line is filled in for the repo, e.g. GitHub Issues
-  (`gh issue view <n>`). Name the repo's `CLAUDE.md` as a standards file, plus
-  `CODING_STANDARDS.md` or `CONTRIBUTING.md` when the repo has them. If the
-  Standards axis found no standards file, report that once, as a nit. Do not
-  report that axis as clean.
-- The second reviewer starts its report with its own decision line:
-  `BLOCK n` when either axis found a blocking finding, where n is the number
-  of blocking findings, else `PASS`. Blocking means a
-  Standards "hard violation" of a documented standard, or a Spec requirement
-  that is "missing or partial" or whose "implementation looks wrong". A
-  "judgement call" and "scope creep" are nits. Its Standards and Spec verdicts
-  go under Agent-facing specifics in the round's comment, beside the mutation
-  results.
-- If mattpocock-skills is not installed, say so in the round's comment and
-  start only the first reviewer.
+- Each round has one adversarial reviewer. The owner retired the separate
+  `mattpocock-skills:code-review` reviewer on 2026-11-25. A reviewer that has
+  the Skill tool may run code-review itself as part of its own review.
+  Its prompt names the ticket under `Read first`, so the one reviewer also
+  checks the change against what the ticket asked for.
 
 ## In Orca
 
@@ -313,11 +281,6 @@ call only a person can make is open, else `PASS`. Never bury the verdict in
 prose the reader has to extract themselves. A `REVIEW` that could have been
 asked before the build cost a round. `ship-loop` step 3 asks those calls
 first.
-
-When a round has two reviewers (round 1 of a code PR over 50 changed lines),
-one decision line covers both. A `BLOCK` from either one makes the round a
-`BLOCK`. Else a `REVIEW` from either one makes it a `REVIEW`. Else the round
-is a `PASS`. So a `REVIEW` always carries 0, from one reviewer or two.
 
 A `BLOCK n` round can also hold a call only a person can make. The decision
 line does not show that call. So write it in the Executive TL;DR, and send it
@@ -415,31 +378,6 @@ function, or line number, it belongs in Agent-facing specifics instead.
     causes under the repo's rule (or none), the concrete failure scenario
     (inputs -> wrong output), and how you verified it.
     Do not fix anything. Do not commit.
-
-The second reviewer, on round 1 of a code PR over 50 changed lines:
-
-    You run mattpocock-skills:code-review on a change you did not write.
-
-    Fixed point: <branch> at <commit>, based on <base branch>.
-      git fetch origin && git switch --detach <commit>
-    Run code-review against origin/<base branch>.
-
-    Spec: <the ticket or PR body, pasted in, or "no spec">.
-
-    The tracker is <the tracker line, filled in for the repo, e.g. GitHub
-    Issues (`gh issue view <n>`)>. The tracker is given here, so do not stop
-    for `/setup-matt-pocock-skills`. The standards files are the repo's
-    `CLAUDE.md`, plus `CODING_STANDARDS.md` or `CONTRIBUTING.md` when the
-    repo has them. If the Standards axis found no standards file, report
-    that once, as a nit. Do not report that axis as clean.
-
-    Start with one decision line: BLOCK n if either axis found a blocking
-    finding, where n is the number of blocking findings, else PASS.
-    Blocking means a Standards "hard violation" of a
-    documented standard, or a Spec requirement that is "missing or partial"
-    or whose "implementation looks wrong". A "judgement call" and "scope
-    creep" are nits. Then report the Standards and Spec verdicts. Read
-    only. Do not fix anything. Do not commit.
 
 ## Hands off to
 

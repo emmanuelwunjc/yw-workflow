@@ -59,7 +59,7 @@ yw-workflow is made to sit beside [Matt Pocock's
 skills](https://github.com/mattpocock/skills). yw-workflow's skills plan the work,
 isolate it, review it, merge it, and carry it to the next session. Blue boxes
 are yw-workflow skills. Brown boxes are mattpocock-skills, called as
-`/mattpocock-skills:<name>`. The green box uses one skill from each set. Grey
+`/mattpocock-skills:<name>`. Grey
 boxes are inputs, steps and agents. Every arrow is a hand-off that a skill
 names today.
 
@@ -82,7 +82,7 @@ flowchart LR
         ticket([ticket]):::start
         wt[git-worktrees]:::yw
         build[tdd<br/>diagnosing-bugs for a bug<br/>implement, implement-spec]:::matt
-        review[fresh-eye<br/>+ code-review]:::both
+        review[fresh-eye]:::yw
         fixer([fixer agent]):::start
         merge([PR and merge]):::start
         ticket -->|repo shared| wt --> build --> review
@@ -106,7 +106,6 @@ flowchart LR
 
     classDef yw fill:#1f4e79,stroke:#1f4e79,color:#ffffff
     classDef matt fill:#8a4500,stroke:#8a4500,color:#ffffff
-    classDef both fill:#3d5c3d,stroke:#3d5c3d,color:#ffffff
     classDef start fill:#e8e8e8,stroke:#888888,color:#111111
 ```
 
@@ -129,9 +128,7 @@ How to read it, one stage at a time:
    `diagnosing-bugs`, which finds one command that fails first. `implement`
    and `implement-spec` may write the code, but their own review is a
    self-check. `fresh-eye`
-   sends a reviewer who did not write the change. For a change that assembles or
-   corrects code in a PR over 50 changed lines, a second reviewer runs
-   `code-review` beside it on the first round, when it is installed. A loop
+   sends one reviewer who did not write the change, each round. A loop
    stops at four rounds.
    Blocking findings go to a `fixer` agent, and the fix gets a new review.
    After a clean review, the branch merges (`git-worktrees`). Its PR body records
