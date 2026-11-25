@@ -26,6 +26,8 @@
 # verdict is CLOSE (or KEEP only for no live terminal), every guard holds
 # again with the kind shortcut off (so an OPEN or CLOSED-only PR stays), and its
 # terminal is closed or every agent is done. A grill never retires.
+# A workspace that an In progress or Needs you item links by a dispatch is not
+# eligible: it gets `KEEP <ws> (item <n> of <bot> <status>, no retire)` instead.
 #   RETIRE <ws>: eligible, not Retired. --apply logs `done -> retired` after
 #                its close (a failed close: no retire).
 #   HOLD <ws>:   eligible, Retired fewer than retire_hold_days (RETIRE_HOLD_DAYS
@@ -129,6 +131,23 @@ done
 canceled_paths=$(jq -nr --slurpfile c <(printf '%s' "$canceled") --slurpfile d <(printf '%s' "$workers") '
   [$c[0][].links[]? | select(.kind == "dispatch") | .ref] as $refs
   | $d[0][] | select(IN(.dispatchId; $refs[])) | (.resource.worktreeId // .projection.workspace.id // "") | split("::")[1] // empty')
+# The workspaces an In progress or Needs you item of any bot links by a dispatch
+# (its first or its latest): path TAB `item <n> of <bot> <status>`. They never
+# retire or go. Read from Orca on each run, and a failed read stops the run.
+open_items='[]' bots=$(orca bot list --json | jq -r '.result.bots[].name')
+while IFS= read -r b; do
+  cursor=
+  while [ -n "$b" ]; do
+    page=$(orca bot item list --bot "$b" --status in_progress,needs_you --json --limit 100 ${cursor:+--cursor "$cursor"})
+    open_items=$(jq -cs --arg b "$b" '.[0] + [.[1].result.items[] | .bot = $b]' <(printf '%s' "$open_items") - <<<"$page")
+    cursor=$(jq -r '.result.nextCursor // empty' <<<"$page")
+    [ -n "$cursor" ] || break
+  done
+done <<<"$bots"
+held_rows=$(jq -nr --slurpfile h <(printf '%s' "$open_items") --slurpfile d <(printf '%s' "$workers") '
+  $d[0][] | .dispatchId as $id | ((.resource.worktreeId // .projection.workspace.id // "") | split("::")[1] // empty) as $p
+  | first($h[0][] | select(any(.links[]?; .kind == "dispatch" and (.ref == $id or .latest == $id))))
+  | [$p, "item \(.number) of \(.bot) \(if .status == "needs_you" then "Needs you" else "In progress" end)"] | @tsv')
 prs=$(gh pr list -R "$repo" --state all --limit 100000 --json number,headRefName,state,headRefOid)
 # path TAB dispatch TAB why TAB last ask TAB merged PR (or empty), one line
 # per worker that waits:
@@ -257,7 +276,7 @@ decide() { # dir -> prints "CLOSE|KEEP <reason>"
 }
 
 report() { # the verdict line, any WAITING lines as they are, then one RETIRE, HOLD, REMOVE or BACK line
-  local v first r row name st age; v=$(decide "$1"); first=${v%%$'\n'*}; name=$(basename "$1")
+  local v first r row name st age item; v=$(decide "$1"); first=${v%%$'\n'*}; name=$(basename "$1")
   echo "${first%% *} $name (${first#* })"
   [ "$v" = "$first" ] || echo "${v#*$'\n'}"
   read -r st age <<<"$(awk -F'\t' -v n="$name" '$1 == n {print $2, $3}' <<<"$life_rows")"
@@ -268,12 +287,14 @@ report() { # the verdict line, any WAITING lines as they are, then one RETIRE, H
   [ "$(cut -f4 <<<"$row")" = 0 ] || [ "$(cut -f5 <<<"$row")" = 1 ] || return 0
   [ "$(cut -f6 <<<"$row")" = completed ] || grep -qxF -- "$1" <<<"$canceled_paths" || return 0
   case "$r" in CLOSE*) ;; *) return 0 ;; esac
+  item=$(awk -F'\t' -v p="$1" '$1 == p {print $2; exit}' <<<"$held_rows")
+  [ -n "$item" ] && { echo "KEEP $name ($item, no retire)"; return 0; }
   if [ "$st" != retired ]; then echo "RETIRE $name (${r#* })"
   elif [ "$age" -lt "$hold" ]; then echo "HOLD $name (retired ${age}d ago, hold ${hold}d)"
   else echo "REMOVE $name (${r#* }, held ${age}d)"; fi
 }
 export -f decide report setup_link
-export ps_rows pr_rows setup_target live_heads wait_rows scoped repo kind_rows life_rows hold canceled_paths
+export ps_rows pr_rows setup_target live_heads wait_rows scoped repo kind_rows life_rows hold canceled_paths held_rows
 [ "$scoped" = true ] && echo "NOTE worker-list is scoped to one Run (--run-scoped): the waits guard was not checked for dispatches outside it. CLOSE needs every agent done and a MERGED PR or a detached HEAD."
 # Each workspace costs several git calls, so 8 run at a time.
 lines=$(for dir in "$root"/*/; do [ -d "$dir" ] || continue; printf '%s\0' "${dir%/}"; done \

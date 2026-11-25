@@ -34,10 +34,16 @@ case "$1 $2" in
   "orchestration inbox") cat "$FIX/inbox.json" ;;
   "terminal close") [ -n "${CLOSE_FAIL:-}" ] && exit 1; echo "$4" >> "$CLOSE_LOG" ;;
   "worktree set") echo "$4" >> "$SET_LOG" ;;
-  "bot item") # list --status canceled: the canceled items of "Test Bot"; any other list: none
+  "bot list") echo '{"result": {"bots": [{"name": "Test Bot"}, {"name": "Other Bot"}]}}' ;;
+  "bot item") # list --status canceled: the canceled items of "Test Bot". list --status
+    # in_progress,needs_you: $FIX/items-open-<bot>.json when it exists. Any other list: none.
     [ "$3" = set ] && { echo "$*" >> "$ITEM_LOG"; exit; }
-    [[ " $* " == *" --bot Test Bot "* ]] || exit 1
-    if [[ " $* " == *" --status canceled "* ]]; then cat "$FIX/items-canceled.json"; else echo '{"result": {"items": []}}'; fi ;;
+    bot=; prev=; for a in "$@"; do [ "$prev" = --bot ] && bot=$a; prev=$a; done
+    case "$bot" in "Test Bot" | "Other Bot") ;; *) exit 1 ;; esac
+    [ -n "${ITEMS_FAIL:-}" ] && [[ " $* " == *" in_progress,needs_you "* ]] && exit 1
+    if [[ " $* " == *" --status canceled "* ]] && [ "$bot" = "Test Bot" ]; then cat "$FIX/items-canceled.json"
+    elif [[ " $* " == *" --status in_progress,needs_you "* ]] && [ -e "$FIX/items-open-$bot.json" ]; then cat "$FIX/items-open-$bot.json"
+    else echo '{"result": {"items": []}}'; fi ;;
   "worktree rm") echo "$4" >> "$RM_LOG"; [ -n "${RM_MOVE:-}" ] && mv "${4#path:}" "${4#path:}.rm"; true ;;
   *) echo "fake orca: $*" >&2; exit 1 ;;
 esac
@@ -286,6 +292,10 @@ cat > "$FIX/wl1.json" <<'JSON'
   "projection": {"outcome": "in_progress", "workspace": {"id": "repo::WS/waitopen"}}},
  {"dispatchId": "ctx_backdsp", "dispatchStatus": "dispatched", "workerState": "ready", "agentTerminalHandle": "term_backdsp",
   "projection": {"outcome": "in_progress", "workspace": {"id": "repo::WS/backdsp"}}},
+ {"dispatchId": "ctx_heldm", "dispatchStatus": "completed", "workerState": "succeeded", "agentTerminalHandle": "term_held",
+  "projection": {"outcome": "succeeded", "workspace": {"id": "repo::WS/merged"}}},
+ {"dispatchId": "ctx_heldp", "dispatchStatus": "completed", "workerState": "succeeded", "agentTerminalHandle": "term_held",
+  "projection": {"outcome": "succeeded", "workspace": {"id": "repo::WS/prhead"}}},
  {"dispatchId": "ctx_cancel", "dispatchStatus": "completed", "workerState": "succeeded", "agentTerminalHandle": "term_canceled",
   "projection": {"outcome": "succeeded", "workspace": {"id": "repo::WS/canceled"}}},
  {"dispatchId": "ctx_noagent", "dispatchStatus": "dispatched", "workerState": "ready", "agentTerminalHandle": "term_gone",
@@ -417,7 +427,23 @@ cases() { # script -> prints FAIL lines, returns 1 on any failure
   if CLEANUP_KIND=daily WL_SCOPE=bound cl --run-scoped > /dev/null 2>&1; then
     echo "FAIL CLEANUP_KIND=daily did not refuse --run-scoped"; fail=1
   fi
+  # An open item (#317): a workspace that an In progress or Needs you item of
+  # any bot links by a dispatch (its first or its latest) never retires or
+  # goes. It gets a KEEP line with the item number. Another status does not hold.
+  jq -n '{result: {items: [{number: 7, status: "in_progress", links: [{kind: "dispatch", ref: "ctx_x", latest: "ctx_heldm"}]}]}}' > "$FIX/items-open-Other Bot.json"
+  jq -n '{result: {items: [{number: 5, status: "needs_you", links: [{kind: "dispatch", ref: "ctx_heldp"}]},
+    {number: 6, status: "needs_you", links: [{kind: "pr", ref: "ctx_heldm"}]}]}}' > "$FIX/items-open-Test Bot.json"
+  rm -f "$RM_LOG"; out=$(cl --apply --remove 2>&1)
+  grep -qx 'KEEP merged (item 7 of Other Bot In progress, no retire)' <<<"$out" || { echo "FAIL no KEEP line for merged under item 7"; fail=1; }
+  grep -qx 'KEEP prhead (item 5 of Test Bot Needs you, no retire)' <<<"$out" || { echo "FAIL no KEEP line for prhead under item 5"; fail=1; }
+  grep -Eq '^(RETIRE|HOLD|REMOVE) (merged|prhead) ' <<<"$out" && { echo "FAIL a workspace under an open item retires or goes"; fail=1; }
+  [ -e "$RM_LOG" ] && { echo "FAIL --remove removed under an open item:"; cat "$RM_LOG"; fail=1; }
+  awk -F'\t' 'NR > 10 && $4 == "retire" && $7 == "ok" {print $3}' "$CLEANUP_LEDGER" | grep -qx merged && { echo "FAIL merged retired under item 7"; fail=1; }
+  # A failed item read stops the run before any move.
   rm -f "$CLOSE_LOG"
+  ITEMS_FAIL=1 cl --apply --remove > /dev/null 2>&1 && { echo "FAIL a failed item read did not stop the run"; fail=1; }
+  [ -e "$CLOSE_LOG" ] || [ -e "$RM_LOG" ] && { echo "FAIL a failed item read closed or removed"; fail=1; }
+  rm -f "$FIX/items-open-"*.json "$CLOSE_LOG" "$RM_LOG" "$SET_LOG"
   return $fail
 }
 
