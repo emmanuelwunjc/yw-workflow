@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Self-test for the negation-then-correction detector in claude-md-guard.py.
+"""Self-test for claude-md-guard.py: the negation-then-correction detector,
+the code stripping, and the prose-question check (rule 1).
 
 A blocking guard is only worth having if it can fail on the right input and
 stay quiet on the wrong one. The MUST_TRIP cases are real sentences that
@@ -195,6 +196,58 @@ for i in range(len(originals)):
         )
 guard.NEGATION_PATTERNS = originals
 
+# RULE 1 (AskUserQuestion) through check() itself, on a fake transcript in
+# grill mode. Ticket 303: the check blocked replies in an Orca bot Home Chat,
+# where an owner decision goes on an item card as Needs you, and replies whose
+# only "?" sat in a URL or in code.
+import json as _json
+import tempfile as _tempfile
+_tmp = Path(_tempfile.mkdtemp())
+guard.STATE_DIR = _tmp / "state"
+guard._policy = lambda ci=False: None  # defaults: every rule on, no citation
+_BOT_HOME = str(Path.home() / ".orca" / "bots" / "yw-workflow")
+_ITEM = ("Yiming, **select a choice on item 129: which change to the mutation "
+         "gate do you want?** I recommend option A.")
+ASK_CASES = [
+    # (name, reply, cwd, must block)
+    ("bot Home Chat pointing to an item card", _ITEM, _BOT_HOME, False),
+    ("bot Home Chat, a subfolder of the bot home",
+     "Which option do you want?", _BOT_HOME + "/memory", False),
+    ("a ? only inside a URL",
+     "Yiming, the list is at https://github.com/o/r/issues?q=is%3Aopen now.",
+     "/tmp", False),
+    ("a ? only inside inline code",
+     "Yiming, I ran `grep -E 'a?b' x.txt` and took option A.", "/tmp", False),
+    ("a ? only inside a fenced block",
+     "Yiming, I took option A.\n```\nok = input('go?')\n```", "/tmp", False),
+    ("a real prose question outside a bot home",
+     "Yiming, which option do you want?", "/tmp", True),
+    ("a bold prose question outside a bot home", _ITEM, "/tmp", True),
+    ("a folder that only looks like a bot home",
+     "Which option do you want?",
+     str(Path.home() / ".orca" / "bots-old" / "x"), True),
+    ("a bot home path under another root",
+     "Which option do you want?", "/srv/.orca/bots/x", True),
+    ("no cwd in the hook input", "Which option do you want?", None, True),
+]
+for i, (name, reply, cwd, must_block) in enumerate(ASK_CASES):
+    sid = "ask%d" % i
+    transcript = _tmp / (sid + ".jsonl")
+    transcript.write_text(
+        _json.dumps({"type": "user", "message": {"role": "user",
+                                                 "content": "grill me"}}) + "\n"
+        + _json.dumps({"type": "assistant", "message": {
+            "role": "assistant",
+            "content": [{"type": "text", "text": reply}]}}) + "\n")
+    guard.STATE_DIR.mkdir(parents=True, exist_ok=True)
+    guard.state_file(sid, "grill").write_text("1")
+    data = {"session_id": sid, "transcript_path": str(transcript)}
+    if cwd is not None:
+        data["cwd"] = cwd
+    blocked = guard.check(data).get("decision") == "block"
+    if blocked != must_block:
+        failures.append("ASK: %s (expected block=%s)" % (name, must_block))
+
 for text in KNOWN_FALSE_POSITIVES:
     if not guard.find_negation(text):
         print("NOTE: a recorded false positive no longer trips, which is an "
@@ -207,9 +260,11 @@ for text in KNOWN_MISSES:
 if failures:
     print("\n".join(failures))
     print("\nRESULT: %d failed of %d cases"
-          % (len(failures), len(MUST_TRIP) + len(MUST_NOT_TRIP) + len(FENCE_CASES)))
+          % (len(failures), len(MUST_TRIP) + len(MUST_NOT_TRIP) + len(FENCE_CASES)
+             + len(ASK_CASES)))
     sys.exit(1)
-print("claude-md-guard: %d cases pass (%d trip, %d stay quiet, %d code-fence), "
-      "and all %d patterns are uniquely covered"
-      % (len(MUST_TRIP) + len(MUST_NOT_TRIP) + len(FENCE_CASES), len(MUST_TRIP),
-         len(MUST_NOT_TRIP), len(FENCE_CASES), len(guard.NEGATION_PATTERNS)))
+print("claude-md-guard: %d cases pass (%d trip, %d stay quiet, %d code-fence, "
+      "%d question), and all %d patterns are uniquely covered"
+      % (len(MUST_TRIP) + len(MUST_NOT_TRIP) + len(FENCE_CASES) + len(ASK_CASES),
+         len(MUST_TRIP), len(MUST_NOT_TRIP), len(FENCE_CASES), len(ASK_CASES),
+         len(guard.NEGATION_PATTERNS)))

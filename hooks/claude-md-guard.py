@@ -17,6 +17,8 @@ RULE 1 - AskUserQuestion for interview-style questions (CLAUDE.md section 6)
     Two layers counter that:
       remind -> re-inject the rule at the SAME recency as the skill text.
       check  -> refuse to end the turn if a grill-mode turn still asked in prose.
+    The check skips a "?" in code or a URL, and skips an Orca bot Home Chat,
+    where a decision goes on an item card (ticket 303).
     A prior attempt to fix this with a memory file failed twice over: memory is
     advisory, and that one was scoped to a single project so it never loaded
     elsewhere. Hence a global hook.
@@ -412,6 +414,29 @@ def prose_only(text):
     return INLINE_CODE.sub("", strip_fences(text))
 
 
+# A "?" that ends a sentence: followed by space, the end, or closing markup.
+# A "?" inside a word or a URL query ("issues?q=open") asks the owner nothing.
+PROSE_QUESTION = re.compile(r"\?(?=[\s*_)\]\"']|$)")
+
+ORCA_BOTS_DIR = Path.home() / ".orca" / "bots"
+
+
+def in_orca_bot_home(cwd):
+    """True when the session runs in an Orca bot home, ~/.orca/bots/<name>.
+
+    There a bot puts an owner decision on an item card as Needs you, never as
+    a question in chat (skill orca-bot), so a "?" there points to the card.
+    The folder is the test because the ORCA_* variables are set in every Orca
+    session, workers included, and only a bot Home Chat runs in a bot home.
+    """
+    if not cwd:
+        return False
+    try:
+        return ORCA_BOTS_DIR.resolve() in Path(cwd).resolve().parents
+    except (OSError, ValueError):
+        return False
+
+
 def check(data):
     # The harness sets this when it is re-running us after a block. Bail out so
     # a block can never chain into a loop.
@@ -475,9 +500,10 @@ def check(data):
     in_grill_mode = state_file(session_id, "grill").exists()
     if (_on(policy, "ask_user_question")
             and in_grill_mode and "AskUserQuestion" not in tools
+            and not in_orca_bot_home(data.get("cwd"))
             and spent["askuser"][1] < MAX_BLOCKS_PER_SESSION):
-        tail = texts[-1].strip()[-400:]
-        if "?" in tail:
+        tail = prose_only(texts[-1]).strip()[-400:]
+        if PROSE_QUESTION.search(tail):
             charged.append("askuser")
             problems.append(
                 "This is a grilling/interview turn and you ended it by "
