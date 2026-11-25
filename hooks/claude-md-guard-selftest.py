@@ -199,7 +199,8 @@ guard.NEGATION_PATTERNS = originals
 # RULE 1 (AskUserQuestion) through check() itself, on a fake transcript in
 # grill mode. Ticket 303: the check blocked replies in an Orca bot Home Chat,
 # where an owner decision goes on an item card as Needs you, and replies whose
-# only "?" sat in a URL or in code.
+# only "?" sat in code. A "?" in a URL still blocks: skipping it safely is a
+# separate ticket.
 import json as _json
 import tempfile as _tempfile
 _tmpdir = _tempfile.TemporaryDirectory()
@@ -215,9 +216,6 @@ ASK_CASES = [
     ("bot Home Chat pointing to an item card", _ITEM, _BOT_HOME, False),
     ("bot Home Chat, a subfolder of the bot home",
      "Which option do you want?", _BOT_HOME + "/memory", False),
-    ("a ? only inside a URL",
-     "Yiming, the list is at https://github.com/o/r/issues?q=is%3Aopen now.",
-     "/tmp", False),
     ("a ? only inside inline code",
      "Yiming, the line `x = a ? b : c` stays and I took option A.", "/tmp", False),
     ("a ? only inside a fenced block",
@@ -235,19 +233,6 @@ ASK_CASES = [
      "Which option do you want?", str(_BOTS), True),
     ("a .. path that leaves the bot home",
      "Which option do you want?", str(_BOTS / "x" / ".." / ".." / "y"), True),
-    ("a ? only inside URL queries and fragments",
-     "Yiming, see https://x.org/a?ref=main#c and http://x.org/b?a=1&b=%20-x.",
-     "/tmp", False),
-    ("a URL query that starts with a capital, a digit or a %",
-     "Yiming, see https://x.org/a?Q=1, https://x.org/b?9=1 and "
-     "https://x.org/c?%41=1 for the list.", "/tmp", False),
-    ("a URL query in a Markdown link and in odd schemes",
-     "Yiming, [the list](https://x.org/i?q=open) and s3://b/k?versionId=3 "
-     "and git+ssh://h/r?x=1 hold it.", "/tmp", False),
-    ("a second ? in one URL query",
-     "Yiming, the search is https://x.org/s?q=why?not now.", "/tmp", False),
-    ("a :// with no scheme before it is no URL",
-     "Yiming, the text ://?q=1 is no link.", "/tmp", True),
     ("a question right after a URL",
      "Yiming, is the list at https://x.org/issues?", "/tmp", True),
     ("a URL that ends in a ? asks it",
@@ -255,9 +240,8 @@ ASK_CASES = [
     ("a cwd that cannot be read as a path",
      "Which option do you want?", str(_BOTS / "x") + "\x00y", True),
 ]
-# Each of these ended a turn with a question the base check blocked. Only the
-# "?" that starts a URL query is exempt, so they still block, with or without
-# a link right before the "?".
+# Each of these ended a turn with a question the base check blocked. They must
+# still block, with or without a link right before the "?".
 for tail in ("?!", "?:", "?.", "?,", "?\u201d", "?\U0001f642", "?|", "?~~",
              "?<br>", "?\u2013", "?_", "?__", "?Reply with A or B.", "?-",
              "?/", "?#", "?=", "?&", "?%"):
