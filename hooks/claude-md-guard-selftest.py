@@ -197,10 +197,10 @@ for i in range(len(originals)):
 guard.NEGATION_PATTERNS = originals
 
 # RULE 1 (AskUserQuestion) through check() itself, on a fake transcript in
-# grill mode. Ticket 303: the check blocked replies in an Orca bot Home Chat,
-# where an owner decision goes on an item card as Needs you, and replies whose
+# grill mode unless a case says no. Ticket 303: the check blocked replies whose
 # only "?" sat in code. A "?" in a URL still blocks: skipping it safely is a
-# separate ticket.
+# separate ticket. Ticket 319: in an Orca bot Home Chat the check runs during a
+# grill, like in any session, and stays quiet with no grill.
 import json as _json
 import tempfile as _tempfile
 _tmpdir = _tempfile.TemporaryDirectory()
@@ -212,10 +212,15 @@ _BOT_HOME = str(_BOTS / "yw-workflow")
 _ITEM = ("Yiming, **select a choice on item 129: which change to the mutation "
          "gate do you want?** I recommend option A.")
 ASK_CASES = [
-    # (name, reply, cwd, must block)
-    ("bot Home Chat pointing to an item card", _ITEM, _BOT_HOME, False),
-    ("bot Home Chat, a subfolder of the bot home",
-     "Which option do you want?", _BOT_HOME + "/memory", False),
+    # (name, reply, cwd, must block[, in grill mode, default True])
+    ("bot Home Chat with no grill, pointing to an item card",
+     _ITEM, _BOT_HOME, False, False),
+    ("bot Home Chat with no grill, a subfolder of the bot home",
+     "Which option do you want?", _BOT_HOME + "/memory", False, False),
+    ("bot Home Chat in a grill, a prose question",
+     "Yiming, which option do you want?", _BOT_HOME, True),
+    ("bot Home Chat in a grill, a subfolder of the bot home",
+     "Which option do you want?", _BOT_HOME + "/memory", True),
     ("a ? only inside inline code",
      "Yiming, the line `x = a ? b : c` stays and I took option A.", "/tmp", False),
     ("a ? only inside a fenced block",
@@ -252,7 +257,7 @@ for tail in ("?", "?**", "?*", "?_", "?\"", "?\u201d", "?)", "?.", "?,", "?!",
     ASK_CASES.append(("a question ending in a link and " + repr(tail),
                       "**Yiming, should I merge https://x.org/pull/5" + tail,
                       "/tmp", True))
-for i, (name, reply, cwd, must_block) in enumerate(ASK_CASES):
+for i, (name, reply, cwd, must_block, *grill) in enumerate(ASK_CASES):
     sid = "ask%d" % i
     transcript = _tmp / (sid + ".jsonl")
     transcript.write_text(
@@ -262,13 +267,55 @@ for i, (name, reply, cwd, must_block) in enumerate(ASK_CASES):
             "role": "assistant",
             "content": [{"type": "text", "text": reply}]}}) + "\n")
     guard.STATE_DIR.mkdir(parents=True, exist_ok=True)
-    guard.state_file(sid, "grill").write_text("1")
+    if grill != [False]:
+        guard.state_file(sid, "grill").write_text("1")
     data = {"session_id": sid, "transcript_path": str(transcript)}
     if cwd is not None:
         data["cwd"] = cwd
     blocked = guard.check(data).get("decision") == "block"
     if blocked != must_block:
         failures.append("ASK: %s (expected block=%s)" % (name, must_block))
+
+# Ticket 319: grill mode ends at the first turn in grill mode that asks no
+# question (no AskUserQuestion call and no "?" in prose). Each case runs its
+# turns in order in one session that starts in grill mode. Only the last
+# turn's result is checked. _ASK is a turn that asks through the tool.
+_ASK = "ASK"
+GRILL_END_CASES = [
+    # (name, turns, cwd, last turn must block)
+    ("turn 2 of a grill: the tool asked, then a prose question",
+     [_ASK, "Yiming, which option comes next?"], "/tmp", True),
+    ("turn 2 of a grill: a blocked prose question, then another",
+     ["Which option first?", "Which option next?"], "/tmp", True),
+    ("turn 2 of a grill in a bot Home Chat",
+     [_ASK, "Yiming, which option comes next?"], _BOT_HOME, True),
+    ("a prose question after a grill turn that asked nothing",
+     ["The plan is settled: option A.", "Which option do you want?"],
+     "/tmp", False),
+    ("an item card in a bot Home Chat after the grill ended",
+     ["The plan is settled: option A.", _ITEM], _BOT_HOME, False),
+    ("a ? only in code asks nothing, so the grill ends",
+     ["I keep `x = a ? b : c`.", "Which option do you want?"], "/tmp", False),
+]
+for i, (name, turns, cwd, must_block) in enumerate(GRILL_END_CASES):
+    sid = "end%d" % i
+    guard.state_file(sid, "grill").write_text("1")
+    blocked = False
+    for j, reply in enumerate(turns):
+        content = ([{"type": "tool_use", "name": "AskUserQuestion", "input": {}},
+                    {"type": "text", "text": "Yiming, I took option A."}]
+                   if reply == _ASK else [{"type": "text", "text": reply}])
+        transcript = _tmp / ("%s-%d.jsonl" % (sid, j))
+        transcript.write_text(
+            _json.dumps({"type": "user", "message": {"role": "user",
+                                                     "content": "A"}}) + "\n"
+            + _json.dumps({"type": "assistant", "message": {
+                "role": "assistant", "content": content}}) + "\n")
+        blocked = guard.check({"session_id": sid, "cwd": cwd,
+                               "transcript_path": str(transcript)}
+                              ).get("decision") == "block"
+    if blocked != must_block:
+        failures.append("GRILL END: %s (expected block=%s)" % (name, must_block))
 _tmpdir.cleanup()
 
 for text in KNOWN_FALSE_POSITIVES:
@@ -280,12 +327,12 @@ for text in KNOWN_MISSES:
     if guard.find_negation(text):
         print("NOTE: a recorded gap is now caught, which is an improvement: " + text)
 
-total = len(MUST_TRIP) + len(MUST_NOT_TRIP) + len(FENCE_CASES) + len(ASK_CASES)
+total = len(MUST_TRIP) + len(MUST_NOT_TRIP) + len(FENCE_CASES) + len(ASK_CASES) + len(GRILL_END_CASES)
 if failures:
     print("\n".join(failures))
     print("\nRESULT: %d failed of %d cases" % (len(failures), total))
     sys.exit(1)
 print("claude-md-guard: %d cases pass (%d trip, %d stay quiet, %d code-fence, "
-      "%d question), and all %d patterns are uniquely covered"
+      "%d question, %d grill end), and all %d patterns are uniquely covered"
       % (total, len(MUST_TRIP), len(MUST_NOT_TRIP), len(FENCE_CASES), len(ASK_CASES),
-         len(guard.NEGATION_PATTERNS)))
+         len(GRILL_END_CASES), len(guard.NEGATION_PATTERNS)))

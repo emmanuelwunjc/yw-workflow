@@ -146,8 +146,8 @@ jq -n --argjson w "$({
   wd t13 d13 succeeded "report: stale workspaces" "kind: report. I read the ledger (read only) and wrote a report."
   wd t14 d14 succeeded "report: ports" "kind: report. I listed the ports."
   wd t16 d16 succeeded "review done: PR 41 adversarial PASS" "kind: review. I reviewed PR 41 at 2365483 and posted a comment review."
-  wd t17 d17 succeeded "review done: PR 42 code-review PASS" "kind: review. I reviewed PR 42 at 1a2b3c4."
-  wd t18 d18 succeeded "review done: PR 43 code-review PASS" "kind: review. I reviewed PR 43 at 5d6e7f8."
+  wd t17 d17 succeeded "review done: PR 42 adversarial PASS" "kind: review. I reviewed PR 42 at 1a2b3c4."
+  wd t18 d18 succeeded "review done: PR 43 adversarial PASS" "kind: review. I reviewed PR 43 at 5d6e7f8."
   wd t22 d22 succeeded "cleanup review: PASS" "kind: review. I reviewed cleanup.sh and load.sh in the bot home."
   wd t21 d21 failed "could not finish" "I could not rebase the branch."
 } | jq -s .)" '{result: {messages: ([

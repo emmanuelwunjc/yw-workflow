@@ -33,7 +33,7 @@ LOCKS = os.environ.get("START_LOCKS") or os.path.join(BOT_HOME, "locks")
 BOT_HOMES = os.environ.get("BOT_HOMES") or os.path.dirname(BOT_HOME)
 LOCK_DIRS = [LOCKS] + sorted(set(glob.glob(os.path.join(BOT_HOMES, "*", "locks"))) - {LOCKS})
 LOCK_SECS = 3 * 3600
-REVIEW = re.compile(r"^(review of pr|fix round)|adversarial review|\breviewer\b|skills:code-review", re.I)
+REVIEW = re.compile(r"^(review of pr|fix round)|adversarial review|\breviewer\b", re.I)
 
 
 def run(*cmd):
