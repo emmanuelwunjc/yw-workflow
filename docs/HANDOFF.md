@@ -63,8 +63,12 @@ npx skills add . -l                   # what the skills path would serve
   block, `## Now`, `## Next` and `## Read next`. A decision that passes the
   three ADR tests goes to `docs/adr/`. `docs/DECISIONS.md` is frozen.
 - **Every PR raises the plugin version.** Each merge makes the next open
-  branch rebase and take the next version. Before you bump, read the version
-  on trunk: `git show origin/main:.claude-plugin/plugin.json`.
+  branch rebase and take the next version. Before you raise the version,
+  read it on trunk: `git show origin/main:.claude-plugin/plugin.json`.
+- **This repo is public.** Check every commit of a branch for private-repo
+  detail before its first push (`docs/adr/0004-public-repo-holds-no-private-detail.md`).
+  Never push the old local `feat/132-goal-tracker*` branches: they hold that
+  detail (#278). List them: `git branch --list 'feat/132*'`.
 
 ## Next
 
@@ -73,10 +77,10 @@ npx skills add . -l                   # what the skills path would serve
    or open a ticket for it. Make each "after #X" a "blocked by" link. Then
    close the lane issue with a pointer to where its steps went. List them:
    `gh issue list --label lane --state open`.
-2. `parallel`: the rest of handoff layer 3 (#196). #202: each of the 9
-   old traps gets a check, a ticket or a `LESSONS.md` line, and its
-   comment says where each went. #200: the Handoff docs part of
-   `~/CLAUDE.md`.
+2. `parallel`: the rest of handoff layer 3 (#196). #202 (a home for each
+   of the 9 old traps) closes when its PR merges:
+   `gh pr list --search 202 --state open`. #200 (the Handoff docs part of
+   `~/CLAUDE.md`): check its boxes, and close it if they pass.
 3. `after the owner reads this file`: #204 (move twenty,
    sals-day-in-life-dryrun and reimburse to this layout).
 4. `parallel`: any other open ticket with no linked branch, no open

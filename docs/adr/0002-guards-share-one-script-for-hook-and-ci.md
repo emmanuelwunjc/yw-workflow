@@ -12,8 +12,8 @@ separate CI linter would be two policies with one name.
 
 - A second script for CI: rejected for the drift above.
 - Run the guards action on `pull_request_target`: rejected. It gives a
-  privileged token to a workflow that runs `hooks/*.py` from the PR head, so
-  a fork PR runs its author's code with write scope. The reason is also in
+  privileged token to a workflow that runs `hooks/*.py` from the PR head.
+  So a fork PR runs its author's code with write scope. The reason is also in
   `.github/actions/guards/action.yml`.
 
 ## Consequences
