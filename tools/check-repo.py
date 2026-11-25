@@ -21,10 +21,9 @@ Checks, each one because something actually broke:
      `claude plugin update` keys off the version and a stale one is
      uninstallable in place.
 
-This file is at its size limit. It is longer than the README it guards, and
-the reviewers judged that worth the friction because every check traces to a
-defect that shipped. A new check needs a defect to point at, never a gap to
-fill.
+This file is past the module size limit, and it stays this size on purpose.
+Every check traces to a defect that shipped, and a reviewer judged that worth
+the friction. A new check needs a defect to point at, never a gap to fill.
 """
 
 import fnmatch
