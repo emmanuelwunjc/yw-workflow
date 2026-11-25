@@ -38,7 +38,7 @@ Sweep:
 Worker and reviewer specs:
 
 - [`loop/worker-rules.txt`](loop/worker-rules.txt): the standing rules for every worker.
-- [`loop/review-spec.sh`](loop/review-spec.sh): writes the two reviewer specs for a PR, from [`loop/reviewer-adversarial.txt`](loop/reviewer-adversarial.txt) and [`loop/reviewer-codereview.txt`](loop/reviewer-codereview.txt).
+- [`loop/review-spec.sh`](loop/review-spec.sh): writes the reviewer spec for a PR, from [`loop/reviewer-adversarial.txt`](loop/reviewer-adversarial.txt). One adversarial reviewer per round (owner decision 2026-11-25).
 - [`loop/merge.sh`](loop/merge.sh): merges a PR after an independent pass.
 
 Cleanup:

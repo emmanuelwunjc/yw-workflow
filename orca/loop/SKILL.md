@@ -34,7 +34,7 @@ The head comment of each script says what each output line means. Read it before
 3. Go down the `FREE:` lines in order. Read each ticket and name the files it changes. Drop it on a clash with a `BUSY:` file or a ticket kept before it, when it has a worker, or when it waits on the owner (add the `owner_wait` label). Stop at `SLOTS` kept tickets.
 4. Take the guard: `bash <loop>/start-guard.sh take`. For each kept ticket: `gh issue develop --list` (a branch means another sweep took it), `gh issue develop <n> -R <repo> --name ticket-<n>`, run inside the project's `git_dir` (it fails outside a git folder, also with `-R`), `bash <loop>/slot.sh --project <p> <n>`, write the spec, then `bash <loop>/start.sh --project <p> <item|-> <spec> <n> <n>`. On a failed start, delete the `ticket-<n>` branch to free the ticket. Release the guard at the end.
 5. Run `bash <loop>/stall.sh --project <p> <free> <started> <room> <explained>`. On a `STALL:` line, set the first free ticket's item to Needs you, once.
-6. Run `bash <loop>/pr_wait.sh --project <p>`. Act on each `WAIT <pr> <reason>` line: `no-reviewer` and `fix-review` start reviewers from `review-spec.sh`, `conflict` starts one conflict worker, `idle` sets the item to Needs you.
+6. Run `bash <loop>/pr_wait.sh --project <p>`. Act on each `WAIT <pr> <reason>` line: `no-reviewer` and `fix-review` start one adversarial reviewer from `review-spec.sh`, `conflict` starts one conflict worker, `idle` sets the item to Needs you.
 7. Print one line per started ticket, one per dropped ticket with its reason, and one per WAIT action.
 
 Comment on an item only when its state changes: a new question, a merge, a blocked or failed worker, or done.

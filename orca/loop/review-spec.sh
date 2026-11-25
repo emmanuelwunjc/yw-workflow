@@ -1,6 +1,6 @@
 #!/bin/bash
 # usage: review-spec.sh [--project <name>] [--fix <from-sha> [--finding "<text>"]] <pr> <issue> [outdir]
-# Writes adversarial.txt and codereview.txt (reviewer specs) for a PR of the project's repo. The project's
+# Writes adversarial.txt (the reviewer spec) for a PR of the project's repo. The project's
 # name, git_dir, repo and review_rules fill the templates. Fails when a placeholder stays empty.
 # Line 1 names the PR ("Review of PR <n>." or "FIX ROUND of PR <n>. ..."): orca worktree ps cuts a prompt
 # to 200 characters, and the sweep's pr_wait.sh finds a working reviewer by that line.
@@ -58,7 +58,7 @@ if [ -n "$FROM" ]; then
 Earlier blocking finding: $FINDING"
 fi
 mkdir -p "$OUT"
-for t in adversarial codereview; do
+for t in adversarial; do
   F=$D/reviewer-$t.txt
   BRANCH="$BRANCH" SHA="$SHA" BODY="$BODY" PR="$PR" FIRST="$FIRST" R="$R" PROJ="$PROJECT" GD="$GIT_DIR_" RULES="$RULES" MERGE="$MERGE" python3 -I -c '
 import os,sys
@@ -70,4 +70,4 @@ open(sys.argv[2],"w").write(e["FIRST"]+"\n"+s+(e["MERGE"]+"\n" if e["MERGE"] els
   grep -n '<branch>\|<commit>\|<n>\|pasted in\|<repo>\|<project>\|<git_dir>\|<review_rules>' "$OUT/$t.txt" && { echo "placeholder left in $t.txt"; exit 1; } || true
 done
 echo "$OUT"
-echo "start each with: bash $D/start.sh --project $PROJECT - $OUT/<adversarial or codereview>.txt pr-$PR (no item link, one reviewer of each kind per PR)"
+echo "start it with: bash $D/start.sh --project $PROJECT - $OUT/adversarial.txt pr-$PR (no item link, one reviewer per PR)"

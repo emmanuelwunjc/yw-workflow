@@ -44,8 +44,8 @@ check() { if [ "$2" = "$3" ]; then echo "ok   $1"; else echo "FAIL $1: want $3, 
 check "two parallel starts: one worker" "$(race "$HERE/start.sh")" 1
 
 # Reviewer starts: "start.sh - <spec> pr-<n>" takes locks/pr-<n>-<spec name>. Two sweeps that both
-# see "no-reviewer" on PR 701 start one adversarial reviewer, and one code-review reviewer beside it.
-cp "$T/spec" "$T/adversarial.txt"; cp "$T/spec" "$T/codereview.txt"
+# see "no-reviewer" on PR 701 start one adversarial reviewer.
+cp "$T/spec" "$T/adversarial.txt"
 prace() { # $1 = script, $2 = spec (default adversarial.txt), $3 = PR (default 701). Prints how many workers started.
   rm -rf "$T/locks" "$T/starts"
   START_LOCKS="$T/locks" bash "$1" - "$T/${2:-adversarial.txt}" pr-${3:-701} >/dev/null 2>>"$T/err" &
@@ -54,8 +54,6 @@ prace() { # $1 = script, $2 = spec (default adversarial.txt), $3 = PR (default 7
   wc -l < "$T/starts" 2>/dev/null | tr -d ' ' || echo 0
 }
 check "two parallel reviewer starts on one PR: one worker" "$(prace "$HERE/start.sh")" 1
-START_LOCKS="$T/locks" bash "$HERE/start.sh" - "$T/codereview.txt" pr-701 >/dev/null 2>>"$T/err"
-check "the other reviewer kind still starts" "$(wc -l < "$T/starts" | tr -d ' ')" 2
 # Sweep step 7.2 "conflict": two sweeps that both see "WAIT 774 conflict" start one conflict worker.
 cp "$T/spec" "$T/conflict.txt"
 check "two parallel conflict starts on one PR: one worker" "$(prace "$HERE/start.sh" conflict.txt 774)" 1

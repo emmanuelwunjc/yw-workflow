@@ -38,14 +38,16 @@ check() { if [ "$2" = "$3" ]; then echo "ok   $1"; else echo "FAIL $1: want $3, 
 FIX="FIX ROUND of PR 701. Review ONLY the fix diff: git diff abc1234..headsha123. Check the fix, that each new case fails on the old code, and that the fix opened no new defect."
 
 bash "$HERE/review-spec.sh" 701 700 "$T/plain" >/dev/null; check "plain spec: written" $? 0
-for t in adversarial codereview; do
+# One adversarial reviewer per round (owner decision 2026-11-25): no code-review spec.
+check "plain: only adversarial.txt is written" "$(ls "$T/plain")" adversarial.txt
+for t in adversarial; do
   check "plain $t: line 1 names the PR (orca cuts a prompt to 200 characters)" "$(head -1 "$T/plain/$t.txt")" "Review of PR 701."
   check "plain $t: no FIX ROUND" "$(grep -c 'FIX ROUND' "$T/plain/$t.txt")" 0
   check "plain $t: head commit filled in" "$(grep -c 'ticket-700 at headsha123' "$T/plain/$t.txt")" 1
   check "plain $t: the review posts at the head commit" "$(grep -c 'commit_id=headsha123' "$T/plain/$t.txt")" 1
 done
 bash "$HERE/review-spec.sh" --fix abc1234 --finding "the log drops a row" 701 700 "$T/fix" >/dev/null; check "fix spec: written" $? 0
-for t in adversarial codereview; do
+for t in adversarial; do
   check "fix $t: the FIX ROUND line comes first" "$(head -1 "$T/fix/$t.txt")" "$FIX"
   check "fix $t: the earlier finding" "$(grep -c 'Earlier blocking finding: the log drops a row' "$T/fix/$t.txt")" 1
 done
@@ -59,7 +61,7 @@ bash "$HERE/review-spec.sh" --fix beef123 701 700 "$T/branch" >/dev/null; check 
 check "fix over a merge of another branch: the full diff" "$(head -1 "$T/branch/adversarial.txt" | grep -c 'git diff beef123..headsha123')" 1
 o=$(bash "$HERE/review-spec.sh" --fix fff9999 701 700 "$T/nocmp" 2>&1); check "compare fails: exit 1 and says so" "$?:$(echo "$o" | grep -c 'gh api compare fff9999')" "1:1"
 check "compare fails: no spec" "$(ls "$T/nocmp" 2>/dev/null | wc -l | tr -d ' ')" 0
-for t in adversarial codereview; do
+for t in adversarial; do
   check "plain $t: alpha's repo, folder and rules, no placeholder left" \
     "$(grep -c "Repo: alpha ($HOME/code/alpha)" "$T/plain/$t.txt"):$(grep -c 'repos/o/alpha/pulls/701/reviews' "$T/plain/$t.txt"):$(grep -c 'Project rules: Alpha blocks on a lost record.' "$T/plain/$t.txt"):$(grep -c '<repo>\|<project>\|<git_dir>\|<review_rules>' "$T/plain/$t.txt")" "1:1:1:0"
 done
@@ -67,7 +69,7 @@ PROJECTS_JSON=$T/projects.json bash "$HERE/review-spec.sh" --project beta 701 70
 check "--project beta: beta's repo, folder and rules, none of alpha's" \
   "$(grep -c 'Repo: beta (/src/beta)' "$T/beta/adversarial.txt"):$(grep -c 'repos/o/beta/pulls' "$T/beta/adversarial.txt"):$(grep -c 'Beta blocks on a missed alert' "$T/beta/adversarial.txt"):$(grep -c -i alpha "$T/beta/adversarial.txt")" "1:1:1:0"
 # shared_files: beta's specs ask the reviewer to check the merge of the shared files. alpha has none.
-check "--project beta: the shared-files merge line" "$(grep -c 'When the branch merged main and x.json Dockerfile changed on both sides' "$T/beta/codereview.txt")" 1
+check "--project beta: the shared-files merge line" "$(grep -c 'When the branch merged main and x.json Dockerfile changed on both sides' "$T/beta/adversarial.txt")" 1
 check "alpha, no shared_files: no merge line" "$(grep -c 'When the branch merged main' "$T/plain/adversarial.txt")" 0
 PROJECTS_JSON=$T/projects.json bash "$HERE/review-spec.sh" --project beta --fix abc1234 701 700 "$T/betafix" >/dev/null
 check "--project beta --fix: names the diff of the shared files" "$(grep -c 'git diff abc1234..headsha123 -- x.json Dockerfile' "$T/betafix/adversarial.txt")" 1
