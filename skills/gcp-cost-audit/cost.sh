@@ -4,9 +4,9 @@
 # 1. If a BigQuery billing export exists (env BILLING_EXPORT_TABLE=proj.dataset.table, or a
 #    gcp_billing_export_* table in a dataset of <project>), print spend to date by label app.
 # 2. Else print the budgets that cover <project>, and the manual source for spend.
-# Exit 2 if a gcloud or bq call failed.
+# Exit 2 if a gcloud or bq call failed, or project or app is missing or empty.
 set -euo pipefail
-[ $# -ge 2 ] || { sed -n '3p' "$0" >&2; exit 2; }
+[ $# -ge 2 ] && [ -n "$1" ] && [ -n "$2" ] || { sed -n '3p' "$0" >&2; exit 2; }
 PROJECT=$1
 APP=$2
 LEGACY=${3:-}

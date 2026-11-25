@@ -5,10 +5,11 @@
 # A resource is in scope when its app label is <app>, or a legacy value (flagged RENAME),
 # or it has no app label and its name holds the app's first word (e.g. "pay").
 # Service accounts and Scheduler jobs take no labels: their description holds key=value pairs.
-# Exit: 0 no gaps, 1 gaps found, 2 a gcloud call failed (never read as zero resources).
+# Exit: 0 no gaps, 1 gaps found, 2 a gcloud call failed (never read as zero resources),
+#   or project, region or app is missing or empty.
 # AUDIT_MODE=fixes prints the fix commands instead of the table (fixes.sh sets it).
 set -euo pipefail
-[ $# -ge 3 ] || { sed -n '3,4p' "$0" >&2; exit 2; }
+[ $# -ge 3 ] && [ -n "$1" ] && [ -n "$2" ] && [ -n "$3" ] || { sed -n '3,4p' "$0" >&2; exit 2; }
 PROJECT=$1
 REGION=$2
 APP=$3
