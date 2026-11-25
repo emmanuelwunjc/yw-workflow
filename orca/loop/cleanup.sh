@@ -139,7 +139,10 @@ orca_read() { # orca args -> its stdout, or the ERROR line and exit 1
   local out; out=$(orca "$@" 2>&1) && { printf '%s\n' "$out"; return; }
   echo "ERROR orca $* failed, so nothing retires or is removed: ${out//$'\n'/ }" >&2; exit 1
 }
-open_items='[]' bots=$(orca_read bot list --json) && bots=$(jq -r '.result.bots[].name' <<<"$bots")
+# Plain assignments only: left of && or || a failed $(orca_read) does not stop the run.
+open_items='[]'
+bots=$(orca_read bot list --json)
+bots=$(jq -r '.result.bots[].name' <<<"$bots")
 while IFS= read -r b; do
   cursor=
   while [ -n "$b" ]; do

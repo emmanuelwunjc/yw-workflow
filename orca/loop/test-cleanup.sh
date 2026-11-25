@@ -34,7 +34,8 @@ case "$1 $2" in
   "orchestration inbox") cat "$FIX/inbox.json" ;;
   "terminal close") [ -n "${CLOSE_FAIL:-}" ] && exit 1; echo "$4" >> "$CLOSE_LOG" ;;
   "worktree set") echo "$4" >> "$SET_LOG" ;;
-  "bot list") echo '{"result": {"bots": [{"name": "Test Bot"}, {"name": "Other Bot"}]}}' ;;
+  "bot list") [ -n "${BOTS_FAIL:-}" ] && { echo '{"ok": false, "error": {"message": "bot list down"}}'; exit 1; }
+    echo '{"result": {"bots": [{"name": "Test Bot"}, {"name": "Other Bot"}]}}' ;;
   "bot item") # list --status canceled: the canceled items of "Test Bot". list --status
     # in_progress,needs_you: $FIX/items-open-<bot>.json when it exists. Any other list: none.
     [ "$3" = set ] && { echo "$*" >> "$ITEM_LOG"; exit; }
@@ -445,6 +446,11 @@ cases() { # script -> prints FAIL lines, returns 1 on any failure
   # The daily log must say why: one ERROR line with the bot and the orca error.
   grep -q '^ERROR orca bot item list --bot Other Bot .* failed, so nothing retires or is removed: .*orca runtime not reachable' <<<"$out" || { echo "FAIL no ERROR line for a failed item read:"; tail -3 <<<"$out"; fail=1; }
   [ -e "$CLOSE_LOG" ] || [ -e "$RM_LOG" ] && { echo "FAIL a failed item read closed or removed"; fail=1; }
+  # A failed bot list stops the run the same way, before any close or remove.
+  rm -f "$CLOSE_LOG" "$RM_LOG"
+  out=$(BOTS_FAIL=1 cl --apply --remove 2>&1) && { echo "FAIL a failed bot list did not stop the run"; fail=1; }
+  grep -q '^ERROR orca bot list --json failed, so nothing retires or is removed: .*bot list down' <<<"$out" || { echo "FAIL no ERROR line for a failed bot list"; fail=1; }
+  [ -e "$CLOSE_LOG" ] || [ -e "$RM_LOG" ] && { echo "FAIL a failed bot list closed or removed"; fail=1; }
   rm -f "$FIX/items-open-"*.json "$CLOSE_LOG" "$RM_LOG" "$SET_LOG"
   return $fail
 }
