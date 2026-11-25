@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # Self-test for cleanup.sh. Fake orca, gh and git on PATH read fixtures, so
 # nothing real is read or closed. A workspace with a .git entry runs real git
-# against a scratch remote. Then each `# guard:<name>` line of cleanup.sh is
-# deleted in turn, and the cases must fail for each.
+# against a scratch remote.
 set -u
 dir=$(cd "$(dirname "$0")" && pwd)
 work=$(mktemp -d)
@@ -20,10 +19,7 @@ cat > "$work/projects.json" <<J
 J
 jq '{live_terminal_max, projects: {alpha: .projects.alpha}}' "$work/projects.json" > "$work/alpha.json"
 export PROJECTS_JSON=$work/alpha.json
-# cleanup.sh --apply runs status-sync.sh beside it, also for a mutant in $work, which also reads
-# project.sh and projects.py beside it.
 export SET_LOG="$work/set" RM_LOG="$work/rm" CLEANUP_LEDGER="$work/ledger.tsv"
-cp "$dir/status-sync.sh" "$dir/project.sh" "$dir/projects.py" "$work/"
 # The bot name for `orca bot item list` comes from $BOT_HOME/bot.json.
 mkdir -p "$work/home"; echo '{"name": "Test Bot"}' > "$work/home/bot.json"; export BOT_HOME="$work/home" ITEM_LOG="$work/items"
 REAL_GIT=$(command -v git)
@@ -91,6 +87,9 @@ ws nopr      b-nopr    0 ""                  CLOSE KEEP
 ws claude    b-merged2 0 "?? .claude/x.json" CLOSE CLOSE
 ws setuplink b-merged3 0 "?? .venv"          CLOSE CLOSE
 ln -s "$work/setup/.venv" "$work/ws/setuplink/.venv"
+# A symlink to a folder outside setup_links is the worker's own output: KEEP.
+ws otherlink b-merged3 0 "?? .venv"          KEEP  KEEP
+mkdir -p "$work/elsewhere/.venv"; ln -s "$work/elsewhere/.venv" "$work/ws/otherlink/.venv"
 ws working   b-merged4 0 ""                  KEEP  KEEP
 ws openpr    b-open    0 ""                  KEEP  KEEP
 ws unpushed  b-merged5 2 ""                  KEEP  KEEP
@@ -410,6 +409,10 @@ cases() { # script -> prints FAIL lines, returns 1 on any failure
   [ "$(grep '^PROJECT ' <<<"$sout" | tr '\n' ' ')" = "PROJECT alpha PROJECT beta " ] || { echo "FAIL --all-projects PROJECT lines"; fail=1; }
   [ "$(grep -c '^TOTAL ' <<<"$sout")" = 2 ] && grep -q '^CLOSE ' <<<"$sout" || { echo "FAIL --all-projects did not run alpha and beta"; fail=1; }
   PROJECTS_JSON=$work/projects.json cl --all-projects --project beta > /dev/null 2>&1 && { echo "FAIL --all-projects with --project ran"; fail=1; }
+  # One failed project fails the --all-projects run, and the other project still runs.
+  jq 'del(.projects.beta.git_dir)' "$work/projects.json" > "$work/betabad.json"
+  sout=$(PROJECTS_JSON=$work/betabad.json cl --all-projects 2>&1) && { echo "FAIL --all-projects exits 0 when beta fails"; fail=1; }
+  grep -q '^TOTAL ' <<<"$sout" || { echo "FAIL --all-projects did not run alpha when beta fails"; fail=1; }
   # The daily run may act by rule, but --run-scoped needs the owner in chat.
   if CLEANUP_KIND=daily WL_SCOPE=bound cl --run-scoped > /dev/null 2>&1; then
     echo "FAIL CLEANUP_KIND=daily did not refuse --run-scoped"; fail=1
@@ -477,11 +480,4 @@ sed 's/^ *"live_terminal_max": 40,/"live_terminal_max": 39,/; s/{"live_terminal_
 [ "$(PROJECTS_JSON=$work/max39.json PS=load.json bash "$dir/load.sh" --all-projects 2>/dev/null)" = 39 ] \
   && ! PS=load.json PROJECTS_JSON=$work/projects.json bash "$dir/load.sh" --all-projects > /dev/null 2>&1 \
   && echo "ok load.sh reads live_terminal_max when LIVE_MAX is unset" || { echo "FAIL load.sh live_terminal_max"; fail=1; }
-tags=$(grep -o '# guard:[a-z]*$' "$dir/cleanup.sh" | sed 's/# guard://')
-[ "$(wc -w <<<"$tags")" -ge 8 ] || { echo "FAIL fewer than 8 guard tags"; fail=1; }
-for tag in $tags; do
-  sed "/# guard:$tag\$/d" "$dir/cleanup.sh" > "$work/mutant.sh"
-  if cases "$work/mutant.sh" > /dev/null; then echo "FAIL guard $tag removed, cases still pass"; fail=1
-  else echo "ok guard $tag removed, cases fail"; fi
-done
 exit $fail

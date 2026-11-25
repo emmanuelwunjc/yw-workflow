@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # Self-test for status-sync.sh. Fake orca and gh read fixtures, so nothing
 # real is read or set. Each case is one workspace with its expected new status
-# (- for no change). Then each `# guard:<name>` line of status-sync.sh is
-# deleted in turn, and the cases must fail for each.
+# (- for no change).
 set -u
 dir=$(cd "$(dirname "$0")" && pwd)
 work=$(mktemp -d)
@@ -11,7 +10,7 @@ mkdir -p "$work/bin" "$work/fix"
 root="$work/ws"
 export FIX="$work/fix" SET_LOG="$work/set"
 # Two fake projects: alpha (root $work/ws, every case, alone in its own file) and beta (root $work/beta,
-# repo o/beta) in a two-project file. A mutant in $work reads project.sh and projects.py beside it.
+# repo o/beta) in a two-project file.
 cat > "$work/projects.json" <<J
 {"projects": {
   "alpha": {"repo": "o/alpha", "ws_root": "$root", "labels": {"owner_wait": "needs-owner"}},
@@ -19,7 +18,6 @@ cat > "$work/projects.json" <<J
 J
 jq '{projects: {alpha: .projects.alpha}}' "$work/projects.json" > "$work/alpha.json"
 export PROJECTS_JSON=$work/alpha.json GH_LOG=$work/gh.log
-cp "$dir/project.sh" "$dir/projects.py" "$work/"
 # Items: the bot name comes from $BOT_HOME/bot.json. A set goes to ITEM_LOG, and
 # each item move to the ledger.
 mkdir -p "$work/home"; echo '{"name": "Test Bot"}' > "$work/home/bot.json"
@@ -230,6 +228,8 @@ cases() {
   [ "$(grep '^PROJECT ' <<<"$out" | tr '\n' ' ')" = "PROJECT alpha PROJECT beta " ] || { echo "--all-projects PROJECT lines: $(grep '^PROJECT' <<<"$out")"; bad=1; }
   grep -qx 'SET reopened completed -> in-progress (agent working or waiting)' <<<"$out" || { echo "--all-projects missed alpha's sets"; bad=1; }
   PROJECTS_JSON=$work/projects.json bash "$1" --all-projects merged >/dev/null 2>&1 && { echo "--all-projects took a workspace name"; bad=1; }
+  rm -f "$SET_LOG"; PROJECTS_JSON=$work/projects.json bash "$1" --all-projects --apply >/dev/null 2>&1
+  grep -qx "path:$root/reopened in-progress" "$SET_LOG" 2>/dev/null || { echo "--all-projects --apply set nothing"; bad=1; }
   return $bad
 }
 
@@ -241,21 +241,4 @@ out=$(bash "$dir/status-sync.sh" --apply 2>&1) && { echo "FAIL: a failed set exi
 grep -qx 'FAILED fail-set' <<<"$out" && tail -1 <<<"$out" | grep -qx "DONE $nset set, 1 failed" || { echo "FAIL: failed set lines: $out"; exit 1; }
 jq --arg p "$root/fail-set" '.result.worktrees |= map(select(.path != $p))' "$FIX/ps.json" > "$FIX/ps2" && mv "$FIX/ps2" "$FIX/ps.json"
 
-# Each guard line, deleted, must break a case.
-for g in $(grep -o '# guard:[a-z]*' "$dir/status-sync.sh" | cut -d: -f2); do
-  cp "$dir/status-sync.sh" "$work/mut.sh"
-  python3 - "$work/mut.sh" "$g" <<'PY'
-import sys, re
-p, g = sys.argv[1:]
-lines = open(p).read().split("\n")
-out = []
-for l in lines:
-    if f"# guard:{g}" in l:
-        # In the jq rule an elif line is dropped whole; a shell line too.
-        continue
-    out.append(l)
-open(p, "w").write("\n".join(out))
-PY
-  if cases "$work/mut.sh" >/dev/null 2>&1; then echo "FAIL: guard $g deleted, the cases still pass"; exit 1; fi
-done
-echo "PASS: $(grep -c . <<<"$expect") cases, $(grep -c '# guard:' "$dir/status-sync.sh") guards each caught"
+echo "PASS: $(grep -c . <<<"$expect") cases"

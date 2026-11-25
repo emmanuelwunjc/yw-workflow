@@ -376,7 +376,7 @@ for event, groups in wiring["hooks"].items():
 print("orca/README.md links every file under orca/")
 orca_readme = (ROOT / "orca" / "README.md").read_text()
 for path in subprocess.run(["git", "ls-files", "orca"], cwd=ROOT, capture_output=True,
-                           text=True).stdout.splitlines():
+                           text=True, check=True).stdout.splitlines():
     rel = path[len("orca/"):]
     check("orca/README.md links %s" % rel,
           rel == "README.md" or "](%s)" % rel in orca_readme)

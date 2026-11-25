@@ -52,7 +52,6 @@
 # `orca orchestration worker-list` (dispatch -> workspace), one
 # `orca orchestration inbox` call, and one `gh api .../pulls/<n>/reviews` call
 # per kind: review candidate. No git call: the branch comes from ps.
-# Each guard line carries a `# guard:<name>` tag for the self-test.
 set -euo pipefail
 LOOP=$(cd "$(dirname "$0")" && pwd); . "$LOOP/project.sh" "$@"; set -- ${ARGS[@]+"${ARGS[@]}"}
 apply=0
@@ -62,7 +61,7 @@ if [ "$ALL_PROJECTS" = 1 ]; then
   [ $# = 0 ] || { echo "--all-projects takes no workspace names" >&2; exit 2; }
   rc=0 flag= names=$(pall) || exit 2
   [ "$apply" = 1 ] && flag=--apply
-  for p in $names; do echo "PROJECT $p"; bash "$0" --project "$p" $flag || rc=1; done # guard:allprojects
+  for p in $names; do echo "PROJECT $p"; bash "$0" --project "$p" $flag || rc=1; done
   exit $rc
 fi
 # The root is the project's ws_root: a script reads no other root (it replaced STATUS_SYNC_ROOTS, #244).
@@ -74,7 +73,7 @@ project=$PROJECT
 owner_label=$(pget labels.owner_wait)
 
 ps_json=$(orca worktree ps --json --limit 100000)
-[ "$(jq -r '.result.truncated' <<<"$ps_json")" = false ] || { echo "orca worktree ps output is truncated, so a working agent can hide. Stop." >&2; exit 1; } # guard:truncated
+[ "$(jq -r '.result.truncated' <<<"$ps_json")" = false ] || { echo "orca worktree ps output is truncated, so a working agent can hide. Stop." >&2; exit 1; }
 workers='[]' cursor=
 while :; do
   page=$(orca orchestration worker-list --json --full --limit 100 ${cursor:+--cursor="$cursor"})
@@ -110,20 +109,20 @@ rows=$(jq -nr --arg root "${root%/}" --arg only "$*" \
   | ([$last | did][0] // $ids[0]) as $lastid
   | any($mine[]; .dispatchId == $lastid and .projection.outcome == "succeeded") as $settled
   | ([[$last.subject, $last.body][] // "" | capture("\\bPR #?(?<n>[0-9]+)").n][0] // "") as $prn
-  | (if .botHome or .isMainWorktree then null                                        # guard:bothome
-     elif ($name | startswith("grill")) then null                                     # guard:grill
-     elif any($states[]; IN("done", "idle") | not) then ["in-progress", "agent working or waiting"] # guard:working
-     elif any($mine[]; .projection.outcome == "in_progress") then ["in-progress", "open dispatch"] # guard:opendispatch
-     elif $old == "completed" then null                                               # guard:downgrade
-     elif IN($pr[]; "OPEN") then ["in-review", "OPEN PR"]                             # guard:openpr
-     elif ($mine | length) == 0 then (if $branch == "" then ["completed", "detached"] elif IN($pr[]; "MERGED") then ["completed", "MERGED PR"] else null end) # guard:noworker
-     elif $fin | not then null                                                        # guard:fin
-     elif $kind == "pr" then (if IN($pr[]; "MERGED") then ["completed", "kind pr, MERGED PR"] else null end) # guard:kindpr
-     elif $kind == "report" then (if $settled then ["completed", "kind report, settled"] else null end) # guard:report
-     elif $kind == "review" then (if $prn != "" then ["?review", $prn] elif $settled then ["completed", "kind review of no PR, settled"] else null end) # guard:review
+  | (if .botHome or .isMainWorktree then null
+     elif ($name | startswith("grill")) then null
+     elif any($states[]; IN("done", "idle") | not) then ["in-progress", "agent working or waiting"]
+     elif any($mine[]; .projection.outcome == "in_progress") then ["in-progress", "open dispatch"]
+     elif $old == "completed" then null
+     elif IN($pr[]; "OPEN") then ["in-review", "OPEN PR"]
+     elif ($mine | length) == 0 then (if $branch == "" then ["completed", "detached"] elif IN($pr[]; "MERGED") then ["completed", "MERGED PR"] else null end)
+     elif $fin | not then null
+     elif $kind == "pr" then (if IN($pr[]; "MERGED") then ["completed", "kind pr, MERGED PR"] else null end)
+     elif $kind == "report" then (if $settled then ["completed", "kind report, settled"] else null end)
+     elif $kind == "review" then (if $prn != "" then ["?review", $prn] elif $settled then ["completed", "kind review of no PR, settled"] else null end)
      elif $branch == "" then ["completed", "detached, worker_done"]
      elif IN($pr[]; "MERGED") then ["completed", "MERGED PR, worker_done"]
-     elif ($pr | length) == 0 and all($states[]; . == "done") then ["completed", "no PR, worker_done"] # guard:workerdone
+     elif ($pr | length) == 0 and all($states[]; . == "done") then ["completed", "no PR, worker_done"]
      else null end) as $new
   | select($new != null and $new[0] != $old)
   | [$name, ($old | if . == "" then "-" else . end), $new[0], $new[1]] | @tsv')
@@ -136,7 +135,7 @@ review=$(awk -F'\t' '$3 == "?review"' <<<"$rows") rows=$(awk -F'\t' '$3 != "?rev
 while IFS=$'\t' read -r name old _ n; do
   [ -n "$name" ] || continue
   c=$(gh api "repos/$repo/pulls/$n/reviews" --paginate --jq '[.[] | select((.body // "") | test("\\A\\s*(PASS|BLOCK [0-9]+|REVIEW)\\b"))] | length' 2>/dev/null) || continue
-  [ "$(awk '{s += $1} END {print s + 0}' <<<"$c")" -gt 0 ] && rows+=$'\n'"$name"$'\t'"$old"$'\tcompleted\tkind review, verdict on PR '"$n" # guard:verdict
+  [ "$(awk '{s += $1} END {print s + 0}' <<<"$c")" -gt 0 ] && rows+=$'\n'"$name"$'\t'"$old"$'\tcompleted\tkind review, verdict on PR '"$n"
 done <<<"$review"
 rows=$(grep . <<<"$rows" || true)
 
@@ -168,24 +167,24 @@ items_sync() { # the names of the workspaces whose set failed -> ITEM lines; wit
     ($done | split("\n") | map($root + "/" + .)) as $done
     | ([$d[0][] | {key: .dispatchId, value: dpath}] | from_entries) as $where
     | $items[0] | unique_by(.number)[]
-    | select(.status | IN("in_progress", "waiting"))                                  # guard:itemstatus
+    | select(.status | IN("in_progress", "waiting"))
     | [.links[]? | select(.kind == "dispatch") | $where[.ref] // ""] as $paths
-    | select($paths | length > 0)                                                     # guard:itemlinks
-    | select(all($paths[]; IN($done[]; .)))                                           # guard:itemdone
+    | select($paths | length > 0)
+    | select(all($paths[]; IN($done[]; .)))
     | ([.links[]? | select(.kind == "url") | (.url // .ref // "") | capture("github\\.com/\($repo)/issues/(?<n>[0-9]+)").n][0]
        // ((.title // "") | capture("^\($project) #(?<n>[0-9]+)").n) // "") as $t
     | [.number, .status, ($paths | map(split("/")[-1]) | unique | join(",")), $t] | @tsv')
   while IFS=$'\t' read -r n from names t; do
     [ -n "$n" ] || continue
     why="every linked workspace is completed"
-    [ -z "$t" ] && [ "$from" = waiting ] && { echo "ITEM-KEEP $n (Waiting, no ticket)"; continue; } # guard:itemwaiting
+    [ -z "$t" ] && [ "$from" = waiting ] && { echo "ITEM-KEEP $n (Waiting, no ticket)"; continue; }
     if [ -n "$t" ]; then
-      iss=$(gh issue view "$t" -R "$repo" --json state,labels,body 2>/dev/null) || { echo "ITEM-KEEP $n (ticket $t could not be read)"; continue; } # guard:itemticket
-      [ "$(jq -r '.state' <<<"$iss")" = CLOSED ] || { echo "ITEM-KEEP $n (ticket $t is open)"; continue; } # guard:itemopen
+      iss=$(gh issue view "$t" -R "$repo" --json state,labels,body 2>/dev/null) || { echo "ITEM-KEEP $n (ticket $t could not be read)"; continue; }
+      [ "$(jq -r '.state' <<<"$iss")" = CLOSED ] || { echo "ITEM-KEEP $n (ticket $t is open)"; continue; }
       why="ticket $t closed, every linked workspace is completed"
       t=$(jq -r --arg l "$owner_label" 'if any(.labels[]?; .name == $l) then "label \($l)"
         elif (.body // "") | test("(\\A|\\n)[ \\t]*[-*] \\[ \\][^\\n]*\\bowner\\b"; "i") then "an open owner box" else "" end' <<<"$iss")
-      [ -n "$t" ] && { echo "ITEM-KEEP $n (ticket: $t)"; continue; } # guard:itemowner
+      [ -n "$t" ] && { echo "ITEM-KEEP $n (ticket: $t)"; continue; }
     fi
     echo "ITEM $n done ($names)"
     [ "$apply" = 1 ] || continue

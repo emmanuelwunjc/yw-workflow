@@ -9,7 +9,7 @@ description: The Orca work loop for any repo listed in projects.json. A free wor
 
 `<loop>` below is the folder that holds this file. Every script takes `--project <name>`, a key of `projects.json`. With one project in the file the flag is optional. With two or more, a script without it stops and names them. `cleanup.sh`, `status-sync.sh` and `load.sh` also take `--all-projects`.
 
-Every script needs `BOT_HOME`, the bot's home folder (e.g. `~/.orca/bots/twenty`). Start locks live in `$BOT_HOME/locks`. The cleanup ledger and `starts.log` live in `$BOT_HOME/logs` (move them with `CLEANUP_LEDGER` and `STARTS_LOG`). `PROJECTS_JSON` points at a projects file other than `<loop>/projects.json`.
+Every script needs `BOT_HOME`, the bot's home folder (e.g. `~/.orca/bots/twenty`). Start locks live in `$BOT_HOME/locks`. The cleanup ledger and `starts.log` live in `$BOT_HOME/logs` (move them with `CLEANUP_LEDGER` and `STARTS_LOG`). The projects file is `PROJECTS_JSON`, else `$BOT_HOME/projects.json` when it exists, else `<loop>/projects.json` (a sample).
 
 GitHub holds the state. A ticket waits only on a "blocked by" link or a label. Text such as "after #n" in an issue body holds nothing. Never write state into prose: no claim comments, no lists of who works on what.
 
@@ -23,7 +23,7 @@ GitHub holds the state. A ticket waits only on a "blocked by" link or a label. T
 | `start-guard.sh`, `start.sh`, `stall.sh`, `pr_wait.sh` | The sweep: one sweep at a time, a start lock per ticket, the stall alarm, the open PR check. |
 | `review-spec.sh`, `reviewer-*.txt`, `worker-rules.txt`, `merge.sh` | Worker and reviewer specs, and the merge after a pass. |
 | `cleanup.sh`, `load.sh`, `status-sync.sh` | Close finished workspaces (dry run unless `--apply`), the load check that starts a cleanup, and the sidebar status. |
-| `mutate.sh`, `test-*.sh`, `selftest.sh` | The tests. `bash <loop>/selftest.sh` runs them all on fake projects, with no network. |
+| `test-*.sh`, `selftest.sh` | The tests. `bash <loop>/selftest.sh` runs them all on fake projects, with no network. |
 
 The head comment of each script says what each output line means. Read it before you act on a line.
 
@@ -46,7 +46,7 @@ Run `bash <loop>/load.sh --all-projects` and `bash <loop>/cleanup.sh --all-proje
 ## Add a project
 
 1. Find the labels the repo uses for work tickets, owner waits and grills (`gh label list -R <repo>`).
-2. Add an entry to `projects.json` (or the file `PROJECTS_JSON` names) with the keys of the `twenty` entry. Put project rules in the file its `worker_rules` key names, never in `worker-rules.txt`.
+2. Add an entry to the projects file the scripts read (see the top of this file), with the keys of the `twenty` entry. No script reads `live_agent_cap`, `labels.grill` or `gcp` yet. Put project rules in the file its `worker_rules` key names, never in `worker-rules.txt`.
 3. Dry run: `bash <loop>/free_tickets.sh --project <p>` and `bash <loop>/cleanup.sh --project <p>` print a list with no error.
 
 ## Lessons (2026-11-24)

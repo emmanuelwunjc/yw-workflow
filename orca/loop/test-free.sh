@@ -1,8 +1,8 @@
 #!/bin/bash
 # Fake-data test of free_tickets.py, slots.py, slot.sh and precheck.sh. A fake `gh` and `orca` go first on
-# PATH: no network. One case per rule of the free work check (twenty ticket #689). Each case fails when its
-# rule is removed: see test-mutations.sh. Two fake projects: alpha (most cases, alone in its own
-# projects.json) and beta (a second repo, workspace root and cap in a two-project file).
+# PATH: no network. One case per rule of the free work check (twenty ticket #689). Two fake projects:
+# alpha (most cases, alone in its own projects.json) and beta (a second repo, workspace root and cap in a
+# two-project file).
 D=$(cd "$(dirname "$0")" && pwd)
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 LABELS='{"work": "slice:", "first": "slice:mvp-", "last": "slice:nits",

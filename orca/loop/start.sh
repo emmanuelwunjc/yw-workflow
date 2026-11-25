@@ -31,8 +31,8 @@ case "$RULES" in "" | /*) ;; *) RULES=$BOT_HOME/$RULES ;; esac
 [ -z "$RULES" ] || [ -s "$RULES" ] || { echo "worker_rules of $PROJECT names $RULES, which is missing or empty (no worker started)"; exit 2; }
 LOCKS=${START_LOCKS:-$BOT_HOME/locks}
 LOCK_MIN=180
-# worker-rules.txt names paths as ~/.orca/bots/<bot>/... and <loop>/...: the worker gets the real folders.
-SPEC="$(cat "$2"; sed -e "s#~/.orca/bots/<bot>#$BOT_HOME#g" -e "s#<loop>#$LOOP#g" "$LOOP/worker-rules.txt" ${RULES:+"$RULES"})"
+# worker-rules.txt names paths as ~/.orca/bots/<bot>/...: the worker gets the real folder.
+SPEC="$(cat "$2"; sed -e "s#~/.orca/bots/<bot>#$BOT_HOME#g" "$LOOP/worker-rules.txt" ${RULES:+"$RULES"})"
 ITEM=(--item "$1"); [ "$1" = - ] && ITEM=()
 if [ -n "$DRY" ]; then echo "worker-start ${ITEM[*]} (spec $(echo "$SPEC" | wc -l) lines)"; exit 0; fi
 

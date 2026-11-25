@@ -9,7 +9,7 @@ with no prompt.
 
 ## loop: the work loop of a bot
 
-Skill `orca-loop` (`skills/orca-loop` links to this folder). Start at
+Skill `orca-loop` (`skills/orca-loop` links to `orca/loop`). Start at
 [`loop/SKILL.md`](loop/SKILL.md). Each script takes `--project <name>`, a key
 of [`loop/projects.json`](loop/projects.json), and needs `BOT_HOME`. Run every
 test with `bash orca/loop/selftest.sh`.
@@ -49,5 +49,4 @@ Cleanup:
 Tests:
 
 - [`loop/selftest.sh`](loop/selftest.sh): runs every test below.
-- [`loop/mutate.sh`](loop/mutate.sh): breaks one line in a temp copy and runs a test, to prove the test can fail.
-- [`loop/test-cleanup.sh`](loop/test-cleanup.sh), [`loop/test-free.sh`](loop/test-free.sh), [`loop/test-merge.sh`](loop/test-merge.sh), [`loop/test-mutate.sh`](loop/test-mutate.sh), [`loop/test-mutations.sh`](loop/test-mutations.sh), [`loop/test-pr-wait.sh`](loop/test-pr-wait.sh), [`loop/test-projects.sh`](loop/test-projects.sh), [`loop/test-review-spec.sh`](loop/test-review-spec.sh), [`loop/test-stall.sh`](loop/test-stall.sh), [`loop/test-start-guard.sh`](loop/test-start-guard.sh), [`loop/test-start.sh`](loop/test-start.sh), [`loop/test-status.sh`](loop/test-status.sh): one per script, on fake projects, with no network.
+- [`loop/test-cleanup.sh`](loop/test-cleanup.sh), [`loop/test-free.sh`](loop/test-free.sh), [`loop/test-merge.sh`](loop/test-merge.sh), [`loop/test-pr-wait.sh`](loop/test-pr-wait.sh), [`loop/test-projects.sh`](loop/test-projects.sh), [`loop/test-review-spec.sh`](loop/test-review-spec.sh), [`loop/test-stall.sh`](loop/test-stall.sh), [`loop/test-start-guard.sh`](loop/test-start-guard.sh), [`loop/test-start.sh`](loop/test-start.sh), [`loop/test-status.sh`](loop/test-status.sh): one per script, on fake projects, with no network.
