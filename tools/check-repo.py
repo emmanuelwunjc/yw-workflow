@@ -20,6 +20,10 @@ Checks, each one because something actually broke:
   5. The plugin version differs from the last tag's, if there is one, because
      `claude plugin update` keys off the version and a stale one is
      uninstallable in place.
+
+This file is past the module size limit, and it stays this size on purpose.
+Every check traces to a defect that shipped, and a reviewer judged that worth
+the friction. A new check needs a defect to point at, never a gap to fill.
 """
 
 import fnmatch

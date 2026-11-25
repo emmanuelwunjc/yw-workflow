@@ -308,7 +308,11 @@ def main():
             "That covers a commit message too: a Claude-Session trailer "
             "is a session URL, and a co-author trailer at an "
             "anthropic.com address names Claude. A co-author trailer "
-            "that names a person is fine."
+            "that names a person is fine.\n"
+            "Writing about this rule? A file-edit tool gets the text "
+            "past this hook, but CI runs this hook on every changed .md "
+            "and .txt file. So describe the footer in words and do not "
+            "quote it."
             + (("\n" + citation) if citation else ""),
             file=sys.stderr,
         )
