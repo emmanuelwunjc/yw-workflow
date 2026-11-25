@@ -7,7 +7,7 @@ import json, os, subprocess, sys
 #   TAKEN: #<n> <branch> [PR #<p>]  a branch linked to ticket <n>, and its open PR when it has one (slots.py reads it)
 #   WORKERS: <n>/<cap>      taken tickets with no open PR yet (a linked branch that is no PR head).
 #                           slots.py adds live work and prints SLOTS: the most workers the sweep may START.
-#   NO SLICE: #<n>          an open ticket with no work label (labels.work, a prefix): reported, never started
+#   NO SLICE: #<n>          an open ticket with no work label (labels.work: a prefix or a list of prefixes): reported, never started
 #   BUSY: <path> <where>    a file that an open PR or a taken ticket's branch changes (the real diff)
 #   FREE: #<n>              a ticket that may start now, best first. Every free ticket prints, so the sweep
 #                           can skip one that clashes or waits on the owner and take the next (bug of 2026-11-24).
@@ -26,7 +26,8 @@ P = projects.project(NAME)
 R, BASE = P["repo"], P.get("base", "main")
 WORKER_CAP, PR_CAP = P["worker_cap"], P["pr_cap"]
 L = P["labels"]
-SKIP, SLICE, MVP, NITS = set(L.get("skip", [])), L["work"], L.get("first"), L.get("last")
+SKIP, MVP, NITS = set(L.get("skip", [])), L.get("first"), L.get("last")
+SLICE = (L["work"],) if isinstance(L["work"], str) else tuple(L["work"])
 QUERY = """query($owner: String!, $name: String!, $endCursor: String) {
   repository(owner: $owner, name: $name) {
     issues(states: OPEN, first: 100, after: $endCursor) {
