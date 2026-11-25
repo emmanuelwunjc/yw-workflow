@@ -1,11 +1,12 @@
 #!/bin/bash
-# Selftest for start-grill.sh against a fake gh and orca. No network. Usage: bash test-start-grill.sh
+# Test start-grill.sh against a fake gh and orca. No network. Usage: bash test-start-grill.sh
 set -u
 HERE=$(cd "$(dirname "$0")" && pwd)
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 mkdir "$T/bin"
 cat > "$T/bin/gh" <<'GH'
 #!/bin/bash
+echo "$*" >> "$T/gh.log"
 echo "The bot replies by mail as Twenty Bot"
 GH
 cat > "$T/bin/orca" <<'ORCA'
@@ -19,7 +20,11 @@ case "$1 $2" in
 esac
 ORCA
 chmod +x "$T/bin/"*
-export T PATH="$T/bin:$PATH"
+export T PATH="$T/bin:$PATH" BOT_HOME=$T/home
+# Two fake projects: alpha (alone in its own file, the default) and beta (in a two-project file).
+echo '{"projects": {"alpha": {"repo": "o/alpha", "orca_repo_id": "rid-alpha"}, "beta": {"repo": "o/beta", "orca_repo_id": "rid-beta"}}}' > "$T/projects.json"
+jq '{projects: {alpha: .projects.alpha}}' "$T/projects.json" > "$T/alpha.json"
+export PROJECTS_JSON=$T/alpha.json
 fail=0
 check() { if [ "$2" = "$3" ]; then echo "ok   $1"; else echo "FAIL $1: want $3, got $2"; fail=1; fi; }
 S="$HERE/start-grill.sh"
@@ -30,6 +35,14 @@ check "name comes from the title" "$(sed -n '4p' "$T/args")" grill-416-the-bot-r
 grep -q -- '--surface' "$T/args" && grep -q -- '--no-parent' "$T/args" && grep -q -- '--activate' "$T/args"; check "chat, no parent, activate" $? 0
 grep -q 'Topics: who gets a reply.' "$T/args"; check "extra topic text is in the prompt" $? 0
 grep -q 'ONE English comment on #416' "$T/args"; check "prompt asks for one comment on the ticket" $? 0
+check "alpha: the Orca repo of alpha" "$(grep -A1 -x -- --repo "$T/args" | tail -1)" id:rid-alpha
+grep -q -- '-R o/alpha' "$T/gh.log"; check "alpha: reads alpha's repo" $? 0
+rm -f "$T/args" "$T/gh.log"
+PROJECTS_JSON=$T/projects.json bash "$S" 416 >/dev/null 2>&1; check "two projects and no --project: exit 2" $? 2
+check "  and no create" "$([ -f "$T/args" ] && echo ran || echo none)" none
+PROJECTS_JSON=$T/projects.json bash "$S" --project beta 416 >/dev/null
+check "--project beta: the Orca repo of beta" "$(grep -A1 -x -- --repo "$T/args" | tail -1)" id:rid-beta
+grep -q 'Repo: o/beta.' "$T/args" && ! grep -q 'o/alpha' "$T/gh.log" "$T/args"; check "--project beta: only beta in the prompt and gh calls" $? 0
 
 rm -f "$T/args"
 out=$(bash "$S" --dry-run 416)

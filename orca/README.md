@@ -31,6 +31,7 @@ Sweep:
 
 - [`loop/start-guard.sh`](loop/start-guard.sh): one sweep at a time starts workers.
 - [`loop/start.sh`](loop/start.sh): starts one worker or reviewer, behind a lock per ticket or PR.
+- [`loop/start-grill.sh`](loop/start-grill.sh): opens a grill chat on a ticket, one per ticket.
 - [`loop/stall.sh`](loop/stall.sh): alarms when two sweeps in a row had free work and started nothing.
 - [`loop/pr_wait.sh`](loop/pr_wait.sh): one line per open PR that waits on nobody.
 
@@ -49,4 +50,4 @@ Cleanup:
 Tests:
 
 - [`loop/selftest.sh`](loop/selftest.sh): runs every test below.
-- [`loop/test-cleanup.sh`](loop/test-cleanup.sh), [`loop/test-free.sh`](loop/test-free.sh), [`loop/test-merge.sh`](loop/test-merge.sh), [`loop/test-pr-wait.sh`](loop/test-pr-wait.sh), [`loop/test-projects.sh`](loop/test-projects.sh), [`loop/test-review-spec.sh`](loop/test-review-spec.sh), [`loop/test-stall.sh`](loop/test-stall.sh), [`loop/test-start-guard.sh`](loop/test-start-guard.sh), [`loop/test-start.sh`](loop/test-start.sh), [`loop/test-status.sh`](loop/test-status.sh): one per script, on fake projects, with no network.
+- [`loop/test-cleanup.sh`](loop/test-cleanup.sh), [`loop/test-free.sh`](loop/test-free.sh), [`loop/test-merge.sh`](loop/test-merge.sh), [`loop/test-pr-wait.sh`](loop/test-pr-wait.sh), [`loop/test-projects.sh`](loop/test-projects.sh), [`loop/test-review-spec.sh`](loop/test-review-spec.sh), [`loop/test-stall.sh`](loop/test-stall.sh), [`loop/test-start-guard.sh`](loop/test-start-guard.sh), [`loop/test-start.sh`](loop/test-start.sh), [`loop/test-start-grill.sh`](loop/test-start-grill.sh), [`loop/test-status.sh`](loop/test-status.sh): one per script, on fake projects, with no network.

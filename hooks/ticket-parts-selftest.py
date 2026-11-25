@@ -107,8 +107,9 @@ def check_repo_in_copy(drop, path=None):
 
 
 # The cases above test the comparison. These test that check-repo.py calls it
-# and acts on the result. The unchanged copy must pass, so the failure of the
-# changed copy comes from the dropped heading and nothing else.
+# and acts on the result, and the last one tests check-repo's orca/README.md
+# link check. The unchanged copy must pass, so the failure of a changed copy
+# comes from the dropped text and nothing else.
 WIRED = [
     ("check-repo passes on an unchanged copy", None, None, 0,
      "RESULT: repo checks pass"),

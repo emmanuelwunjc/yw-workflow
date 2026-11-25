@@ -379,6 +379,7 @@ for event, groups in wiring["hooks"].items():
 
 # 4b. orca/README.md is the map of the Orca workflow (issue #238): every
 # tracked file under orca/ is linked from it, so a new script cannot hide.
+# Its test is the last WIRED case of hooks/ticket-parts-selftest.py.
 print("orca/README.md links every file under orca/")
 orca_readme = (ROOT / "orca" / "README.md").read_text()
 for path in subprocess.run(["git", "ls-files", "orca"], cwd=ROOT, capture_output=True,
