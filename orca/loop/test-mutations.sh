@@ -1,10 +1,10 @@
 #!/bin/bash
-# Proves selftest_free.sh and test-projects.sh can fail: each line removes one rule of the free work check
+# Proves test-free.sh and test-projects.sh can fail: each line removes one rule of the free work check
 # (twenty ticket #689) or of the project reader in a temp copy (mutate.sh), and the test must catch it.
 # Prints `caught:` per rule.
 D=$(cd "$(dirname "$0")" && pwd); M="$D/mutate.sh"; fail=0
-# m <file> <old> <new> <label> [<test>]: the test is selftest_free.sh, or test-projects.sh for projects.py.
-m() { local t=${5:-selftest_free.sh}; [ -z "${5:-}" ] && [ "$1" = projects.py ] && t=test-projects.sh
+# m <file> <old> <new> <label> [<test>]: the test is test-free.sh, or test-projects.sh for projects.py.
+m() { local t=${5:-test-free.sh}; [ -z "${5:-}" ] && [ "$1" = projects.py ] && t=test-projects.sh
   bash "$M" "$D" "$1" "$t" "$2" "$3" "$4" || fail=1; }
 P=free_tickets.py
 m $P 'print(f"NO SLICE: #{n}")' 'pass' 'no-slice-line'
@@ -67,12 +67,12 @@ m $S 'WS = projects.project(NAME)["ws_root"]' 'WS = projects.project("alpha")["w
 m $P 'R, BASE = P["repo"]' 'R, BASE = "o/alpha"' 'repo-from-project'
 m precheck.sh 'slots.py" "$@"' 'slots.py"' 'precheck-passes-project'
 X=projects.py
-m $X 'given, i = argv[i + 1], i + 2' 'i = i + 2' 'argv-reads-project' selftest_free.sh
+m $X 'given, i = argv[i + 1], i + 2' 'i = i + 2' 'argv-reads-project' test-free.sh
 m $X 'if len(names) == 1:' 'if names:' 'two-projects-refuse'
 m $X 'return load()["projects"][name(given)]' 'return list(load()["projects"].values())[0]' 'named-project-read'
 m $X 'if given not in names:' 'if False:' 'unknown-project-refused'
 m $X 'return os.path.expanduser(v) if v.startswith("~/") else v' 'return v' 'home-expanded'
 m $X 'fail(f"no key {key!r} in {where}")' 'return ""' 'unknown-key-refused'
 m $X 'if home and os.path.exists' 'if False and os.path.exists' 'bot-home-file'
-[ $fail = 0 ] && echo "selftest_mutations ok"
+[ $fail = 0 ] && echo "test-mutations ok"
 exit $fail

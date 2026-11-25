@@ -1,7 +1,7 @@
 #!/bin/bash
 # Fake-data test of free_tickets.py, slots.py, slot.sh and precheck.sh. A fake `gh` and `orca` go first on
 # PATH: no network. One case per rule of the free work check (twenty ticket #689). Each case fails when its
-# rule is removed: see selftest_mutations.sh. Two fake projects: alpha (most cases, alone in its own
+# rule is removed: see test-mutations.sh. Two fake projects: alpha (most cases, alone in its own
 # projects.json) and beta (a second repo, workspace root and cap in a two-project file).
 D=$(cd "$(dirname "$0")" && pwd)
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
@@ -271,5 +271,5 @@ want "an unknown project: exit 2" "$(bash "$D/free_tickets.sh" --project gamma >
 unset BOT_HOME
 out=$(python3 -I "$D/slots.py" --project alpha 2>&1) && { echo "FAIL: slots.py with no BOT_HOME must exit nonzero"; fail=1; }
 grep -q 'BOT_HOME is not set' <<<"$out" || { echo "FAIL: slots.py must name the missing BOT_HOME, got: $out"; fail=1; }
-[ $fail = 0 ] && echo "selftest_free ok"
+[ $fail = 0 ] && echo "test-free ok"
 exit $fail
