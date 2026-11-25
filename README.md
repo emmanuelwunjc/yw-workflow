@@ -1,11 +1,11 @@
 # yw-workflow
 
-Fourteen skills and ten hooks that make an engineering workflow mechanical
+Fifteen skills and ten hooks that make an engineering workflow mechanical
 instead of remembered.
 
 ## Install
 
-Pick one. Both serve the same fourteen skills, and installing both leaves
+Pick one. Both serve the same fifteen skills, and installing both leaves
 duplicates that drift apart.
 
 ```bash
@@ -150,6 +150,7 @@ Each one carries a one-line summary at the top.
 | **eli5** | Explains a topic to someone with zero background, as a page of big pictures and few words. |
 | **eli5-text** | Explains a topic to someone with zero background, in the conversation, with nothing to open. |
 | **pm** | Gives you one chat that reports status and runs builder and reviewer agents, through Orca when it is installed and subagents when not. |
+| **orca-bot** | Holds the rules every Orca bot follows, and a setup step that points a new bot's home at them. |
 
 Invoke them namespaced: `/yw-workflow:grill`.
 
