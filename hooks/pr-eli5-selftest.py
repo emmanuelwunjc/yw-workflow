@@ -21,8 +21,11 @@ pe = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(pe)
 
 TEMPLATE = (ROOT / ".github" / "pull_request_template.md").read_text()
-# The template with every section after ELI5 filled in, ELI5 left as shipped.
-FILLED = TEMPLATE.replace("## What changed\n", "## What changed\n\nA real change.\n")
+# The template with text after its last comment, ELI5 left as shipped. A
+# greedy comment strip would eat everything from the ELI5 hint to the last
+# comment and leave this text as ELI5 "text", whatever the template holds.
+FILLED = TEMPLATE + "\nText after the last comment.\n"
+assert TEMPLATE.lstrip().startswith("## ELI5\n"), "the PR template must open with ## ELI5"
 
 GOOD = "## ELI5\n\nThe robot now says hello. People like hello.\n\n## What changed\n\nx\n"
 
@@ -48,8 +51,11 @@ CASES = [
     ("ELI5 holds only blank lines", "## ELI5\n\n\n## What changed\n\nx\n",
      "ELI5 section is empty"),
     ("ELI5 is the whole body and empty", "## ELI5\n", "ELI5 section is empty"),
-    # A greedy comment strip would join the ELI5 hint to the last comment in
-    # the template and leave a later line as ELI5 "text". These pin it.
+    ("ELI5 holds only a comment over two lines",
+     "## ELI5\n\n<!-- Two or three\nplain sentences. -->\n\n## Why\n\nx\n",
+     "ELI5 section is empty"),
+    ("a leading comment, then the template as shipped",
+     "<!-- note -->\n" + TEMPLATE, "ELI5 section is empty"),
     ("the PR template as shipped", TEMPLATE, "ELI5 section is empty"),
     ("the PR template with ELI5 left blank", FILLED, "ELI5 section is empty"),
     ("the PR template with ELI5 filled",
