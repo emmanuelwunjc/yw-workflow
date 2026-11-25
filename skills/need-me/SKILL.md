@@ -26,6 +26,13 @@ Something belongs here only when a decision, a permission, or a physical human
 act is the ONLY thing between it and progress. If more work on your side would
 resolve it, go and do that instead.
 
+**An owner step says why only the owner can do it:** the owner's click, the
+owner's secret, the owner's judgement, or a tool no agent can reach. It
+carries the literal text, command or link the owner needs, e.g.
+`gh secret set API_KEY --repo emmanuelwunjc/yw-workflow` or the settings page URL.
+When a worker or a connector can do a step, the agent does it, and it stays
+off this list. The `pm` and `handoff` skills point here for this rule.
+
 ## Delivery: one TLDR line, then the questions
 
 1. **One line of prose. Exactly one.**
