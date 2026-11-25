@@ -17,8 +17,8 @@ RULE 1 - AskUserQuestion for interview-style questions (CLAUDE.md section 6)
     Two layers counter that:
       remind -> re-inject the rule at the SAME recency as the skill text.
       check  -> refuse to end the turn if a grill-mode turn still asked in prose.
-    The check skips a "?" in code, and skips an Orca bot Home Chat
-    (ticket 303, see in_orca_bot_home).
+    The check skips a "?" in code (ticket 303). Grill mode ends at the first
+    grill-mode turn that asks no question (ticket 319, see check).
     A prior attempt to fix this with a memory file failed twice over: memory is
     advisory, and that one was scoped to a single project so it never loaded
     elsewhere. Hence a global hook.
@@ -415,27 +415,6 @@ def prose_only(text):
     return INLINE_CODE.sub("", strip_fences(text))
 
 
-ORCA_BOTS_DIR = Path.home() / ".orca" / "bots"
-
-
-def in_orca_bot_home(cwd):
-    """True when the session runs in an Orca bot home, ~/.orca/bots/<name>.
-
-    The owner turned rule 1 off there in ticket 303, after it blocked 6 bot
-    replies that pointed to an item card. A bot asks the owner by the rules of
-    skill orca-bot section 5 (in the chat when the owner is live, else on an
-    item as Needs you). The folder is the test because the ORCA_* variables
-    are set in every Orca session, workers included, and only a bot Home Chat
-    runs in a bot home. The bots folder itself is no bot home.
-    """
-    if not cwd:
-        return False
-    try:
-        return ORCA_BOTS_DIR.resolve() in Path(cwd).resolve().parents
-    except (OSError, ValueError):
-        return False
-
-
 def check(data):
     # The harness sets this when it is re-running us after a block. Bail out so
     # a block can never chain into a loop.
@@ -496,13 +475,21 @@ def check(data):
             "response body."
         )
 
-    in_grill_mode = state_file(session_id, "grill").exists()
-    if (_on(policy, "ask_user_question")
-            and in_grill_mode and "AskUserQuestion" not in tools
-            and not in_orca_bot_home(data.get("cwd"))
-            and spent["askuser"][1] < MAX_BLOCKS_PER_SESSION):
+    # Ticket 319: grill mode ends at the first grill-mode turn that asks no
+    # question, through the tool or in prose. A grill asks every turn, so its
+    # turn 2 (the owner answers "A", the next question follows) stays checked.
+    # Before, the flag lasted the whole session, and in a long Orca bot Home
+    # Chat it blocked replies days after the grill (ticket 303).
+    grill_flag = state_file(session_id, "grill")
+    if (_on(policy, "ask_user_question") and grill_flag.exists()
+            and "AskUserQuestion" not in tools):
         tail = prose_only(texts[-1]).strip()[-400:]
-        if "?" in tail:
+        if "?" not in tail:
+            try:
+                grill_flag.unlink()
+            except OSError:
+                pass
+        elif spent["askuser"][1] < MAX_BLOCKS_PER_SESSION:
             charged.append("askuser")
             problems.append(
                 "This is a grilling/interview turn and you ended it by "
