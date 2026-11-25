@@ -84,6 +84,9 @@ check("Sonnet has a 1M window: 299,999 is silent",
       silent(e.at(299_999, model="claude-sonnet-5-5", now=T0)), True)
 check("Sonnet has a 1M window: 300k winds down",
       warned(e.at(300_000, model="claude-sonnet-5-5", now=T0 + 1)), True)
+e = Env()
+check("every Sonnet id has a 1M window: claude-sonnet-5 is silent at 299,999",
+      silent(e.at(299_999, model="claude-sonnet-5")), True)
 
 e = Env()
 check("an unknown model falls back to a 200k window: 59k silent",

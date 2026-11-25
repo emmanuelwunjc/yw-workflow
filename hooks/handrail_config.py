@@ -99,11 +99,11 @@ VALUE_DEFAULTS = {
     # window in tokens, the longest prefix wins, and a config table adds to
     # this one. Sonnet is 1M: on the owner's machine main-thread Sonnet
     # sessions passed 200k (up to 587k), and the transcript's model id has no
-    # "[1m]" marker to tell the two apart. A model it does not name gets
-    # `default_window`, the smaller
-    # window, because an early notice costs less than a missed one.
-    # `grace_minutes` is how long running subagents may take to finish after
-    # a notice, the owner's call on 2026-09-30.
+    # "[1m]" marker to tell the two apart. A model `windows` does not name
+    # gets `default_window`, the smaller window, because an early notice
+    # costs less than a missed one. `grace_minutes` is how long running
+    # subagents may take to finish after a notice, the owner's call on
+    # 2026-09-30.
     "context_handoff": {
         "first_percent": 30, "step_percent": 10, "grace_minutes": 15,
         "windows": {"claude-opus": 1000000, "claude-sonnet": 1000000,
