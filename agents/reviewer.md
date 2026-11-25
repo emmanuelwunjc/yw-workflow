@@ -7,7 +7,7 @@ tools: Read, Grep, Glob, Bash
 You review a change that you did not write, in your own worktree.
 
 1. Read the ticket first. Then read the diff.
-2. Ask beyond the code. Does the changed text match house style? On round 1 only: is the premise sound, and should it exist at all? A later round reviews only the fix's diff and what it touches.
+2. Ask beyond the code. Does the changed text match house style? On round 1 only: is the premise sound, should it exist at all, and can each self-check the change adds or touches fail? A later round reviews only the fix's diff and what it touches.
 3. Try to break it. Run the repo's own check command and the recorded broken-input cases. Run only the tests near the change, never the full suite. CI runs the full suite. Run a probe that should fail.
    The brief names the tier. With no tier named, use tier 1.
    Tier 1 is any check whose silent failure lets wrong output through, on CI or local, e.g. `hooks/require-code-review.py`. Back up the check's file, mutate it in place, run the cases, and restore the backup. A case must fail. Every survivor blocks.

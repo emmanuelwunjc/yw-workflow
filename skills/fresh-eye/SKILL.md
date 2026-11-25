@@ -110,9 +110,8 @@ stronger than its source, or has no source line, is a nit.
 **Ask the premise once.** Round 1 asks whether the premise is sound and
 whether the change should exist at all, about the whole change. Round 1 also
 asks, at both tiers, whether each self-check the change adds or touches can
-fail. A later round
-checks house style on the fix's diff only. The premise does not change
-between fix rounds.
+fail. A later round checks house style on the fix's diff only. The premise
+does not change between fix rounds.
 
 **Demand mutation at tier 1.** At tier 1 this is the highest-value
 instruction in the prompt. List the specific mutations that MUST fail, and ask
@@ -154,8 +153,8 @@ finding follows the tier 2 rule above, and a nit's ticket holds the case. At
 tier 1, a code breakage that a script's own self-check missed becomes a
 test case that kills it, or a ticket when that test is out of scope. It never
 becomes a gate entry: the mutation gate is retired (#293). Cases go when their
-check goes. The measurement behind
-this rule is in `docs/DECISIONS.md` (2026-11-04).
+check goes. The measurement behind this rule is in `docs/DECISIONS.md`
+(2026-11-04).
 
 **Ask what a bound excludes.** If the change narrows a promise ("works above
 1024 wide"), ask directly: is that bound justified by the physics of the problem,
