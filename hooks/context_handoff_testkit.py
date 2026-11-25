@@ -8,8 +8,9 @@ with finish(). The name has no `-selftest.` in it, so the CI loop over
 
 Each case writes a fake transcript, runs the hook on it the way Claude Code
 does (JSON on stdin), and compares what reaches the model with what the owner
-decided on 2026-09-30, with the line raised on 2026-11-20: a wind-down
-notice at 300k tokens, a deadline notice
+decided on 2026-09-30, with the line set on 2026-11-20 to 30% of the
+session's window (#208): a wind-down notice at 300k tokens on a 1M window,
+a deadline notice
 when the grace for running subagents is over, and one Stop block while no
 handoff has been written.
 
@@ -41,12 +42,16 @@ failures = []
 cases = 0
 
 
-def usage_line(tokens, sidechain=False):
+# A 1M-window model, so 30% of its window is the 300k most cases test.
+OPUS = "claude-opus-5-5"
+
+
+def usage_line(tokens, sidechain=False, model=OPUS):
     """One assistant transcript line whose three input fields sum to tokens."""
     return json.dumps({
         "type": "assistant",
         "isSidechain": sidechain,
-        "message": {"role": "assistant", "usage": {
+        "message": {"role": "assistant", "model": model, "usage": {
             "input_tokens": 4,
             "cache_creation_input_tokens": 1000,
             "cache_read_input_tokens": tokens - 1004,
@@ -83,8 +88,8 @@ class Env:
                               capture_output=True, text=True, timeout=30)
         return done.returncode, done.stdout, done.stderr
 
-    def at(self, tokens, **kw):
-        self.write(user_line(), usage_line(tokens))
+    def at(self, tokens, model=OPUS, **kw):
+        self.write(user_line(), usage_line(tokens, model=model))
         return self.run(**kw)
 
     def stop(self, now, hook=HOOK, **extra):

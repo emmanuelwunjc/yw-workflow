@@ -63,6 +63,47 @@ check("compact: and no Stop block", silent(e.stop(T0 + 99 * MIN)), True)
 check("compact: back over 300k winds down again",
       warned(e.at(305_000, now=T0 + 100 * MIN)), True)
 
+# --- the line is 30% of the session's window (#208) -------------------------
+# The window comes from the model id on the last assistant message.
+e = Env()
+check("200k window: 59,999 is silent",
+      silent(e.at(59_999, model="claude-haiku-4-5-20251001", now=T0)), True)
+r = e.at(60_000, model="claude-haiku-4-5-20251001", now=T0 + 1)
+check("200k window: 60k (30%) winds down", warned(r), True)
+check("200k window: the notice names ~60k", "~60k" in context(r[1]), True)
+check("200k window: 79,999 is the same step, silent",
+      silent(e.at(79_999, model="claude-haiku-4-5-20251001", now=T0 + 2)), True)
+check("200k window: 80k is the next step (10%), winds down again",
+      warned(e.at(80_000, model="claude-haiku-4-5-20251001", now=T0 + 3)), True)
+
+e = Env()
+check("a 200k-window session at 190k gets the notice (the #208 case)",
+      warned(e.at(190_000, model="claude-haiku-4-5-20251001")), True)
+e = Env()
+check("Sonnet has a 1M window: 299,999 is silent",
+      silent(e.at(299_999, model="claude-sonnet-5-5", now=T0)), True)
+check("Sonnet has a 1M window: 300k winds down",
+      warned(e.at(300_000, model="claude-sonnet-5-5", now=T0 + 1)), True)
+e = Env()
+check("claude-sonnet-5 (no suffix) has a 1M window: silent at 299,999",
+      silent(e.at(299_999, model="claude-sonnet-5", now=T0)), True)
+check("claude-sonnet-5 (no suffix) has a 1M window: winds down at 300k",
+      warned(e.at(300_000, model="claude-sonnet-5", now=T0 + 1)), True)
+
+e = Env()
+check("an unknown model falls back to a 200k window: 59k silent",
+      silent(e.at(59_000, model="gpt-x", now=T0)), True)
+check("an unknown model falls back to a 200k window: 60k winds down",
+      warned(e.at(60_000, model="gpt-x", now=T0 + 1)), True)
+e = Env()
+check("no model on the line: the 200k fallback too",
+      warned(e.at(60_000, model=None)), True)
+
+e = Env()
+check("switching to a smaller window past its line winds down",
+      silent(e.at(150_000, now=T0)) and warned(
+          e.at(150_000, model="claude-haiku-4-5-20251001", now=T0 + 1)), True)
+
 # --- the deadline ------------------------------------------------------------
 e = Env()
 e.at(310_000, now=T0)

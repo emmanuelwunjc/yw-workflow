@@ -193,7 +193,7 @@ plugin path only. The full rules, the CI gate and the config are in
 | **slack-language.py** | PreToolUse | Off by default. When on, blocks an `orca slack post` with text in a disallowed script, e.g. Chinese. |
 | **claude-md-guard.py** | UserPromptSubmit, Stop | Blocks em-dashes, negation-then-correction, and prose questions where checkboxes are required. |
 | **handoff-freshness.py** | SessionStart (`startup`, `clear`), Stop | At session start, tells the session to fix a `docs/HANDOFF.md` with an old Start here block before any other work. On a branch that changes real files, reminds it to write the PR body's `## Handoff notes`, and warns if the branch changes `docs/HANDOFF.md`. On trunk or a `docs/handoff-*` branch, warns when work piles up against an untouched `docs/HANDOFF.md`. Override: `SKIP_HANDOFF_CHECK=1`. |
-| **context-handoff.py** | PostToolBatch, UserPromptSubmit, Stop | Winds a session down past about 300k tokens of context, and has it write the handoff. |
+| **context-handoff.py** | PostToolBatch, UserPromptSubmit, Stop | Winds a session down past 30% of its model's context window (300k tokens on 1M, 60k on 200k), and has it write the handoff. |
 | **unpushed-branches.py** | SessionStart (`startup`, `clear`) | Lists local branches with commits that no remote and no open or merged PR has. |
 | **plugin-lag.py** | SessionStart (`startup`, `clear`) | Prints one line with the update command when the installed plugin is older than its marketplace. Silent when current. |
 

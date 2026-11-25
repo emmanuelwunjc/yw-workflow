@@ -82,6 +82,37 @@ check("inside the grace with background work in flight: Stop is allowed",
 check("the same once the grace is over: blocked",
       bool(blocked(e.stop(T0 + 15 * MIN, background_tasks=running))), True)
 
+# The timer the notice asks for is itself a background task (#183). A shell
+# task alone is not a subagent to wait for, so it does not let the Stop through.
+sleep = [{"id": "b1", "type": "shell", "status": "running",
+          "description": "sleep 900", "command": "sleep 900"}]
+e = Env()
+e.at(310_000, now=T0)
+reason = blocked(e.stop(T0 + 1, background_tasks=sleep))
+check("inside the grace, only the sleep timer running: blocked", bool(reason), True)
+check("and the block is the STOP text, not the deadline text",
+      "stop again and wait for them" in reason
+      and "grace for running subagents is over" not in reason, True)
+check("and it blocks once", silent(e.stop(T0 + 2, background_tasks=sleep)), True)
+
+for kind in ("subagent", "workflow"):
+    e = Env()
+    e.at(310_000, now=T0)
+    tasks = sleep + [{"id": "a1", "type": kind, "status": "running",
+                      "description": "x"}]
+    check("inside the grace, the timer and a %s running: allowed" % kind,
+          silent(e.stop(T0 + 1, background_tasks=tasks)), True)
+
+e = Env()
+e.at(310_000, now=T0)
+check("malformed background_tasks entries count as no subagent: blocked",
+      bool(blocked(e.stop(T0 + 1, background_tasks=["x", None, {"type": 3}]))),
+      True)
+e = Env()
+e.at(310_000, now=T0)
+check("background_tasks that is no list counts as no subagent: blocked",
+      bool(blocked(e.stop(T0 + 1, background_tasks=5))), True)
+
 e = Env()
 e.at(310_000, now=T0)
 reason = blocked(e.stop(T0 + 15 * MIN))
