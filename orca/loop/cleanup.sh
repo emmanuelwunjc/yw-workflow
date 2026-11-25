@@ -44,7 +44,7 @@
 # workspace, action (close-terminal|retire|back|remove|set-status|keep),
 # reason, HEAD sha, result, project (the --project name), from state, to state
 # (`-` when the line is no move). Lines before 2026-11-24 have 7 fields.
-# Each guard line carries a `# guard:<name>` tag. selftest.sh deletes each
+# Each guard line carries a `# guard:<name>` tag. test-cleanup.sh deletes each
 # tagged line in turn and requires the test cases to fail.
 set -euo pipefail
 LOOP=$(cd "$(dirname "$0")" && pwd); . "$LOOP/project.sh" "$@"; set -- ${ARGS[@]+"${ARGS[@]}"}
@@ -278,7 +278,7 @@ export -f decide report setup_link
 export ps_rows pr_rows setup_target live_heads wait_rows scoped repo kind_rows life_rows hold canceled_paths
 [ "$scoped" = true ] && echo "NOTE worker-list is scoped to one Run (--run-scoped): the waits guard was not checked for dispatches outside it. CLOSE needs every agent done and a MERGED PR or a detached HEAD."
 # Each workspace costs several git calls, so 8 run at a time.
-lines=$(for dir in "$root"/*/; do printf '%s\0' "${dir%/}"; done \
+lines=$(for dir in "$root"/*/; do [ -d "$dir" ] || continue; printf '%s\0' "${dir%/}"; done \
   | xargs -0 -P 8 -I{} bash -c 'report "$1"' _ {} | sort -k2)
 grep -Ev '^(WAITING|NUDGE:|RETIRE|HOLD|REMOVE|BACK) ' <<<"$lines"
 for l in WAITING NUDGE: RETIRE HOLD REMOVE BACK; do grep "^$l " <<<"$lines" || true; done

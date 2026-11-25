@@ -181,6 +181,8 @@ still open. Bold only what the owner must do.
 
 ## Orca path
 
+The Orca workflow lives in `orca/` of this plugin (`orca/README.md` links every file). A bot that runs the work loop on its own (free work check, sweep, cleanup) loads skill `orca-loop`. The steps below run the PM's own batch.
+
 Orca supplies the worker sessions and the wake-ups. Git supplies the
 isolation. Each Orca worker is a full Claude Code session, so it loads
 `CLAUDE.md`, the skills and every hook, including the SessionStart and Stop

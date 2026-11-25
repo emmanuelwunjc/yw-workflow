@@ -1,12 +1,12 @@
 # yw-workflow
 
-Fifteen skills and ten hooks for Claude Code that make an engineering workflow
+Sixteen skills and ten hooks for Claude Code that make an engineering workflow
 mechanical instead of remembered. Everything works in plain Claude Code. Inside
-Orca, `pm` runs its agents as Orca workers and `orca-bot` sets up new Orca bots.
+Orca, `pm` runs its agents as Orca workers, `orca-bot` sets up new Orca bots, and `orca-loop` runs a bot's work loop.
 
 ## Install
 
-Pick one. Both serve the same fifteen skills, and installing both leaves
+Pick one. Both serve the same sixteen skills, and installing both leaves
 duplicates that drift apart.
 
 ```bash
@@ -176,6 +176,7 @@ Each one carries a one-line summary at the top.
 | **eli5-text** | Explains a topic to someone with zero background, in the conversation, with nothing to open. |
 | **pm** | Gives you one chat that reports status and runs builder and reviewer agents, through Orca when it is installed and subagents when not. |
 | **orca-bot** | Holds the rules every Orca bot follows, and a setup step that points a new bot's home at them. |
+| **orca-loop** | Lets an Orca bot run the work loop for any repo in `projects.json`: free work check, sweep, open PR check, cleanup. It lives in `orca/`, mapped in `orca/README.md`. |
 
 Invoke them namespaced: `/yw-workflow:grill`.
 

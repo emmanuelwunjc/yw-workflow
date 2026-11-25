@@ -9,6 +9,7 @@ self-test, in CI and by hand, runs it too.
 Run: ./hooks/ticket-parts-selftest.py
 """
 import importlib.util
+import os
 import pathlib
 import shutil
 import subprocess
@@ -79,7 +80,11 @@ def check_repo_in_copy(drop_heading):
             ["git", "ls-files", "-co", "--exclude-standard"], cwd=ROOT,
             capture_output=True, text=True, check=True).stdout.splitlines()
         for rel in files:
-            if (ROOT / rel).is_file():
+            # a symlink (e.g. skills/orca-loop) stays a symlink, or the copy loses a skill
+            if (ROOT / rel).is_symlink():
+                (tmp / rel).parent.mkdir(parents=True, exist_ok=True)
+                os.symlink(os.readlink(ROOT / rel), tmp / rel)
+            elif (ROOT / rel).is_file():
                 (tmp / rel).parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(ROOT / rel, tmp / rel)
         if drop_heading:

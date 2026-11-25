@@ -3,9 +3,8 @@
 # The live skill folder is never written, and nothing is removed outside the mktemp dir,
 # so a worker runs this with no permission prompt.
 # Usage: bash mutate.sh <skill-dir> <file> <test-script> <old-text> <new-text> [label]
-# e.g.   bash mutate.sh twenty-status free_tickets.py selftest_free.sh 'or t in pr_named' 'or False' pr-named
+# e.g.   bash mutate.sh . free_tickets.py test-free.sh 'print(f"NO SLICE: #{n}")' 'pass' no-slice-line
 # <file> and <test-script> are paths inside <skill-dir>. A .py test runs with python3, any other with bash.
-# e.g.   bash mutate.sh .. hooks/skill-path-guard.py hooks/skill-path-guard-selftest.py '"!", "{"}' '"!"}' brace
 # Exit 0: the test caught the break. 1: the break survived. 2: bad input, or <old-text> is not in <file>.
 set -u
 [ $# -ge 5 ] || { sed -n '5,6p' "$0" >&2; exit 2; }
