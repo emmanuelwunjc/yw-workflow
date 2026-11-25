@@ -19,6 +19,7 @@
       },
       "worker_cap": 8,
       "pr_cap": 6,
+      "shared_files": ["scripts/chat_bot.json", "deploy/chat-bot/Dockerfile"],
       "retire_hold_days": 7,
       "worker_rules": "~/.orca/bots/twenty/worker-rules.txt",
       "review_rules": "The standards files are the repo's CLAUDE.md and NORTH-STAR.md. Blocking means wrong data, a lost record, overspend or a missed alert (NORTH-STAR.md rule 10). Everything else is a nit.",

@@ -17,7 +17,7 @@ GitHub holds the state. A ticket waits only on a "blocked by" link or a label. T
 
 | File | What it does |
 |---|---|
-| `projects.json`, `projects.py`, `project.sh` | One entry per project: repo, Orca repo id, workspace root, git dir, labels, worker cap, PR cap, review and worker rules. No script names a repo. |
+| `projects.json`, `projects.py`, `project.sh` | One entry per project: repo, Orca repo id, workspace root, git dir, labels, worker cap, PR cap, shared files (a one-line clash, printed as `SHARED:`), review and worker rules. No script names a repo. |
 | `free_tickets.py`, `free_tickets.sh` | Prints every free ticket, best first, and the files busy in open PRs and branches. It does not cut the list at the worker cap. |
 | `slots.py`, `slot.sh`, `precheck.sh` | `SLOTS` = worker cap less held tickets less live workers. `slot.sh` re-counts right before a start. `precheck.sh` passes when there is a free ticket and a slot. |
 | `start-guard.sh`, `start.sh`, `stall.sh`, `pr_wait.sh`, `start-grill.sh` | The sweep: one sweep at a time, a start lock per ticket, the stall alarm, the open PR check, and a grill chat per ticket. |

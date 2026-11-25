@@ -27,6 +27,10 @@ done
 PR=$1; ISSUE=$2; OUT=${3:-$(mktemp -d)}
 [ -n "$PR" ] && [ -n "$ISSUE" ] || { echo "$USAGE"; exit 2; }
 R=$(pget repo); GIT_DIR_=$(pget git_dir); RULES=$(pget review_rules); D=$LOOP
+# shared_files: PRs of the project share these files and merge main before review (twenty: Matteo Wu, 2026-11-24).
+SHARED_FILES=$(python3 -I "$LOOP/projects.py" get "$PROJECT" shared_files 2>/dev/null | tr '\n' ' ' | sed 's/ $//')
+MERGE=
+[ -z "$SHARED_FILES" ] || MERGE="When the branch merged main and $SHARED_FILES changed on both sides, check the merge resolved it: no lost line from either side. A lost one blocks."
 BRANCH=$(gh pr view "$PR" -R $R --json headRefName --jq .headRefName)
 SHA=$(gh pr view "$PR" -R $R --json headRefOid --jq .headRefOid)
 BODY=$(gh issue view "$ISSUE" -R $R --json body --jq .body)
@@ -47,6 +51,8 @@ if [ -n "$FROM" ]; then
       case "$st" in ahead|identical) ;; *) DIFF="the fix diff: git diff $FROM..$SHA" ;; esac
     done
   fi
+  # The log leaves out the merge, so it hides how the merge resolved the shared files (review of 2026-11-24).
+  [ -z "$SHARED_FILES" ] || MERGE="$MERGE Read that resolution with: git diff $FROM..$SHA -- $SHARED_FILES"
   FIRST="FIX ROUND of PR $PR. Review ONLY $DIFF. Check the fix, that each new case fails on the old code, and that the fix opened no new defect."
   [ -z "$FINDING" ] || FIRST="$FIRST
 Earlier blocking finding: $FINDING"
@@ -54,13 +60,13 @@ fi
 mkdir -p "$OUT"
 for t in adversarial codereview; do
   F=$D/reviewer-$t.txt
-  BRANCH="$BRANCH" SHA="$SHA" BODY="$BODY" PR="$PR" FIRST="$FIRST" R="$R" PROJ="$PROJECT" GD="$GIT_DIR_" RULES="$RULES" python3 -I -c '
+  BRANCH="$BRANCH" SHA="$SHA" BODY="$BODY" PR="$PR" FIRST="$FIRST" R="$R" PROJ="$PROJECT" GD="$GIT_DIR_" RULES="$RULES" MERGE="$MERGE" python3 -I -c '
 import os,sys
 e=os.environ
 s=open(sys.argv[1]).read()
 s=s.replace("<project>",e["PROJ"]).replace("<git_dir>",e["GD"]).replace("<repo>",e["R"]).replace("<review_rules>",e["RULES"])
 s=s.replace("<branch>",e["BRANCH"]).replace("<commit>",e["SHA"]).replace("<the ticket or PR body, pasted in>",e["BODY"]).replace("<n>",e["PR"])
-open(sys.argv[2],"w").write(e["FIRST"]+"\n"+s)' "$F" "$OUT/$t.txt"
+open(sys.argv[2],"w").write(e["FIRST"]+"\n"+s+(e["MERGE"]+"\n" if e["MERGE"] else ""))' "$F" "$OUT/$t.txt"
   grep -n '<branch>\|<commit>\|<n>\|pasted in\|<repo>\|<project>\|<git_dir>\|<review_rules>' "$OUT/$t.txt" && { echo "placeholder left in $t.txt"; exit 1; } || true
 done
 echo "$OUT"

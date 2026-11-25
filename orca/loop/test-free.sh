@@ -77,6 +77,13 @@ want "BUSY: files of open PRs and of a taken branch with no PR" "$(grep '^BUSY' 
   "$(printf 'BUSY: scripts/a.py PR #60\nBUSY: scripts/b.py #20 branch ticket-20')"
 want "WORKERS: a linked branch with no PR is one worker" "$(grep '^WORKERS' <<<"$out")" "WORKERS: 1/8"
 
+# shared_files: a BUSY file on the list prints as SHARED (no clash). Its ticket stays free all the same.
+jq '.projects.alpha.shared_files = ["scripts/a.py"]' "$T/alpha.json" > "$T/shared.json"
+out_s=$(PROJECTS_JSON=$T/shared.json bash "$D/free_tickets.sh")
+want "SHARED: a shared_files path is no BUSY file" "$(grep -E '^(BUSY|SHARED)' <<<"$out_s")" \
+  "$(printf 'SHARED: scripts/a.py PR #60\nBUSY: scripts/b.py #20 branch ticket-20')"
+want "SHARED: the FREE list does not change" "$(grep '^FREE' <<<"$out_s")" "$(grep '^FREE' <<<"$out")"
+
 # Nits wait while another ticket is free, also with no worker (no #20).
 jq '[.[] | .data.repository.issues.nodes |= map(select(.number != 20))]' "$T/gql.json" > "$T/gql-0.json"
 want "a nit waits while 5 others are free" "$(GQL=$T/gql-0.json lines FREE)" \

@@ -27,7 +27,8 @@ export PATH="$T/bin:$PATH" BOT_HOME=$T/home
 cat > "$T/projects.json" <<J
 {"projects": {
   "alpha": {"repo": "o/alpha", "git_dir": "~/code/alpha", "review_rules": "Alpha blocks on a lost record."},
-  "beta":  {"repo": "o/beta",  "git_dir": "/src/beta",    "review_rules": "Beta blocks on a missed alert."}}}
+  "beta":  {"repo": "o/beta",  "git_dir": "/src/beta",    "review_rules": "Beta blocks on a missed alert.",
+             "shared_files": ["x.json", "Dockerfile"]}}}
 J
 jq '{projects: {alpha: .projects.alpha}}' "$T/projects.json" > "$T/alpha.json"
 export PROJECTS_JSON=$T/alpha.json
@@ -65,6 +66,11 @@ done
 PROJECTS_JSON=$T/projects.json bash "$HERE/review-spec.sh" --project beta 701 700 "$T/beta" >/dev/null; check "--project beta: written" $? 0
 check "--project beta: beta's repo, folder and rules, none of alpha's" \
   "$(grep -c 'Repo: beta (/src/beta)' "$T/beta/adversarial.txt"):$(grep -c 'repos/o/beta/pulls' "$T/beta/adversarial.txt"):$(grep -c 'Beta blocks on a missed alert' "$T/beta/adversarial.txt"):$(grep -c -i alpha "$T/beta/adversarial.txt")" "1:1:1:0"
+# shared_files: beta's specs ask the reviewer to check the merge of the shared files. alpha has none.
+check "--project beta: the shared-files merge line" "$(grep -c 'When the branch merged main and x.json Dockerfile changed on both sides' "$T/beta/codereview.txt")" 1
+check "alpha, no shared_files: no merge line" "$(grep -c 'When the branch merged main' "$T/plain/adversarial.txt")" 0
+PROJECTS_JSON=$T/projects.json bash "$HERE/review-spec.sh" --project beta --fix abc1234 701 700 "$T/betafix" >/dev/null
+check "--project beta --fix: names the diff of the shared files" "$(grep -c 'git diff abc1234..headsha123 -- x.json Dockerfile' "$T/betafix/adversarial.txt")" 1
 PROJECTS_JSON=$T/projects.json bash "$HERE/review-spec.sh" 701 700 "$T/none" >/dev/null 2>&1; check "two projects and no --project: exit 2" $? 2
 bash "$HERE/review-spec.sh" --fix main 701 700 >/dev/null 2>&1; check "--fix with no sha: exit 2" $? 2
 bash "$HERE/review-spec.sh" --fix 701 700 >/dev/null 2>&1; check "--fix with no sha, PR next: exit 2" $? 2

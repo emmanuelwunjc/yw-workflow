@@ -9,6 +9,8 @@ import json, os, subprocess, sys
 #                           slots.py adds live work and prints SLOTS: the most workers the sweep may START.
 #   NO SLICE: #<n>          an open ticket with no work label (labels.work, a prefix): reported, never started
 #   BUSY: <path> <where>    a file that an open PR or a taken ticket's branch changes (the real diff)
+#   SHARED: <path> <where>  a BUSY file on the project's shared_files list: no clash. The later PR merges
+#                           main and resolves the one-line clash before review (twenty: Matteo Wu, 2026-11-24).
 #   FREE: #<n>              a ticket that may start now, best first. Every free ticket prints, so the sweep
 #                           can skip one that clashes or waits on the owner and take the next (bug of 2026-11-24).
 # A ticket is FREE when it is open, has a work label and no sub-issues (no tracker, no layer), no open
@@ -26,6 +28,7 @@ P = projects.project(NAME)
 R, BASE = P["repo"], P.get("base", "main")
 WORKER_CAP, PR_CAP = P["worker_cap"], P["pr_cap"]
 L = P["labels"]
+SHARED = set(P.get("shared_files", []))  # files whose clash is one line (a takeOrder item, a COPY line)
 SKIP, SLICE, MVP, NITS = set(L.get("skip", [])), L["work"], L.get("first"), L.get("last")
 QUERY = """query($owner: String!, $name: String!, $endCursor: String) {
   repository(owner: $owner, name: $name) {
@@ -94,7 +97,7 @@ def main():
             free.append((rank(labels), n))
     print(f"WORKERS: {workers}/{WORKER_CAP}")
     for path, where in sorted(busy.items()):
-        print(f"BUSY: {path} {where}")
+        print(f"{'SHARED' if path in SHARED else 'BUSY'}: {path} {where}")
     if any(r < 2 for r, _ in free):
         free = [f for f in free if f[0] < 2]
     for _, n in sorted(free):
