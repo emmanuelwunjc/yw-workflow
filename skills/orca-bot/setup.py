@@ -13,8 +13,9 @@ It never writes AGENTS.md, CLAUDE.md, bot.json or MEMORY.md: Orca owns the
 first three and replaces edits to them, and MEMORY.md changes only through
 `orca bot memory`. A second run changes nothing.
 
-It stops with one line, and writes nothing, when `orca` is not on PATH or the
-bot home has no SOUL.md.
+It stops with one line, and writes nothing, when `orca` is not on PATH, the
+bot home has no SOUL.md, or its `memory` is a plain file. A memory file name
+that is a symlink, also a dangling one, counts as present.
 
 Self-test: test_setup.py beside this file.
 """
@@ -43,6 +44,9 @@ def main(argv):
     soul = home / "SOUL.md"
     if not soul.is_file():
         stop("%s is missing: create the bot with `orca bot create` first" % soul)
+    memory = home / "memory"
+    if memory.exists() and not memory.is_dir():
+        stop("%s is a plain file. Setup needs a folder there: move the file, then run setup again" % memory)
 
     pointer = (TEMPLATES / "soul-pointer.md").read_text()
     marker = pointer.splitlines()[0]
@@ -54,11 +58,11 @@ def main(argv):
         soul.write_text(text + sep + pointer)
         print("appended  %s" % soul)
 
-    memory = home / "memory"
     memory.mkdir(exist_ok=True)
     for src in sorted((TEMPLATES / "memory").glob("*.md")):
         dst = memory / src.name
-        if dst.exists():
+        # a dangling symlink counts as present, so nothing is written through it
+        if dst.exists() or dst.is_symlink():
             print("kept      %s" % dst)
         else:
             dst.write_text(src.read_text())

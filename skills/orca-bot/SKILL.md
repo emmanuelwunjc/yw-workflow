@@ -1,9 +1,9 @@
 ---
 name: orca-bot
-description: The general rules every Orca bot follows (which language goes where, how to hand work to workers, the boss-bot convention, how a bot home is laid out), plus a setup step that points a bot's home at them. Use when a bot loads it at the start of a session, when the owner says "set up the bot", "orca-bot setup <name>", or "add the bot rules", or right after `orca bot create`.
+description: The general rules every Orca bot follows (which language goes where, how to hand work to workers, when an item is Needs you or Waiting, the boss-bot convention, how a bot home is laid out), plus a setup step that points a bot's home at them. Use when a bot loads it at the start of a session, when the owner says "set up the bot", "orca-bot setup <name>", or "add the bot rules", or right after `orca bot create`.
 origin: authored
 tags: [orca, bots, setup, language, workers]
-version: 1.0.0
+version: 1.1.0
 ---
 
 # Orca bot
@@ -36,7 +36,9 @@ It writes to `~/.orca/bots/<bot name>/` and nowhere else:
 - It never writes `AGENTS.md`, `CLAUDE.md`, `bot.json` or `MEMORY.md`.
 
 A second run changes nothing. It stops with one line, and writes nothing, when
-`orca` is not on PATH or the bot home has no `SOUL.md`. The texts it writes are
+`orca` is not on PATH, the bot home has no `SOUL.md`, or its `memory` is a
+plain file. A memory file name that is a symlink, also a dangling one, counts
+as present, so setup never writes through it. The texts it writes are
 in `templates/`. Its self-test is `test_setup.py`, which CI runs through
 `hooks/orca-bot-selftest.py`.
 
@@ -55,8 +57,8 @@ item text, code, commits, PRs, issues, handoffs and every file.
 Before you write, ask: "is this my Home Chat reply to the owner?" Yes: the
 owner's language. Anything else: English.
 
-The owner's language is a setting, not a fact of this skill. An owner who
-writes English everywhere has nothing to do. For Slack, the plugin hook
+The owner's language is a setting: the `disallowed` scripts of the hook. An
+owner who writes English everywhere has nothing to do. For Slack, the plugin hook
 `slack-language.py` blocks an `orca slack post` in a disallowed script. It is
 off by default. Turn it on, and set the scripts, in `~/.handrail.toml`
 (`[rules] slack_language = true`, `[slack_language] disallowed`). See
@@ -110,3 +112,19 @@ A bot's home is `~/.orca/bots/<name>/`. Read on 2026-11-24 from Orca 1.4.273.
 `orca bot create --template` takes only Orca's built-in template ids, so a
 custom template folder cannot do this setup at create time yet. That is why
 setup is a separate step.
+
+### 5. Item status: Needs you and Waiting
+
+- **Needs you is for anything only the owner can do or decide.** That
+  includes a physical act, e.g. running commands on the owner's machine or a
+  step in a web console. Waiting is only for a wait outside the bot, its
+  workers and the owner, e.g. a CI run or a reply from another team. A
+  reminder adds a comment to the item and never changes its status. Source:
+  owner, 2026-11-24: a daily reminder moved 5 owner-blocked items from Needs
+  you to Waiting, and the owner had to ask where they were.
+- **Mark a finished item done in the same turn.** A PR merged or a ticket
+  closed makes its item done at once. Never set it to Waiting to stop the
+  "nothing is running" line. Source: owner, 2026-11-24.
+- **Ask the owner once.** In a live chat, ask in the chat. Put Needs you on an
+  item only for a question raised while the owner is away. Source: owner,
+  2026-11-24.
