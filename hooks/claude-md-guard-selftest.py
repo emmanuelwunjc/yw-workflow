@@ -238,6 +238,16 @@ ASK_CASES = [
     ("a ? only inside URL queries and fragments",
      "Yiming, see https://x.org/a?ref=main#c and http://x.org/b?a=1&b=%20-x.",
      "/tmp", False),
+    ("a URL query that starts with a capital, a digit or a %",
+     "Yiming, see https://x.org/a?Q=1, https://x.org/b?9=1 and "
+     "https://x.org/c?%41=1 for the list.", "/tmp", False),
+    ("a URL query in a Markdown link and in odd schemes",
+     "Yiming, [the list](https://x.org/i?q=open) and s3://b/k?versionId=3 "
+     "and git+ssh://h/r?x=1 hold it.", "/tmp", False),
+    ("a second ? in one URL query",
+     "Yiming, the search is https://x.org/s?q=why?not now.", "/tmp", False),
+    ("a :// with no scheme before it is no URL",
+     "Yiming, the text ://?q=1 is no link.", "/tmp", True),
     ("a question right after a URL",
      "Yiming, is the list at https://x.org/issues?", "/tmp", True),
     ("a URL that ends in a ? asks it",
@@ -245,13 +255,19 @@ ASK_CASES = [
     ("a cwd that cannot be read as a path",
      "Which option do you want?", str(_BOTS / "x") + "\x00y", True),
 ]
-# Each of these ended a turn with a question the base check blocked. Only a
-# "?" that a URL query character follows is exempt, so they still block.
+# Each of these ended a turn with a question the base check blocked. Only the
+# "?" that starts a URL query is exempt, so they still block, with or without
+# a link right before the "?".
 for tail in ("?!", "?:", "?.", "?,", "?\u201d", "?\U0001f642", "?|", "?~~",
              "?<br>", "?\u2013", "?_", "?__", "?Reply with A or B.", "?-",
              "?/", "?#", "?=", "?&", "?%"):
     ASK_CASES.append(("a question ending in " + repr(tail),
                       "Yiming, which option do you want" + tail, "/tmp", True))
+for tail in ("?", "?**", "?*", "?_", "?\"", "?\u201d", "?)", "?.", "?,", "?!",
+             "?:", "?;", "?]", "?<br>", "?|", "?\U0001f642", "?>"):
+    ASK_CASES.append(("a question ending in a link and " + repr(tail),
+                      "**Yiming, should I merge https://x.org/pull/5" + tail,
+                      "/tmp", True))
 for i, (name, reply, cwd, must_block) in enumerate(ASK_CASES):
     sid = "ask%d" % i
     transcript = _tmp / (sid + ".jsonl")

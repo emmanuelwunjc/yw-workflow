@@ -415,10 +415,11 @@ def prose_only(text):
     return INLINE_CODE.sub("", strip_fences(text))
 
 
-# A URL, so its query "?" ("issues?q=open") is not read as a question. It never
-# ends on a "?" or other closing punctuation, so "is it at https://x.org/y?"
-# keeps its question mark.
-URL = re.compile(r"\b[a-z][a-z0-9+.-]*://\S*[^\s?.,!:;)\]]")
+# A URL, and in it the "?" that starts a query ("issues?q=open"): a letter, a
+# digit or a "%" follows it. That "?" asks the owner nothing. Every other "?"
+# counts, so in "merge https://x.org/pull/5?**" the question still blocks.
+URL = re.compile(r"\S+://\S+")
+URL_QUERY = re.compile(r"\?(?=[A-Za-z0-9%])")
 
 ORCA_BOTS_DIR = Path.home() / ".orca" / "bots"
 
@@ -506,7 +507,9 @@ def check(data):
             and in_grill_mode and "AskUserQuestion" not in tools
             and not in_orca_bot_home(data.get("cwd"))
             and spent["askuser"][1] < MAX_BLOCKS_PER_SESSION):
-        tail = URL.sub("", prose_only(texts[-1])).strip()[-400:]
+        prose_reply = URL.sub(lambda m: URL_QUERY.sub("", m.group()),
+                              prose_only(texts[-1]))
+        tail = prose_reply.strip()[-400:]
         if "?" in tail:
             charged.append("askuser")
             problems.append(
