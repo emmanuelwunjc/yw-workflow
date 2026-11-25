@@ -1,7 +1,7 @@
 #!/bin/bash
 # usage: start.sh [--project <name>] <item-number|-> <spec-file> [<ticket> <lane> | pr-<n>]   (DRY=1: command only)
 # "pr-<n>" (reviewer starts) takes locks/pr-<n>-<spec file name>, so two sweeps start one reviewer of
-#   each kind per PR. The lock stays after the start. It drops when the PR has a review newer than the
+#   that spec per PR. The lock stays after the start. It drops when the PR has a review newer than the
 #   lock, or the lock is 3 hours old.
 # "-" starts the worker with no item link (reviewers), so the item gets no link mail.
 # Starts a worker in the project's Orca repo (orca_repo_id), moves its workspace into the project list, and

@@ -123,7 +123,6 @@ psj() { jq -sc '{result: {worktrees: .}}'; }
   ws j "" "Pr 793" working "" "" "Review of PR 793."
   ws k "" "Round" working "" "" "FIX ROUND of PR 701. Review ONLY the fix diff"
   ws l "" "Fresh eye 36" working "" "" "Repo: twenty (~/code/twenty). You are an independent adversarial reviewer (sk..."
-  ws n "" "Task 34" working "" "" "Repo: twenty (~/code/twenty). You run mattpocock-skills:code-review on a chan..."
   ws m "" "Fix twenty status" working "" "" "Cap 8 review: BLOCK 2, fix now"; } | psj > "$T/ps-live.json"
 want "LIVE: working non-review workspaces of the project on no taken branch without a PR" \
   "$(PS=$T/ps-live.json bash -c "python3 -I '$D/slots.py'" | grep '^LIVE\|^SLOTS')" "$(printf 'LIVE: 4 (a, h, i, m)\nSLOTS: 3')"
