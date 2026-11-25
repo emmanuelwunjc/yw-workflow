@@ -268,6 +268,12 @@ want "--project beta: LIVE reads beta's workspace root" \
 want "slot.sh --project beta <n>: 5 - 1 - 1" "$(PS=$T/ps-live.json START_LOCKS=$T/held bash "$D/slot.sh" --project beta 20)" "SLOTS: 3"
 want "precheck.sh --project beta passes" "$(START_LOCKS=$T/held bash "$D/precheck.sh" --project beta; echo "exit $?")" "exit 0"
 want "an unknown project: exit 2" "$(bash "$D/free_tickets.sh" --project gamma >/dev/null 2>&1; echo $?)" 2
+# labels.work may be a list of prefixes (yw-workflow, #251: bug, enhancement, slice:...). #23 (bug) is then
+# a work ticket, ranked with the other slices by number, and no NO SLICE line is left.
+jq '.projects.alpha.labels.work = ["slice:", "bug"]' "$T/alpha.json" > "$T/list.json"
+out=$(PROJECTS_JSON=$T/list.json bash "$D/free_tickets.sh" 2>&1)
+want "labels.work as a list: each prefix is a work label" "$(grep '^FREE\|^NO SLICE' <<<"$out")" \
+  "$(printf 'FREE: #5\nFREE: #10\nFREE: #12\nFREE: #3\nFREE: #23\nFREE: #30')"
 unset BOT_HOME
 out=$(python3 -I "$D/slots.py" --project alpha 2>&1) && { echo "FAIL: slots.py with no BOT_HOME must exit nonzero"; fail=1; }
 grep -q 'BOT_HOME is not set' <<<"$out" || { echo "FAIL: slots.py must name the missing BOT_HOME, got: $out"; fail=1; }

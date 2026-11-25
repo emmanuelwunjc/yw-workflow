@@ -45,8 +45,8 @@ Run `bash <loop>/load.sh --all-projects` and `bash <loop>/cleanup.sh --all-proje
 
 ## Add a project
 
-1. Find the labels the repo uses for work tickets, owner waits and grills (`gh label list -R <repo>`).
-2. Add an entry to the projects file the scripts read (see the top of this file), with the keys of the `twenty` entry. No script reads `live_agent_cap`, `labels.grill` or `gcp` yet (the sweep reads `labels.grill` by hand in step 2). Put project rules in the file its `worker_rules` key names, never in `worker-rules.txt`.
+1. Find the labels the repo uses for work tickets, owner waits and grills (`gh label list -R <repo>`). An open ticket with no work label prints as `NO SLICE` and never starts, so count them too: `gh issue list -R <repo> --limit 1000 --json labels --jq 'map(select(.labels == [])) | length'`.
+2. Add an entry to the projects file the scripts read (see the top of this file). The scripts need `repo`, `orca_repo_id`, `ws_root`, `git_dir`, `worker_cap`, `pr_cap`, `retire_hold_days`, `review_rules`, `labels.work` and `labels.owner_wait`. `labels.work` is one prefix (twenty: `slice:`) or a list of prefixes (yw-workflow: `["enhancement", "housekeeping", "bug", "wayfinder:task", "slice:"]`). The other keys of the `twenty` entry may stay out. No script reads `live_agent_cap`, `labels.grill` or `gcp` yet (the sweep reads `labels.grill` by hand in step 2). Put project rules in the file its `worker_rules` key names, never in `worker-rules.txt`.
 3. Dry run: `bash <loop>/free_tickets.sh --project <p>` and `bash <loop>/cleanup.sh --project <p>` print a list with no error.
 
 ## Lessons (2026-11-24)
