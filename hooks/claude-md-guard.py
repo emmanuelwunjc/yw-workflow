@@ -17,6 +17,8 @@ RULE 1 - AskUserQuestion for interview-style questions (CLAUDE.md section 6)
     Two layers counter that:
       remind -> re-inject the rule at the SAME recency as the skill text.
       check  -> refuse to end the turn if a grill-mode turn still asked in prose.
+    The check skips a "?" in code, and skips an Orca bot Home Chat
+    (ticket 303, see in_orca_bot_home).
     A prior attempt to fix this with a memory file failed twice over: memory is
     advisory, and that one was scoped to a single project so it never loaded
     elsewhere. Hence a global hook.
@@ -403,13 +405,35 @@ def strip_fences(text):
 
 
 def prose_only(text):
-    """Strip code so quoted source containing an em-dash does not trip rule 2.
+    """Strip code, so a quoted em-dash (rule 2) or a "?" in code (rule 1) is
+    not scanned as prose.
 
     ponytail: fenced and inline code only. A 4-space-indented code block is
     still scanned as prose, so quoting a diff that way can block a turn.
     Assistant turns almost always use fences; widen this if that stops holding.
     """
     return INLINE_CODE.sub("", strip_fences(text))
+
+
+ORCA_BOTS_DIR = Path.home() / ".orca" / "bots"
+
+
+def in_orca_bot_home(cwd):
+    """True when the session runs in an Orca bot home, ~/.orca/bots/<name>.
+
+    The owner turned rule 1 off there in ticket 303, after it blocked 6 bot
+    replies that pointed to an item card. A bot asks the owner by the rules of
+    skill orca-bot section 5 (in the chat when the owner is live, else on an
+    item as Needs you). The folder is the test because the ORCA_* variables
+    are set in every Orca session, workers included, and only a bot Home Chat
+    runs in a bot home. The bots folder itself is no bot home.
+    """
+    if not cwd:
+        return False
+    try:
+        return ORCA_BOTS_DIR.resolve() in Path(cwd).resolve().parents
+    except (OSError, ValueError):
+        return False
 
 
 def check(data):
@@ -475,8 +499,9 @@ def check(data):
     in_grill_mode = state_file(session_id, "grill").exists()
     if (_on(policy, "ask_user_question")
             and in_grill_mode and "AskUserQuestion" not in tools
+            and not in_orca_bot_home(data.get("cwd"))
             and spent["askuser"][1] < MAX_BLOCKS_PER_SESSION):
-        tail = texts[-1].strip()[-400:]
+        tail = prose_only(texts[-1]).strip()[-400:]
         if "?" in tail:
             charged.append("askuser")
             problems.append(
