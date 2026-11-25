@@ -156,7 +156,9 @@ within hours. Derive them with `gh issue list` and the scripts in the repo.
      tasks are tickets, set the order as a "blocked by" link too, so a
      free work check added later reads it.
   2. What waits on the owner, so the next session asks nothing already
-     answered and does not wait on something it could do.
+     answered and does not wait on something it could do. Each owner
+     step says why only the owner can do it, and gives the literal
+     command or link, per the owner-step rule in `/yw-workflow:need-me`.
   3. A recount command beside every number, e.g. `4 open (gh issue list
      --label handoff | wc -l)`. A bare number is a claim nobody can check.
 - **Judgment, never derivable state.** Why a decision went the way it did,

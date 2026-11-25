@@ -7,7 +7,7 @@ import json, os, subprocess, sys
 #   TAKEN: #<n> <branch> [PR #<p>]  a branch linked to ticket <n>, and its open PR when it has one (slots.py reads it)
 #   WORKERS: <n>/<cap>      taken tickets with no open PR yet (a linked branch that is no PR head).
 #                           slots.py adds live work and prints SLOTS: the most workers the sweep may START.
-#   NO SLICE: #<n>          an open ticket with no work label (labels.work, a prefix): reported, never started
+#   NO SLICE: #<n>          an open ticket with no work label (labels.work: a prefix or a list of prefixes): reported, never started
 #   BUSY: <path> <where>    a file that an open PR or a taken ticket's branch changes (the real diff)
 #   SHARED: <path> <where>  a BUSY file on the project's shared_files list: no clash. The later PR merges
 #                           main and resolves the one-line clash before review (twenty: Matteo Wu, 2026-11-24).
@@ -29,7 +29,8 @@ R, BASE = P["repo"], P.get("base", "main")
 WORKER_CAP, PR_CAP = P["worker_cap"], P["pr_cap"]
 L = P["labels"]
 SHARED = set(P.get("shared_files", []))  # files whose clash is one line (a takeOrder item, a COPY line)
-SKIP, SLICE, MVP, NITS = set(L.get("skip", [])), L["work"], L.get("first"), L.get("last")
+SKIP, MVP, NITS = set(L.get("skip", [])), L.get("first"), L.get("last")
+SLICE = (L["work"],) if isinstance(L["work"], str) else tuple(L["work"])
 QUERY = """query($owner: String!, $name: String!, $endCursor: String) {
   repository(owner: $owner, name: $name) {
     issues(states: OPEN, first: 100, after: $endCursor) {
