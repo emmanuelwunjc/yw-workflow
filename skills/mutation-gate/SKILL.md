@@ -1,14 +1,23 @@
 ---
 name: mutation-gate
-description: Prove a repo's self-checks can fail, by applying recorded two-line breakages to each script and requiring its own check to catch them. Use when a review finds an assertion that could not fail, when a ticket names a rule as one that must be provable by mutation, when adopting the gate in a new repo ("add the mutation gate", "mutation test the scripts"), or when deciding whether a proposed gate entry has earned its place.
+description: Retired on 2026-11-25 (#293). Kept so history stays clear. Use only when a rule file or a brief still names the mutation gate: read the status line and do not run or add to the gate.
 origin: authored
 tags: [testing, mutation, ci, self-check, review]
-version: 1.0.1
+version: 2.0.0
+status: retired
 ---
 
 # Mutation gate
 
-**In one line:** Proves each self-check can fail, by breaking the code it covers and requiring it to notice.
+**Status:** retired on 2026-11-25 by the owner, in every repo (#293). In
+twenty, in 1,317 CI runs, no recorded breakage survived. Its one real catch
+was twenty PR 479, a refactor that left 13 entries with no tests. Reviewers
+who broke the code by hand found every other defect. It cost about 73 s per
+CI run and about 2 min 43 s per local run. Do not run the gate and do not add
+entries. The rule stays: a self-check must be able to fail, and `fresh-eye`
+asks it in round 1. A survivor becomes a test case or a ticket.
+
+**In one line:** Retired. Read the status line above, and do not run the gate.
 
 Say that line back when you start, so whoever invoked this knows what they got.
 

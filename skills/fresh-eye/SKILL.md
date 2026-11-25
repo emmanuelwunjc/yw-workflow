@@ -3,7 +3,7 @@ name: fresh-eye
 description: Dispatch an independent adversarial reviewer that did not write the code, in an isolated git worktree, to try to break a change rather than agree with it. Use before merging anything non-trivial, when asked for "a fresh eye", "a second opinion", "review this properly", "try to break this", or when you have just finished work and are about to call it done. Also use on the FIX for a previous review, because that is where the next defect usually is.
 origin: authored
 tags: [review, quality, adversarial, worktree, mutation-testing]
-version: 1.8.0
+version: 1.9.0
 ---
 
 # Fresh eye
@@ -108,9 +108,10 @@ fails, or "merge needs no review" where it does. A sentence that is only
 stronger than its source, or has no source line, is a nit.
 
 **Ask the premise once.** Round 1 asks whether the premise is sound and
-whether the change should exist at all, about the whole change. A later round
-checks house style on the fix's diff only. The premise does not change
-between fix rounds.
+whether the change should exist at all, about the whole change. Round 1 also
+asks, at both tiers, whether each self-check the change adds or touches can
+fail. A later round checks house style on the fix's diff only. The premise
+does not change between fix rounds.
 
 **Demand mutation at tier 1.** At tier 1 this is the highest-value
 instruction in the prompt. List the specific mutations that MUST fail, and ask
@@ -150,8 +151,10 @@ it blocks. A case is cheap to run, but it changes code, so it costs one
 more review round (`ship-loop` step 6). At tier 2, a
 finding follows the tier 2 rule above, and a nit's ticket holds the case. At
 tier 1, a code breakage that a script's own self-check missed becomes a
-`mutation-gate` entry. Cases go when their check goes. The measurement behind
-this rule is in `docs/DECISIONS.md` (2026-11-04).
+test case that kills it, or a ticket when that test is out of scope. It never
+becomes a gate entry: the mutation gate is retired (#293). Cases go when their
+check goes. The measurement behind this rule is in `docs/DECISIONS.md`
+(2026-11-04).
 
 **Ask what a bound excludes.** If the change narrows a promise ("works above
 1024 wide"), ask directly: is that bound justified by the physics of the problem,
@@ -370,8 +373,8 @@ function, or line number, it belongs in Agent-facing specifics instead.
        <list>
        Report any that survived, loudly. Name each survivor's route. A
        surviving broken input or check mutation becomes a new case. A
-       script breakage its own self-check missed becomes a `mutation-gate`
-       entry.
+       script breakage its own self-check missed becomes a test case or a
+       ticket.
        Tier 2: do no mutation testing. Read the code and try real-world
        cases, e.g. <cases>. Mark each finding by the tier 2 rule above.
     3. Tier 1 only: invent exactly three more mutations aimed at the weakest checks.
@@ -403,7 +406,8 @@ function, or line number, it belongs in Agent-facing specifics instead.
        line: nit.
     9. Does the changed text match house style (the repo's CLAUDE.md,
        README, or style guide)? Round 1 only: is the premise sound? Should
-       this exist at all?
+       this exist at all? Can each self-check this change adds or touches
+       fail?
 
     Start with one decision line: BLOCK n if you found a blocking finding,
     else REVIEW n if a call only a person can make is open, else PASS.

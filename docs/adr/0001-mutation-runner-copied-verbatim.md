@@ -2,6 +2,9 @@
 
 Date: 2026-09-16
 
+Status: superseded on 2026-11-25 by #293, which retires the mutation gate in
+every repo. A repo that still holds a copy of the runner removes it.
+
 The runner that proves a repo's self-checks can fail lives once, at
 `skills/mutation-gate/mutation_gate.py`. A repo copies it verbatim to
 `scripts/mutation_gate.py`, and `diff` against the plugin's copy is the drift
