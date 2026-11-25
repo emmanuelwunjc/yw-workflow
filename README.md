@@ -211,6 +211,9 @@ Wire them in one place only. Wiring a hook here and in
 Both run in CI on every pull request and on push to `main`, and `main` is
 protected, so a red check blocks the merge for the repo owner too.
 
+On a pull request, CI also runs `tools/pr_eli5.py`. It fails a PR whose body
+does not open with an `## ELI5` section that holds text.
+
 `claude-md-guard.py` is deliberately partial. It blocks a turn, so it fires only
 when it is sure, and its known misses and known false positives are both listed
 in its self-test.

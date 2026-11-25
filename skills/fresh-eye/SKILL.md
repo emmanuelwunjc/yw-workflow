@@ -235,8 +235,10 @@ report names leaves every sibling caller broken.
 
 **A review that finds something is not finished until that something is written
 down.** Blocking findings get fixed in the branch, and the fix is the record.
-Everything else becomes a ticket, written agent-ready: reproduction, acceptance
-criteria as checkable boxes, literal verification commands. The author files
+Everything else becomes a ticket, written agent-ready in the six parts of
+`ship-loop` step 1: an ELI5 first, then the problem, reproduction, acceptance
+criteria as checkable boxes, literal verification commands and the mutation
+check. The author files
 these tickets, from the nit list in the reviewer's comment. The reviewer files
 none. A nit that lives only in a review comment dies when the branch merges.
 

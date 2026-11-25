@@ -32,6 +32,15 @@ jobs:
       - name: Repo checks
         run: ./tools/check-repo.py
 
+      # Every PR body opens with an ELI5 section that holds text (see
+      # docs/research/orca-issue-pr-style.md). The body goes through the
+      # environment, never string interpolation: it is attacker-controlled text.
+      - name: PR body starts with ELI5
+        if: github.event_name == 'pull_request'
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: ./tools/pr_eli5.py
+
       # A squash-merge body set at merge time (gh pr merge --body, --body-file,
       # or the web UI) is written after the PR checks ran, so they never see it
       # (#135). This scan runs after the text is on main. It cannot block the

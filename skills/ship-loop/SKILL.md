@@ -29,10 +29,16 @@ beside the other skills.
 ## 1. Ticket
 
 Every unit of work starts as a written ticket, agent-ready, so it can feed a
-test-first loop without a conversation. It has four parts, each a heading in
+test-first loop without a conversation. It has six parts, each a heading in
 this plugin's issue template, `.github/ISSUE_TEMPLATE/ticket.md` in the
 yw-workflow repo:
 
+- **ELI5.** Always first. Two or three plain sentences a five-year-old could
+  follow: what this is and why it matters. No file names and no jargon, e.g.
+  "The robot forgets what it did yesterday. So it does the same work twice.
+  This makes it remember."
+- **Problem.** What is wrong, with a real example, and the function or
+  behavior that changes.
 - **Reproduction.** The literal commands and the observed wrong output.
 - **Acceptance criteria.** Checkable boxes, each objectively true or false, so
   a criterion reads like "exit code 0 on N rows" rather than "improve X".
@@ -40,7 +46,7 @@ yw-workflow repo:
 - **Mutation check.** Whether one is expected, i.e. reverting the fix must
   fail something.
 
-In the ticket's description, name the function or behavior it changes, e.g.
+In the Problem part, name the function or behavior it changes, e.g.
 "`_log` takes the singular object name from a map". Give a file path there
 only as a hint, e.g. "(in `scripts/live_write.py` when this was filed)". The
 Reproduction and Verification commands keep their literal paths. A file can
@@ -49,7 +55,7 @@ behavior, but its Reproduction said only "Read `scripts/live_write.py`". PR
 630 then cut that file into three and moved `_log` out of it, so the worker
 lost time to find the code.
 
-In any repo, write the ticket with these four parts, each as a `## ` heading.
+In any repo, write the ticket with these six parts, each as a `## ` heading.
 The plugin's own check, `tools/check-repo.py` in the yw-workflow repo, fails
 when these bullets and the template headings name different parts.
 
@@ -63,9 +69,9 @@ Each sync lists the open issues with none (`goal-tracker` step 9).
 
 A ticket from `mattpocock-skills:to-tickets` is a draft. Its template has
 acceptance criteria only, and it leaves out paths and code on purpose. Before
-work starts, add the reproduction, the verification commands and the mutation
-check. Tell `to-tickets` to leave off its `ready-for-agent` label and its
-`**Status:** ready-for-agent` line until the four parts are in.
+work starts, add the ELI5 on top, the reproduction, the verification commands
+and the mutation check. Tell `to-tickets` to leave off its `ready-for-agent`
+label and its `**Status:** ready-for-agent` line until the six parts are in.
 
 A ticket without an acceptance criterion is a wish. Write the demand down when
 it is given, then build it. Doing it in the other order is how a set of demands
@@ -287,13 +293,21 @@ command, which reads the first `Rounds:` line of each PR:
 For a backlog, run steps 1 to 5 per ticket and batch the review across a related
 group rather than one review per one-line fix.
 
+Every PR body opens with `## ELI5`: two or three plain sentences a
+five-year-old could follow, saying what the change is and why it matters. The
+rest follows the PR template, `.github/pull_request_template.md` in the
+yw-workflow repo: what changed (before and after), why, the ticket it closes,
+testing, risk and how to back it out. In the yw-workflow repo, CI fails a PR
+whose body does not open with an ELI5 that holds text (`tools/pr_eli5.py`).
+
 Each branch writes what the next session needs in a `## Handoff notes` section
 of its PR body, and never edits `docs/HANDOFF.md`. The session that merges the
 PRs runs the handoff pass before it stops: one `docs/handoff-*` branch that
 copies those notes into the log. `/yw-workflow:handoff` has the steps.
 
 If `mattpocock-skills:pr` shapes the PR body, keep its sections and add
-`## Handoff notes` and the `Rounds:` line, which its template lacks.
+`## ELI5` above them, and `## Handoff notes` and the `Rounds:` line, which its
+template lacks.
 
 ## 7. Housekeeping after a long loop
 
