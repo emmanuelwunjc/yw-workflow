@@ -1,15 +1,15 @@
 #!/bin/bash
 # Read-only spend check for one GCP project.
-# Usage: bash cost.sh <project> [app] [legacy-app-values]
+# Usage: bash cost.sh <project> <app> [legacy-app-values]
 # 1. If a BigQuery billing export exists (env BILLING_EXPORT_TABLE=proj.dataset.table, or a
 #    gcp_billing_export_* table in a dataset of <project>), print spend to date by label app.
 # 2. Else print the budgets that cover <project>, and the manual source for spend.
 # Exit 2 if a gcloud or bq call failed.
 set -euo pipefail
-[ $# -ge 1 ] || { sed -n '3p' "$0" >&2; exit 2; }
+[ $# -ge 2 ] || { sed -n '3p' "$0" >&2; exit 2; }
 PROJECT=$1
-APP=${2:-twenty-bot}
-LEGACY=${3:-twenty-chatbot}
+APP=$2
+LEGACY=${3:-}
 die() { echo "ERROR: $*" >&2; exit 2; }
 
 TABLE=${BILLING_EXPORT_TABLE:-}

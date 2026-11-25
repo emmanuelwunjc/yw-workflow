@@ -1,7 +1,7 @@
 #!/bin/bash
 # Self-test for audit.sh and fixes.sh with a fake gcloud on PATH. Nothing reaches Google.
 # The fixtures copy the JSON shapes of real list calls on mdi-yimingwu-pets (2026-11-24).
-# Run: bash ~/.orca/bots/mdi-mac/skills/gcp-cost-audit/test-audit.sh
+# Run: bash skills/gcp-cost-audit/test-audit.sh (from the yw-workflow repo root)
 set -u
 HERE=$(cd "$(dirname "$0")" && pwd)
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
@@ -21,7 +21,8 @@ esac
 [ "$k" = "$FAKE_FAIL" ] && { echo "ERROR: (gcloud.$k) PERMISSION_DENIED" >&2; exit 1; }
 cat "$FAKE_DIR/$k.json"
 EOF
-chmod +x "$T/bin/gcloud"
+printf '#!/bin/bash\necho "bq $*" >>"$FAKE_LOG"; echo "fake bq: no call allowed" >&2; exit 9\n' >"$T/bin/bq"
+chmod +x "$T/bin/gcloud" "$T/bin/bq"
 
 L='"owner": "yw1084", "team": "mdi", "purpose": "twenty-bot", "app": "twenty-bot"'
 D='Runs it. owner=yw1084,team=mdi,purpose=friday-dump-run,app=twenty-bot'
@@ -38,7 +39,7 @@ echo "[{\"description\": \"$D\", \"email\": \"twenty-friday-runtime@p.iam.gservi
 
 run() {  # run <script> [FAKE_FAIL kind]: stdout to $T/out, exit code to $T/rc
   PATH="$T/bin:$PATH" FAKE_DIR="$T/fx" FAKE_LOG="$T/calls" FAKE_FAIL="${2:-none}" \
-    bash "$HERE/$1" p us-east1 >"$T/out" 2>"$T/err"; echo $? >"$T/rc"
+    bash "$HERE/$1" p us-east1 twenty-bot twenty-chatbot >"$T/out" 2>"$T/err"; echo $? >"$T/rc"
 }
 
 # 1. Every twenty resource labelled. Other apps and Google topics are out of scope.
@@ -70,5 +71,16 @@ W='(create|update|delete|add-iam|set-iam|deploy)'
 check "no write call reached gcloud" '! grep -qE "$W" $T/calls'
 check "no write verb outside print text" '! grep -nE "\b$W\b" "$HERE"/audit.sh "$HERE"/fixes.sh "$HERE"/cost.sh "$HERE"/scan.py | grep -vE ":[0-9]+:\s*(#|print\(|echo )"'
 check "scripts are ASCII" 'python3 -c "import sys; [open(f, \"rb\").read().decode(\"ascii\") for f in sys.argv[1:]]" "$HERE"/*.sh "$HERE"/scan.py "$HERE"/SKILL.md 2>/dev/null'
+
+# 5. No default project, region or app: each is required, and a short call stops with the usage line.
+for s in audit.sh fixes.sh; do
+  PATH="$T/bin:$PATH" FAKE_DIR="$T/fx" FAKE_LOG="$T/calls" FAKE_FAIL=none bash "$HERE/$s" p us-east1 >"$T/out" 2>"$T/err"; rc=$?
+  check "$s without an app: exit 2 with usage, no gcloud table" '[ $rc = 2 ] && grep -q "Usage:" $T/err && [ ! -s $T/out ]'
+done
+PATH="$T/bin:$PATH" FAKE_LOG="$T/calls" bash "$HERE/cost.sh" p >"$T/out" 2>"$T/err"; rc=$?
+check "cost.sh without an app: exit 2 with usage" '[ $rc = 2 ] && grep -q "Usage:" $T/err'
+check "no default project, region or app in the code lines of the scripts" '! grep -nE "mdi-|twenty|us-east1|AUDIT_REGION" "$HERE"/audit.sh "$HERE"/fixes.sh "$HERE"/cost.sh "$HERE"/scan.py | grep -vE ":[0-9]+:\s*#"'
+PATH="$T/bin:$PATH" FAKE_DIR="$T/fx" FAKE_LOG="$T/calls" FAKE_FAIL=none bash "$HERE/audit.sh" p us-east1 twenty-bot >"$T/out" 2>"$T/err"; rc=$?
+check "no legacy values: a resource with the old value is out of scope" '[ $rc = 0 ] && grep -q "Legacy values: none" $T/out && ! grep -q p-twenty-chatbot-eval $T/out'
 
 [ $fail = 0 ] && echo "all checks pass" || { echo "some checks failed"; exit 1; }

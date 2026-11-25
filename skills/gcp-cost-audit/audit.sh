@@ -1,18 +1,18 @@
 #!/bin/bash
 # Read-only label audit of one app's GCP resources. Runs only gcloud list/describe calls.
-# Usage: bash audit.sh <project> [region] [app] [legacy-app-values]
-#   e.g. bash audit.sh mdi-yimingwu-pets us-east1 twenty-bot twenty-chatbot
+# Usage: bash audit.sh <project> <region> <app> [legacy-app-values]
+#   e.g. bash audit.sh my-project us-east1 pay-bot pay-chatbot,pay-old
 # A resource is in scope when its app label is <app>, or a legacy value (flagged RENAME),
-# or it has no app label and its name holds the app's first word (e.g. "twenty").
+# or it has no app label and its name holds the app's first word (e.g. "pay").
 # Service accounts and Scheduler jobs take no labels: their description holds key=value pairs.
 # Exit: 0 no gaps, 1 gaps found, 2 a gcloud call failed (never read as zero resources).
 # AUDIT_MODE=fixes prints the fix commands instead of the table (fixes.sh sets it).
 set -euo pipefail
-[ $# -ge 1 ] || { sed -n '3,4p' "$0" >&2; exit 2; }
+[ $# -ge 3 ] || { sed -n '3,4p' "$0" >&2; exit 2; }
 PROJECT=$1
-REGION=${2:-${AUDIT_REGION:-us-east1}}
-APP=${3:-twenty-bot}
-LEGACY=${4:-twenty-chatbot}
+REGION=$2
+APP=$3
+LEGACY=${4:-}
 HERE=$(cd "$(dirname "$0")" && pwd)
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 
