@@ -202,10 +202,12 @@ guard.NEGATION_PATTERNS = originals
 # only "?" sat in a URL or in code.
 import json as _json
 import tempfile as _tempfile
-_tmp = Path(_tempfile.mkdtemp())
+_tmpdir = _tempfile.TemporaryDirectory()
+_tmp = Path(_tmpdir.name)
 guard.STATE_DIR = _tmp / "state"
 guard._policy = lambda ci=False: None  # defaults: every rule on, no citation
-_BOT_HOME = str(Path.home() / ".orca" / "bots" / "yw-workflow")
+_BOTS = Path.home() / ".orca" / "bots"
+_BOT_HOME = str(_BOTS / "yw-workflow")
 _ITEM = ("Yiming, **select a choice on item 129: which change to the mutation "
          "gate do you want?** I recommend option A.")
 ASK_CASES = [
@@ -217,7 +219,7 @@ ASK_CASES = [
      "Yiming, the list is at https://github.com/o/r/issues?q=is%3Aopen now.",
      "/tmp", False),
     ("a ? only inside inline code",
-     "Yiming, I ran `grep -E 'a?b' x.txt` and took option A.", "/tmp", False),
+     "Yiming, the line `x = a ? b : c` stays and I took option A.", "/tmp", False),
     ("a ? only inside a fenced block",
      "Yiming, I took option A.\n```\nok = input('go?')\n```", "/tmp", False),
     ("a real prose question outside a bot home",
@@ -229,7 +231,19 @@ ASK_CASES = [
     ("a bot home path under another root",
      "Which option do you want?", "/srv/.orca/bots/x", True),
     ("no cwd in the hook input", "Which option do you want?", None, True),
+    ("the bots folder itself is no bot home",
+     "Which option do you want?", str(_BOTS), True),
+    ("a .. path that leaves the bot home",
+     "Which option do you want?", str(_BOTS / "x" / ".." / ".." / "y"), True),
+    ("a cwd that cannot be read as a path",
+     "Which option do you want?", str(_BOTS / "x") + "\x00y", True),
 ]
+# Each of these ended a turn with a question the base check blocked. Only a
+# "?" that a URL query character follows is exempt, so they still block.
+for tail in ("?!", "?:", "?.", "?,", "?\u201d", "?\U0001f642", "?|", "?~~",
+             "?<br>", "?\u2013"):
+    ASK_CASES.append(("a question ending in " + repr(tail),
+                      "Yiming, which option do you want" + tail, "/tmp", True))
 for i, (name, reply, cwd, must_block) in enumerate(ASK_CASES):
     sid = "ask%d" % i
     transcript = _tmp / (sid + ".jsonl")
@@ -247,6 +261,7 @@ for i, (name, reply, cwd, must_block) in enumerate(ASK_CASES):
     blocked = guard.check(data).get("decision") == "block"
     if blocked != must_block:
         failures.append("ASK: %s (expected block=%s)" % (name, must_block))
+_tmpdir.cleanup()
 
 for text in KNOWN_FALSE_POSITIVES:
     if not guard.find_negation(text):
@@ -257,14 +272,12 @@ for text in KNOWN_MISSES:
     if guard.find_negation(text):
         print("NOTE: a recorded gap is now caught, which is an improvement: " + text)
 
+total = len(MUST_TRIP) + len(MUST_NOT_TRIP) + len(FENCE_CASES) + len(ASK_CASES)
 if failures:
     print("\n".join(failures))
-    print("\nRESULT: %d failed of %d cases"
-          % (len(failures), len(MUST_TRIP) + len(MUST_NOT_TRIP) + len(FENCE_CASES)
-             + len(ASK_CASES)))
+    print("\nRESULT: %d failed of %d cases" % (len(failures), total))
     sys.exit(1)
 print("claude-md-guard: %d cases pass (%d trip, %d stay quiet, %d code-fence, "
       "%d question), and all %d patterns are uniquely covered"
-      % (len(MUST_TRIP) + len(MUST_NOT_TRIP) + len(FENCE_CASES) + len(ASK_CASES),
-         len(MUST_TRIP), len(MUST_NOT_TRIP), len(FENCE_CASES), len(ASK_CASES),
+      % (total, len(MUST_TRIP), len(MUST_NOT_TRIP), len(FENCE_CASES), len(ASK_CASES),
          len(guard.NEGATION_PATTERNS)))

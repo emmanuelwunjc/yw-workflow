@@ -405,7 +405,8 @@ def strip_fences(text):
 
 
 def prose_only(text):
-    """Strip code so quoted source containing an em-dash does not trip rule 2.
+    """Strip code, so a quoted em-dash (rule 2) or a "?" in code (rule 1) is
+    not scanned as prose.
 
     ponytail: fenced and inline code only. A 4-space-indented code block is
     still scanned as prose, so quoting a diff that way can block a turn.
@@ -414,9 +415,9 @@ def prose_only(text):
     return INLINE_CODE.sub("", strip_fences(text))
 
 
-# A "?" that ends a sentence: followed by space, the end, or closing markup.
-# A "?" inside a word or a URL query ("issues?q=open") asks the owner nothing.
-PROSE_QUESTION = re.compile(r"\?(?=[\s*_)\]\"']|$)")
+# Any "?" counts, except one that a URL query character follows
+# ("issues?q=open"), because that "?" asks the owner nothing.
+PROSE_QUESTION = re.compile(r"\?(?![\w=&%/#-])")
 
 ORCA_BOTS_DIR = Path.home() / ".orca" / "bots"
 
@@ -424,10 +425,12 @@ ORCA_BOTS_DIR = Path.home() / ".orca" / "bots"
 def in_orca_bot_home(cwd):
     """True when the session runs in an Orca bot home, ~/.orca/bots/<name>.
 
-    There a bot puts an owner decision on an item card as Needs you, never as
-    a question in chat (skill orca-bot), so a "?" there points to the card.
-    The folder is the test because the ORCA_* variables are set in every Orca
-    session, workers included, and only a bot Home Chat runs in a bot home.
+    The owner turned rule 1 off there in ticket 303, after it blocked 6 bot
+    replies that pointed to an item card. A bot asks the owner by the rules of
+    skill orca-bot section 5 (in the chat when the owner is live, else on an
+    item as Needs you). The folder is the test because the ORCA_* variables
+    are set in every Orca session, workers included, and only a bot Home Chat
+    runs in a bot home. The bots folder itself is no bot home.
     """
     if not cwd:
         return False
