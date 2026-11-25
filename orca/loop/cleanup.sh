@@ -133,12 +133,17 @@ canceled_paths=$(jq -nr --slurpfile c <(printf '%s' "$canceled") --slurpfile d <
   | $d[0][] | select(IN(.dispatchId; $refs[])) | (.resource.worktreeId // .projection.workspace.id // "") | split("::")[1] // empty')
 # The workspaces an In progress or Needs you item of any bot links by a dispatch
 # (its first or its latest): path TAB `item <n> of <bot> <status>`. They never
-# retire or go. Read from Orca on each run, and a failed read stops the run.
-open_items='[]' bots=$(orca bot list --json | jq -r '.result.bots[].name')
+# retire or go. Read from Orca on each run. A failed read prints one ERROR line
+# (to stderr, the daily log) with the command and the orca output, and stops the run.
+orca_read() { # orca args -> its stdout, or the ERROR line and exit 1
+  local out; out=$(orca "$@" 2>&1) && { printf '%s\n' "$out"; return; }
+  echo "ERROR orca $* failed, so nothing retires or is removed: ${out//$'\n'/ }" >&2; exit 1
+}
+open_items='[]' bots=$(orca_read bot list --json) && bots=$(jq -r '.result.bots[].name' <<<"$bots")
 while IFS= read -r b; do
   cursor=
   while [ -n "$b" ]; do
-    page=$(orca bot item list --bot "$b" --status in_progress,needs_you --json --limit 100 ${cursor:+--cursor "$cursor"})
+    page=$(orca_read bot item list --bot "$b" --status in_progress,needs_you --json --limit 100 ${cursor:+--cursor "$cursor"})
     open_items=$(jq -cs --arg b "$b" '.[0] + [.[1].result.items[] | .bot = $b]' <(printf '%s' "$open_items") - <<<"$page")
     cursor=$(jq -r '.result.nextCursor // empty' <<<"$page")
     [ -n "$cursor" ] || break

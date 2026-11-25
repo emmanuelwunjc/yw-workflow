@@ -40,7 +40,7 @@ case "$1 $2" in
     [ "$3" = set ] && { echo "$*" >> "$ITEM_LOG"; exit; }
     bot=; prev=; for a in "$@"; do [ "$prev" = --bot ] && bot=$a; prev=$a; done
     case "$bot" in "Test Bot" | "Other Bot") ;; *) exit 1 ;; esac
-    [ -n "${ITEMS_FAIL:-}" ] && [[ " $* " == *" in_progress,needs_you "* ]] && exit 1
+    [ -n "${ITEMS_FAIL:-}" ] && [[ " $* " == *" in_progress,needs_you "* ]] && [ "$bot" = "Other Bot" ] && { echo '{"ok": false, "error": {"message": "orca runtime not reachable"}}'; exit 1; }
     if [[ " $* " == *" --status canceled "* ]] && [ "$bot" = "Test Bot" ]; then cat "$FIX/items-canceled.json"
     elif [[ " $* " == *" --status in_progress,needs_you "* ]] && [ -e "$FIX/items-open-$bot.json" ]; then cat "$FIX/items-open-$bot.json"
     else echo '{"result": {"items": []}}'; fi ;;
@@ -441,7 +441,9 @@ cases() { # script -> prints FAIL lines, returns 1 on any failure
   awk -F'\t' 'NR > 10 && $4 == "retire" && $7 == "ok" {print $3}' "$CLEANUP_LEDGER" | grep -qx merged && { echo "FAIL merged retired under item 7"; fail=1; }
   # A failed item read stops the run before any move.
   rm -f "$CLOSE_LOG"
-  ITEMS_FAIL=1 cl --apply --remove > /dev/null 2>&1 && { echo "FAIL a failed item read did not stop the run"; fail=1; }
+  out=$(ITEMS_FAIL=1 cl --apply --remove 2>&1) && { echo "FAIL a failed item read did not stop the run"; fail=1; }
+  # The daily log must say why: one ERROR line with the bot and the orca error.
+  grep -q '^ERROR orca bot item list --bot Other Bot .* failed, so nothing retires or is removed: .*orca runtime not reachable' <<<"$out" || { echo "FAIL no ERROR line for a failed item read:"; tail -3 <<<"$out"; fail=1; }
   [ -e "$CLOSE_LOG" ] || [ -e "$RM_LOG" ] && { echo "FAIL a failed item read closed or removed"; fail=1; }
   rm -f "$FIX/items-open-"*.json "$CLOSE_LOG" "$RM_LOG" "$SET_LOG"
   return $fail
