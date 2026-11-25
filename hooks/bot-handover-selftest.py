@@ -188,9 +188,15 @@ e.config("[context_handoff]\nfirst_percent = 20\n")  # 200k on 1M
 text = e.run()
 check("config: the limit is context_handoff first_percent of the window",
       text is not None and "limit wins" in text, repr(text))
-e = Env(70000, chat_age_hours=1, model="claude-haiku-5-5")  # 200k window
+for tokens, wins in ((60000, True), (59000, False)):  # 200k window: 60k
+    e = Env(tokens, chat_age_hours=5, model="claude-haiku-5-5")
+    text = e.run()
+    check("a 200k-window model at %dk: limit %s" % (tokens // 1000, wins),
+          text is not None and ("limit wins" in text) == wins, repr(text))
+e = Env(70000, chat_age_hours=1)
+e.config('[context_handoff]\nwindows = { "claude-opus" = 200000 }\n')
 text = e.run()
-check("a 200k-window model hits the limit at 60k",
+check("config: a windows table moves the limit (opus at 200k: 60k)",
       text is not None and "limit wins" in text, repr(text))
 
 check("bad input prints nothing", load_hook().main("not json", T0) == "")
