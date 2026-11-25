@@ -77,10 +77,8 @@ npx skills add . -l                   # what the skills path would serve
    or open a ticket for it. Make each "after #X" a "blocked by" link. Then
    close the lane issue with a pointer to where its steps went. List them:
    `gh issue list --label lane --state open`.
-2. `parallel`: the rest of handoff layer 3 (#196). #202 (a home for each
-   of the 9 old traps) closes when its PR merges:
-   `gh pr list --search 202 --state open`. #200 (the Handoff docs part of
-   `~/CLAUDE.md`): check its boxes, and close it if they pass.
+2. `parallel`: the rest of handoff layer 3 (#196). #200 (the Handoff
+   docs part of `~/CLAUDE.md`): check its boxes, and close it if they pass.
 3. `after the owner reads this file`: #204 (move twenty,
    sals-day-in-life-dryrun and reimburse to this layout).
 4. `parallel`: any other open ticket with no linked branch, no open

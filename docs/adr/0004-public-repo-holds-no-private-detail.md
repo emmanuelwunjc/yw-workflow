@@ -3,8 +3,8 @@
 Date: 2026-11-15
 
 The owner decided that this public repo holds no issue numbers or other
-details of a private repo, e.g. the repo whose sync code became the general
-goal tracker (#146). So before the first push of a branch here, check every
+details of a private repo. One example is the repo whose sync code became
+the general goal tracker (#146). So before the first push of a branch here, check every
 commit on it, and not only the tip, for private detail. A push makes the
 detail public, and a rewrite of history cannot take it back: GitHub keeps
 `refs/pull/*` heads that anyone can fetch.
