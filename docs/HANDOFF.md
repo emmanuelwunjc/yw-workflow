@@ -73,9 +73,10 @@ npx skills add . -l                   # what the skills path would serve
    or open a ticket for it. Make each "after #X" a "blocked by" link. Then
    close the lane issue with a pointer to where its steps went. List them:
    `gh issue list --label lane --state open`.
-2. `parallel`: the rest of handoff layer 3 (#196): #202 (give each of the
-   9 old traps a check, a ticket or a `LESSONS.md` line) and #200 (the Handoff
-   docs part of `~/CLAUDE.md`).
+2. `parallel`: the rest of handoff layer 3 (#196). #202: each of the 9
+   old traps gets a check, a ticket or a `LESSONS.md` line, and its
+   comment says where each went. #200: the Handoff docs part of
+   `~/CLAUDE.md`.
 3. `after the owner reads this file`: #204 (move twenty,
    sals-day-in-life-dryrun and reimburse to this layout).
 4. `parallel`: any other open ticket with no linked branch, no open
@@ -88,64 +89,6 @@ Waits on the owner:
   for #204.**
 - #159 (a CI step that runs recorded mutations) adds to a workflow. Ask
   before you add it.
-
-## Traps that cost real time
-
-**A plugin version that does not change is not installable.** Editing the repo
-does nothing until `.claude-plugin/plugin.json` bumps, because
-`claude plugin update` keys off the version. This bit hard once: the personal
-skill copies had already been moved to backups while the cache still held the
-pre-fix snapshot, so two skills existed nowhere and the git guard ran ungated
-on every command.
-
-**Both install paths read the default branch.** Work on a feature branch is
-invisible to `npx skills add` and to the marketplace, however green it is.
-
-**A test fitted to the fix proves nothing.** Twice, cases were added to prove a
-detector was fixed, and every case exercised the branch that had just been
-deleted, leaving the surviving branch untested. The reviewer caught it both
-times by writing fresh sentences instead. Any new guard here needs its
-must-stay-quiet list written by someone who did not write the guard.
-
-**Code-stripping failed four separate ways, one per review round.** An
-unterminated fence swallowed the document. A stray backtick paired with the
-next one anywhere later. A `~~~` line closed a ` ``` ` block. A blockquoted
-fence was never recognised at all, and the fix for that one closed ordinary
-fences early, turning a fail-open bug into a fail-closed one. A guard that
-fails open with no signal looks exactly like a guard that found nothing, and a
-guard that fails closed blocks a turn over source that cannot be rewritten.
-`FENCE_CASES` in the self-test keeps one case per direction.
-
-**A regex cannot see grammar, and every attempt to make it look like it can
-has cost a review round.** Six rounds went into one detector. Each fix revealed
-a class the previous patterns could not distinguish: bare negatives, lexical
-verbs, imperatives, subordinate clauses, independent clauses after "but". Adding
-a seventh pattern is almost always the wrong move; recording the gap is the
-right one.
-
-**A backup is only as good as its date.** `~/.claude/skills/eli5` was deleted
-when the skill moved into the plugin, on the strength of a backup at
-`~/.claude/backups/skills-pre-plugin/eli5` that was thirteen days old. The
-frontmatter matched, so nothing was lost, but that was luck. Re-take a backup at
-the moment of deletion rather than trusting one that already exists.
-
-**`marketplace.json`'s description must keep its skill list between a colon and
-`, plus`.** `tools/check-repo.py` parses that list to check the blurb names every
-skill and no skill that does not exist. A word heuristic was tried first and was
-green on an invented name, because nothing distinguishes a skill name from an
-English one. The parse is stricter and the trade is deliberate: a reworded blurb
-fails loudly with a message naming the shape to restore, which is the right
-direction for a manifest. Reword freely, keep the punctuation.
-
-**`check-repo.py` is at its ceiling, not at the start of a pattern.** It is roughly
-twice the size of the README it guards. Every check traces to a defect that
-actually shipped, and a reviewer judged that worth the friction, with the
-`## Skills` and `## Hooks` headings now load-bearing. Adding more of this shape
-needs a defect to point at, not a gap to fill.
-
-**The no-attribution hook blocks writing about itself in a Bash command.** That
-is the enforcement working. Use the file-edit tools for that text.
-
 
 ## Read next
 
