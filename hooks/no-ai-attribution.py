@@ -308,7 +308,10 @@ def main():
             "That covers a commit message too: a Claude-Session trailer "
             "is a session URL, and a co-author trailer at an "
             "anthropic.com address names Claude. A co-author trailer "
-            "that names a person is fine."
+            "that names a person is fine.\n"
+            "Writing about this rule in a file? Use a file-edit tool: "
+            "this hook reads Bash commands and the message files they "
+            "name, so the text blocks only when Bash carries it."
             + (("\n" + citation) if citation else ""),
             file=sys.stderr,
         )
