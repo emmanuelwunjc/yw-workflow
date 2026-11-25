@@ -3,7 +3,7 @@ name: orca-bot
 description: The general rules every Orca bot follows (which language goes where, how to hand work to workers, when an item is Needs you or Waiting, the boss-bot convention, how a bot home is laid out), plus a setup step that points a bot's home at them. Use when a bot loads it at the start of a session, when the owner says "set up the bot", "orca-bot setup <name>", or "add the bot rules", or right after `orca bot create`.
 origin: authored
 tags: [orca, bots, setup, language, workers]
-version: 1.1.0
+version: 1.2.0
 ---
 
 # Orca bot
@@ -128,3 +128,23 @@ setup is a separate step.
 - **Ask the owner once.** In a live chat, ask in the chat. Put Needs you on an
   item only for a question raised while the owner is away. Source: owner,
   2026-11-24.
+
+### 6. Handover near the context limit
+
+A Home Chat hands over by itself: it writes a handoff file, then runs
+`orca bot new-chat`. Only its own Home Chat can run that command. The plugin
+hook `bot-handover.py` gives the notice each turn, so the bot does not have to
+watch its own context:
+
+1. Near the limit, and the chat is at least 4 hours old: write
+   `memory/handoff-<date>.md` (the date first, e.g.
+   `memory/handoff-2026-11-25.md`) and a dated `MEMORY.md` line that names it.
+2. With that file and line in place: finish the turn, then run
+   `orca bot new-chat` as its last step.
+3. At or past the limit, the 4-hour guard does not apply. The limit wins.
+
+The limit is the line where `context-handoff.py` gives its wind-down notice.
+In a Home Chat, this handover is how you follow that notice. The lines and
+the guard are settings: see `bot-handover.py` in `docs/HOOKS.md` of this
+plugin. Source: issue #336, after the Twenty bot waited at its limit on
+2026-11-25 because its note said "at most once every 4 hours".

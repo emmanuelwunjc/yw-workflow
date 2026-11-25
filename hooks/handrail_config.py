@@ -65,18 +65,20 @@ DEFAULTS = {
     "require_review": True,
     "git_safety": True,
     "context_handoff": True,
+    "bot_handover": True,
     "zsh_traps": True,
     # Off by default, the owner's call on 2026-11-24: a team writing Slack in
     # more than one language would otherwise be blocked on every post.
     "slack_language": False,
 }
 
-# What the CI action enforces no matter what a repo's config says. Five rules are
+# What the CI action enforces no matter what a repo's config says. Six rules are
 # absent because they cannot run server-side rather than by choice:
 # ask_user_question needs a live turn to inspect, git_safety blocks a git
 # command as it is typed, which branch protection covers in CI,
-# context_handoff reads a live session's transcript, which CI has none of, and
-# zsh_traps and slack_language block a shell command as it is typed.
+# context_handoff and bot_handover read a live session's transcript, which CI
+# has none of, and zsh_traps and slack_language block a shell command as it is
+# typed.
 CI_FLOOR = ("em_dash", "ai_attribution", "require_review", "handoff_freshness")
 
 # Rules a repo may add to the CI floor. Enabling is one-way: CI ignores a later
@@ -110,6 +112,15 @@ VALUE_DEFAULTS = {
                     "claude-haiku": 200000},
         "default_window": 200000,
     },
+    # An Orca bot Home Chat hands over and runs `orca bot new-chat` itself
+    # (issue #336). The limit is the context_handoff wind-down line
+    # (`first_percent` of the model's window). From `near_percent`
+    # of it, a notice when the chat is `min_hours` old. At the limit, a
+    # notice whatever its age: the limit wins over the 4-hour guard, the
+    # owner's call on 2026-11-25. `handoff_glob` finds the handoff files in a
+    # bot home.
+    "bot_handover": {"near_percent": 80, "min_hours": 4,
+                     "handoff_glob": "memory/handoff-20*.md"},
     # Scripts a Slack post may not contain: a name, then its code point ranges
     # as [first, last] pairs. The default is the CJK set english-only.py uses.
     "slack_language": {
