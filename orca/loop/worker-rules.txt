@@ -1,0 +1,13 @@
+
+Standing rules for every loop worker:
+- Test first, branch, then an independent review. Do not review your own change. When the change is ready, send me (the coordinator) `ready for review: PR <n>` with orca orchestration send and I start a reviewer. When the PR is handed off, send `orca orchestration send --type worker_done --outcome succeeded` with the PR number in the body, so Orca stops raising "Worker stopped without reporting". Fix blocking findings only.
+- You own the pull request you open until it is ready to merge: watch its checks and reviews, fix what fails or is asked. Before you report ready, update the branch with main (`gh pr update-branch <n>`) and wait for CI to pass.
+- Every ticket you file gets the project's work label at once, so the free work check counts it.
+- Never back up, overwrite or rm a live file under ~/.orca/bots: that trips a permission prompt and stalls you.
+- Notes go in the PR body under "## Handoff notes". Never edit docs/HANDOFF.md. Send no message to any person.
+- Live steps (gcloud, deploys, secrets, live writes) need the owner's yes: put the exact commands, with --project and --region, in your report and stop. Every deploy should be automatic: say when a step is manual and why. One exception: a live GCP step whose anticipated cost is under 5 USD may run without asking, after real research, when your report first states the estimate (price source, quantity, total). It still uses --project and --region, least privilege, and a teardown command in the report. A step at or above that limit, one with no estimate, any secret, and any non-GCP live write still need the owner's yes.
+- "Write the commands" never means run them. A live gcloud, deploy or write needs the word run or yes from the owner for that exact change.
+- Stop near 30% context with a plain-words report. Before you stop, push the branch and comment on the ticket where the work stopped.
+- A read-only audit, investigation or report worker saves the exact commands it ran, each with its output trimmed to the lines it used, in its worker_done body or in a file whose path that body names. A later session can then turn the method into a script.
+- Your worker_done body starts with `kind: pr`, `kind: report` or `kind: review`, so the cleanup knows what you left.
+- Your worker_done gives the handoff location and a plain-words report, with no TL;DR: the Home Chat bot writes the owner's TL;DR.

@@ -9,6 +9,7 @@ self-test, in CI and by hand, runs it too.
 Run: ./hooks/ticket-parts-selftest.py
 """
 import importlib.util
+import os
 import pathlib
 import shutil
 import subprocess
@@ -69,22 +70,27 @@ for name, tmpl, ship, want in CASES:
 
 
 
-def check_repo_in_copy(drop_heading):
-    """Run tools/check-repo.py in a copy of the repo, with one template heading
-    dropped if given. The copy gets a git index, because check-repo reads exec
-    bits from it. Return (exit code, output)."""
+def check_repo_in_copy(drop, path=None):
+    """Run tools/check-repo.py in a copy of the repo, with the text `drop`
+    removed from `path` (default: the ticket template) if given. The copy gets
+    a git index, because check-repo reads exec bits from it. Return (exit
+    code, output)."""
     tmp = pathlib.Path(tempfile.mkdtemp())
     try:
         files = subprocess.run(
             ["git", "ls-files", "-co", "--exclude-standard"], cwd=ROOT,
             capture_output=True, text=True, check=True).stdout.splitlines()
         for rel in files:
-            if (ROOT / rel).is_file():
+            # a symlink (e.g. skills/orca-loop) stays a symlink, or the copy loses a skill
+            if (ROOT / rel).is_symlink():
+                (tmp / rel).parent.mkdir(parents=True, exist_ok=True)
+                os.symlink(os.readlink(ROOT / rel), tmp / rel)
+            elif (ROOT / rel).is_file():
                 (tmp / rel).parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(ROOT / rel, tmp / rel)
-        if drop_heading:
-            tmpl = tmp / tp.TEMPLATE
-            tmpl.write_text(tmpl.read_text().replace(drop_heading + "\n", ""))
+        if drop:
+            f = tmp / (path or tp.TEMPLATE)
+            f.write_text(f.read_text().replace(drop, ""))
         # the commit and the origin/main ref make the copy look like the trunk,
         # so the version check has a trunk to compare against and passes
         for args in (["init", "-q"], ["add", "-A"],
@@ -101,16 +107,21 @@ def check_repo_in_copy(drop_heading):
 
 
 # The cases above test the comparison. These test that check-repo.py calls it
-# and acts on the result. The unchanged copy must pass, so the failure of the
-# changed copy comes from the dropped heading and nothing else.
+# and acts on the result, and the last one tests check-repo's orca/README.md
+# link check. The unchanged copy must pass, so the failure of a changed copy
+# comes from the dropped text and nothing else.
 WIRED = [
-    ("check-repo passes on an unchanged copy", None, 0,
+    ("check-repo passes on an unchanged copy", None, None, 0,
      "RESULT: repo checks pass"),
     ("check-repo fails when a template heading is dropped",
-     "## Mutation check", 1, "template lacks: Mutation check"),
+     "## Mutation check\n", None, 1, "template lacks: Mutation check"),
+    # orca/README.md must link every file under orca/ (issue #238).
+    ("check-repo fails when orca/README.md drops a link",
+     "(loop/stall.sh)", "orca/README.md", 1,
+     "FAIL orca/README.md links loop/stall.sh"),
 ]
-for name, drop, want_code, want_text in WIRED:
-    code, out = check_repo_in_copy(drop)
+for name, drop, path, want_code, want_text in WIRED:
+    code, out = check_repo_in_copy(drop, path)
     if code != want_code or want_text not in out:
         failures += 1
         print("FAIL %s: want exit %d and %r, got exit %d\n%s"

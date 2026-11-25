@@ -371,6 +371,17 @@ for event, groups in wiring["hooks"].items():
             script = cmd.split()[0]
             check("%s -> %s" % (event, cmd), (ROOT / script).exists())
 
+# 4b. orca/README.md is the map of the Orca workflow (issue #238): every
+# tracked file under orca/ is linked from it, so a new script cannot hide.
+# Its test is the last WIRED case of hooks/ticket-parts-selftest.py.
+print("orca/README.md links every file under orca/")
+orca_readme = (ROOT / "orca" / "README.md").read_text()
+for path in subprocess.run(["git", "ls-files", "orca"], cwd=ROOT, capture_output=True,
+                           text=True, check=True).stdout.splitlines():
+    rel = path[len("orca/"):]
+    check("orca/README.md links %s" % rel,
+          rel == "README.md" or "](%s)" % rel in orca_readme)
+
 # 5. A version that never moves is a plugin that never updates: `claude plugin
 # update` keys off it, so an edited repo whose version is unchanged installs as
 # the old one.
