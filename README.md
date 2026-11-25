@@ -1,6 +1,6 @@
 # yw-workflow
 
-Sixteen skills and ten hooks for Claude Code that make an engineering workflow
+Sixteen skills and eleven hooks for Claude Code that make an engineering workflow
 mechanical instead of remembered. Everything works in plain Claude Code. Inside
 Orca, `pm` runs its agents as Orca workers, `orca-bot` sets up new Orca bots,
 and `orca-loop` runs a bot's work loop.
@@ -14,7 +14,7 @@ duplicates that drift apart.
 # skills only
 npx skills add emmanuelwunjc/yw-workflow -g --skill '*' -y
 
-# skills and the ten hooks. Use this on your own machine.
+# skills and the eleven hooks. Use this on your own machine.
 claude plugin marketplace add emmanuelwunjc/yw-workflow
 claude plugin install yw-workflow@yw-workflow
 ```
@@ -194,6 +194,7 @@ plugin path only. The full rules, the CI gate and the config are in
 | **claude-md-guard.py** | UserPromptSubmit, Stop | Blocks em-dashes, negation-then-correction, and prose questions where checkboxes are required. |
 | **handoff-freshness.py** | SessionStart (`startup`, `clear`), Stop | At session start, tells the session to fix a `docs/HANDOFF.md` with an old Start here block before any other work. On a branch that changes real files, reminds it to write the PR body's `## Handoff notes`, and warns if the branch changes `docs/HANDOFF.md`. On trunk or a `docs/handoff-*` branch, warns when work piles up against an untouched `docs/HANDOFF.md`. Override: `SKIP_HANDOFF_CHECK=1`. |
 | **context-handoff.py** | PostToolBatch, UserPromptSubmit, Stop | Winds a session down past 30% of its model's context window (300k tokens on 1M, 60k on 200k), and has it write the handoff. |
+| **bot-handover.py** | UserPromptSubmit, PostToolBatch | In an Orca bot Home Chat only (asked of `orca bot chats`): near the context limit, tells the bot to write its handoff file, then run `orca bot new-chat` itself. At the limit, the once-every-4-hours guard does not apply. |
 | **unpushed-branches.py** | SessionStart (`startup`, `clear`) | Lists local branches with commits that no remote and no open or merged PR has. |
 | **plugin-lag.py** | SessionStart (`startup`, `clear`) | Prints one line with the update command when the installed plugin is older than its marketplace. Silent when current. |
 
