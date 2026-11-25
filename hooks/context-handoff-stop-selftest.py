@@ -108,6 +108,10 @@ e.at(310_000, now=T0)
 check("malformed background_tasks entries count as no subagent: blocked",
       bool(blocked(e.stop(T0 + 1, background_tasks=["x", None, {"type": 3}]))),
       True)
+e = Env()
+e.at(310_000, now=T0)
+check("background_tasks that is no list counts as no subagent: blocked",
+      bool(blocked(e.stop(T0 + 1, background_tasks=5))), True)
 
 e = Env()
 e.at(310_000, now=T0)

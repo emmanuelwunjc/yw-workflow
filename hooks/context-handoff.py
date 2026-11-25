@@ -82,7 +82,7 @@ RULE = "context_handoff"
 # The same values as handrail_config.VALUE_DEFAULTS, for a broken config
 # module. The input self-test checks the two match.
 DEFAULTS = {"first_percent": 30, "step_percent": 10, "grace_minutes": 15,
-            "windows": {"claude-opus": 1000000, "claude-sonnet": 200000,
+            "windows": {"claude-opus": 1000000, "claude-sonnet": 1000000,
                         "claude-haiku": 200000},
             "default_window": 200000}
 # Background task types that are agents the grace waits for. A "shell" task,

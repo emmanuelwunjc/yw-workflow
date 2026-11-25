@@ -159,25 +159,32 @@ e = Env()
 check("first_percent over 100 falls back to 30: 300k winds down",
       warned(e.at(300_000)), True)
 
+e = Env()
+(e.home / ".handrail.json").write_text(json.dumps(
+    {"context_handoff": {"first_percent": 100}}))
+check("first_percent=100 is kept: 999,999 on a 1M window is silent",
+      silent(e.at(999_999)), True)
+check("first_percent=100 is kept: 1M winds down", warned(e.at(1_000_000)), True)
+
 def windows_env():
     e = Env()
     (e.home / ".handrail.json").write_text(json.dumps(
-        {"context_handoff": {"windows": {"claude-sonnet": 1_000_000,
-                                         "claude-sonnet-old": 100_000},
+        {"context_handoff": {"windows": {"claude-haiku": 1_000_000,
+                                         "claude-haiku-old": 100_000},
                              "default_window": 500_000}}))
     return e
 
 
 e = windows_env()
-check("config windows: a sonnet given 1M is silent at 299k",
-      silent(e.at(299_000, model="claude-sonnet-5-5")), True)
+check("config windows: a haiku given 1M is silent at 299k",
+      silent(e.at(299_000, model="claude-haiku-4-5")), True)
 check("config windows: and winds down at 300k",
-      warned(e.at(300_000, model="claude-sonnet-5-5")), True)
+      warned(e.at(300_000, model="claude-haiku-4-5")), True)
 e = windows_env()
 check("config windows: the longest matching key wins (100k window): 29,999 silent",
-      silent(e.at(29_999, model="claude-sonnet-old-1")), True)
+      silent(e.at(29_999, model="claude-haiku-old-1")), True)
 check("config windows: the longest matching key wins (100k window): 30k winds down",
-      warned(e.at(30_000, model="claude-sonnet-old-1")), True)
+      warned(e.at(30_000, model="claude-haiku-old-1")), True)
 e = windows_env()
 check("config windows add to the default table: opus keeps 1M, 299k silent",
       silent(e.at(299_000)), True)
