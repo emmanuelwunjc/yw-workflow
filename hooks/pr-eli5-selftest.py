@@ -62,6 +62,25 @@ CASES = [
      FILLED.replace("## ELI5\n", "## ELI5\n\nThe robot says hello now.\n"), None),
 ]
 
+# Every comment shape, in every place, at 1 to 5 copies. Hand-picked cases
+# left a new variant of the comment strip alive each review round (a count
+# limit, `[^>]*`, `.+?`). A sweep leaves no such gap between its picks.
+COMMENTS = ["<!---->", "<!-- x -->", "<!-- old -> new -->", "<!-- a > b -->",
+            "<!-- two\nlines -->", "<!-- a --><!-- b -->"]
+for c in COMMENTS:
+    for k in range(1, 6):
+        lead = (c + "\n") * k
+        CASES += [
+            ("%d x %r before an empty ELI5" % (k, c),
+             lead + "## ELI5\n\n" + c + "\n\n## Why\n\n" + c + "\nx\n",
+             "ELI5 section is empty"),
+            ("%d x %r around real ELI5 text" % (k, c),
+             lead + "## ELI5\n\n" + c + "\nReal text.\n" + c + "\n\n## Why\n\n" + c + "\n",
+             None),
+            ("%d x %r inside an ELI5 that is empty" % (k, c),
+             "## ELI5\n\n" + lead + "\n## Why\n\nx\n" + lead, "ELI5 section is empty"),
+        ]
+
 failures = 0
 for name, body, want in CASES:
     try:
