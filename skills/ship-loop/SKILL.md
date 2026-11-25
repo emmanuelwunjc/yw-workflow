@@ -297,8 +297,7 @@ Every PR body opens with `## ELI5`: two or three plain sentences a
 five-year-old could follow, saying what the change is and why it matters. The
 rest follows the PR template, `.github/pull_request_template.md` in the
 yw-workflow repo: what changed (before and after), why, the ticket it closes,
-testing, risk and how to back it out. In the yw-workflow repo, CI fails a PR
-whose body does not open with an ELI5 that holds text (`tools/pr_eli5.py`).
+testing, risk and how to back it out.
 
 Each branch writes what the next session needs in a `## Handoff notes` section
 of its PR body, and never edits `docs/HANDOFF.md`. The session that merges the

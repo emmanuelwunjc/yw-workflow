@@ -59,10 +59,10 @@ a "What happens" heading.
 
 1. **`## ELI5` first, in every issue and PR.** Orca's own template does this,
    and the owner asked for it. Two or three plain sentences: what it is and
-   why it matters. No file names. yw-workflow goes one step further than
-   Orca: CI fails a PR whose body does not open with an ELI5 that holds text
-   (`tools/pr_eli5.py`), because a third of Orca's PRs dropped the section
-   when nothing checked it.
+   why it matters. No file names. Orca's template asks for it, but a third
+   of its recent PRs drop it, and nothing checks it. So the yw-workflow
+   skills that write issues and PR bodies name it too. A CI check that fails
+   a PR body with no ELI5 is ticket #346.
 2. **What changed as a before and an after.** From Orca's "What Changed"
    section and PR #49300. The reader sees the difference without the diff.
 3. **Why, with the alternatives you rejected.** From Orca's "Why" section.
@@ -103,5 +103,4 @@ already asks for "the wrong output", so it needs no new heading.
 - `skills/pm`, `skills/handoff`, `skills/fresh-eye`, `skills/goal-tracker`,
   `orca/loop/worker-rules.txt`, and `docs/agents/issue-tracker.md` (which
   `mattpocock-skills:to-tickets` reads) point at those two places.
-- `tools/pr_eli5.py`, run by `.github/workflows/ci.yml` on each pull
-  request. Self-test: `hooks/pr-eli5-selftest.py`.
+- A CI check that fails a PR body with no ELI5 is ticket #346.

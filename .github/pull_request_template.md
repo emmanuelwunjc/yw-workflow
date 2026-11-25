@@ -1,6 +1,6 @@
 ## ELI5
 
-<!-- Two or three plain sentences a five-year-old could follow: what this change is and why it matters. No file names, no jargon. CI fails a body whose first section is not ## ELI5 with text in it. -->
+<!-- Two or three plain sentences a five-year-old could follow: what this change is and why it matters. No file names, no jargon. -->
 
 ## What changed
 
