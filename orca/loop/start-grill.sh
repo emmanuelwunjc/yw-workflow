@@ -10,17 +10,18 @@ LOOP=$(cd "$(dirname "$0")" && pwd); . "$LOOP/project.sh" "$@"; set -- ${ARGS[@]
 [ "$ALL_PROJECTS" = 0 ] || { echo "start-grill.sh takes one project" >&2; exit 2; }
 R=$(pget repo); RID=$(pget orca_repo_id)
 dry=0; [ "${1:-}" = "--dry-run" ] && { dry=1; shift; }
-t=${1:?usage: start-grill.sh [--dry-run] <ticket> [extra topic text]}; shift
+t=${1:?usage: start-grill.sh [--project <name>] [--dry-run] <ticket> [extra topic text]}; shift
 topics=${*:-}
 case "$t" in *[!0-9]*) echo "ticket must be a number: $t" >&2; exit 1 ;; esac
 
 ps_json=$(orca worktree ps --json --limit 100000)
 [ "$(jq -r '.result.truncated' <<<"$ps_json")" = false ] || { echo "orca worktree ps output is truncated, so an open grill can hide. Stop." >&2; exit 1; }
+# Only grills of this project's Orca repo count: ticket numbers of two repos overlap.
 grills=$(python3 -c '
 import json, os, sys
 for w in json.load(sys.stdin)["result"]["worktrees"]:
-    if os.path.basename(w.get("path") or "").startswith("grill-"):
-        print(w["path"])' <<<"$ps_json")
+    if w.get("repoId") == sys.argv[1] and os.path.basename(w.get("path") or "").startswith("grill-"):
+        print(w["path"])' "$RID" <<<"$ps_json")
 existing=$(printf '%s\n' "$grills" | grep -E "/grill-$t(-|\$)" || true)
 [ -n "$existing" ] && { echo "refused: a grill workspace for #$t exists: $existing" >&2; exit 1; }
 

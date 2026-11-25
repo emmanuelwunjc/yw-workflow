@@ -29,7 +29,7 @@ fail=0
 check() { if [ "$2" = "$3" ]; then echo "ok   $1"; else echo "FAIL $1: want $3, got $2"; fail=1; fi; }
 S="$HERE/start-grill.sh"
 
-echo '{"result":{"truncated":false,"worktrees":[{"path":"/w/grill-4160-x"},{"path":"/w/other"}]}}' > "$T/ps"
+echo '{"result":{"truncated":false,"worktrees":[{"repoId":"rid-alpha","path":"/w/grill-4160-x"},{"repoId":"rid-alpha","path":"/w/other"}]}}' > "$T/ps"
 check "prints the workspace path" "$(bash "$S" 416 "who gets a reply")" /w/grill-416-the-bot-replies-by-mail
 check "name comes from the title" "$(sed -n '4p' "$T/args")" grill-416-the-bot-replies-by-mail
 grep -q -- '--surface' "$T/args" && grep -q -- '--no-parent' "$T/args" && grep -q -- '--activate' "$T/args"; check "chat, no parent, activate" $? 0
@@ -49,17 +49,20 @@ out=$(bash "$S" --dry-run 416)
 check "dry run creates nothing" "$([ -f "$T/args" ] && echo ran || echo none)" none
 case "$out" in "orca worktree create --name grill-416-"*) r=0 ;; *) r=1 ;; esac; check "dry run prints the command" $r 0
 
-echo '{"result":{"truncated":false,"worktrees":[{"path":"/w/grill-416-mail-reply"}]}}' > "$T/ps"
+echo '{"result":{"truncated":false,"worktrees":[{"repoId":"rid-alpha","path":"/w/grill-416-mail-reply"}]}}' > "$T/ps"
 bash "$S" 416 >/dev/null 2>&1; check "an existing grill for the ticket: exit 1" $? 1
 check "  and no create" "$([ -f "$T/args" ] && echo ran || echo none)" none
 bash "$S" 41x >/dev/null 2>&1; check "a ticket that is not a number: exit 1" $? 1
+# A grill on #416 of another Orca repo does not hold beta's #416.
+echo '{"result":{"truncated":false,"worktrees":[{"repoId":"rid-alpha","path":"/w/grill-416-mail-reply"}]}}' > "$T/ps"
+check "a grill on the same number in another repo: beta's grill opens" "$(PROJECTS_JSON=$T/projects.json bash "$S" --project beta 416)" /w/grill-416-the-bot-replies-by-mail
 
-echo '{"result":{"truncated":false,"worktrees":[{"path":"/w/grill-1-a"},{"path":"/w/grill-2-b"},{"path":"/w/other"}]}}' > "$T/ps"
+echo '{"result":{"truncated":false,"worktrees":[{"repoId":"rid-alpha","path":"/w/grill-1-a"},{"repoId":"rid-alpha","path":"/w/grill-2-b"},{"repoId":"rid-alpha","path":"/w/other"}]}}' > "$T/ps"
 check "2 grill workspaces open: a third one opens" "$(bash "$S" 416)" /w/grill-416-the-bot-replies-by-mail
 
 # 1544 rows, the grill for #416 is row 1200: past the default page of 200.
 rm -f "$T/args"
-jq -n '{result: {truncated: false, worktrees: [range(1544) | {path: (if . == 1199 then "/w/grill-416-mail-reply" else "/w/ws-\(.)" end)}]}}' > "$T/ps"
+jq -n '{result: {truncated: false, worktrees: [range(1544) | {repoId: "rid-alpha", path: (if . == 1199 then "/w/grill-416-mail-reply" else "/w/ws-\(.)" end)}]}}' > "$T/ps"
 bash "$S" 416 >/dev/null 2>&1; check "grill at row 1200 of 1544: exit 1" $? 1
 check "  and no create" "$([ -f "$T/args" ] && echo ran || echo none)" none
 jq '.result.truncated = true' "$T/ps" > "$T/ps2" && mv "$T/ps2" "$T/ps"
