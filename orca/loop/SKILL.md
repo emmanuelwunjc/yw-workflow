@@ -41,7 +41,7 @@ Comment on an item only when its state changes: a new question, a merge, a block
 
 ## Cleanup
 
-Run `bash <loop>/load.sh --all-projects` and `bash <loop>/cleanup.sh --all-projects` (a dry run). It prints `CLOSE` and `KEEP` lines with reasons, and writes them to the ledger. Close with `--apply`. Remove clean, retired, held workspaces with `--apply --remove`. A worker's `worker_done` carries `kind: pr|report|review`, and the kind decides when its terminal may close.
+Run `bash <loop>/load.sh --all-projects` and `bash <loop>/cleanup.sh --all-projects` (a dry run). It prints `CLOSE` and `KEEP` lines with reasons, and writes them to the ledger. Close with `--apply`. Remove clean, retired, held workspaces with `--apply --remove`. A worker's `worker_done` carries `kind: pr|report|review`, and the kind decides when its terminal may close. A workspace that an In progress or Needs you item of any bot links by a dispatch never retires or is removed: it gets a `KEEP` line with the item number.
 
 ## Add a project
 
