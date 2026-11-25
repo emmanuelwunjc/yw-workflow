@@ -151,10 +151,9 @@ it blocks. A case is cheap to run, but it changes code, so it costs one
 more review round (`ship-loop` step 6). At tier 2, a
 finding follows the tier 2 rule above, and a nit's ticket holds the case. At
 tier 1, a code breakage that a script's own self-check missed becomes a
-test case that kills it, or a ticket when that test is out of scope. It never
-becomes a gate entry: the mutation gate is retired (#293). Cases go when their
-check goes. The measurement behind this rule is in `docs/DECISIONS.md`
-(2026-11-04).
+test case that kills it, or a ticket when that test is out of scope. Cases go
+when their check goes. The measurement behind this rule is in
+`docs/DECISIONS.md` (2026-11-04).
 
 **Ask what a bound excludes.** If the change narrows a promise ("works above
 1024 wide"), ask directly: is that bound justified by the physics of the problem,

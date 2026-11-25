@@ -88,9 +88,6 @@ check("skills/ is non-empty", bool(skills))
 # a directory without a SKILL.md is a skill that silently left the plugin
 check("every skills/ directory has a SKILL.md (%d dirs, %d files)"
       % (len(dirs), len(skills)), len(dirs) == len(skills))
-# A retired skill keeps its file for history but leaves every skill list, so
-# the README and marketplace checks below skip it (#293, the mutation gate).
-retired = set()
 for skill in skills:
     text = skill.read_text().replace("\r\n", "\n")
     # the fence has to be a whole line, or a horizontal rule in the body
@@ -122,8 +119,6 @@ for skill in skills:
     check("%s frontmatter name is %s" % (want, want), keys.get("name") == want,
           "got " + repr(keys.get("name")))
     check("%s has a description" % want, bool(keys.get("description")))
-    if keys.get("status") == "retired":
-        retired.add(want)
 
 # 1b-2. Role agents. The Agent tool labels a helper with its agent type, and a
 # helper started without one shows as "general-purpose" whatever it does. These
@@ -199,8 +194,7 @@ WORDS = {1: "one", 2: "two", 3: "three", 4: "four", 5: "five", 6: "six",
          7: "seven", 8: "eight", 9: "nine", 10: "ten", 11: "eleven", 12: "twelve",
          13: "thirteen", 14: "fourteen", 15: "fifteen", 16: "sixteen",
          17: "seventeen", 18: "eighteen", 19: "nineteen", 20: "twenty"}
-listed_skills = [s for s in skills if s.parent.name not in retired]
-n = len(listed_skills)
+n = len(skills)
 right = {WORDS.get(n, str(n)), str(n)}
 # digits count too: "7 skills" beside "Nine skills" is the same defect
 # Every "<count> skills" in the README is treated as a claim about the total. A
@@ -225,12 +219,12 @@ check("no skill is listed twice in the Skills table",
       len(found) == len({n for n, _ in found}),
       "rows: " + ", ".join(n for n, _ in found))
 rows = dict(found)
-names = {s.parent.name for s in listed_skills}
+names = {s.parent.name for s in skills}
 check("the Skills table has exactly one row per skill",
       set(rows) == names,
       "table only: %s | skills only: %s" % (sorted(set(rows) - names),
                                             sorted(names - set(rows))))
-for skill in listed_skills:
+for skill in skills:
     name = skill.parent.name
     text = skill.read_text()
     marker = "**In one line:**"
