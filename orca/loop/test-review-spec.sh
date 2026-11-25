@@ -22,7 +22,15 @@ case "$*" in
 esac
 GH
 chmod +x "$T/bin/gh"
-export PATH="$T/bin:$PATH"
+export PATH="$T/bin:$PATH" BOT_HOME=$T/home
+# Two fake projects. Most cases run alpha alone; the last ones name beta in a two-project file.
+cat > "$T/projects.json" <<J
+{"projects": {
+  "alpha": {"repo": "o/alpha", "git_dir": "~/code/alpha", "review_rules": "Alpha blocks on a lost record."},
+  "beta":  {"repo": "o/beta",  "git_dir": "/src/beta",    "review_rules": "Beta blocks on a missed alert."}}}
+J
+jq '{projects: {alpha: .projects.alpha}}' "$T/projects.json" > "$T/alpha.json"
+export PROJECTS_JSON=$T/alpha.json
 cd "$T"   # a broken run writes its stray folders here, never in the skill folder
 fail=0
 check() { if [ "$2" = "$3" ]; then echo "ok   $1"; else echo "FAIL $1: want $3, got $2"; fail=1; fi; }
@@ -50,6 +58,14 @@ bash "$HERE/review-spec.sh" --fix beef123 701 700 "$T/branch" >/dev/null; check 
 check "fix over a merge of another branch: the full diff" "$(head -1 "$T/branch/adversarial.txt" | grep -c 'git diff beef123..headsha123')" 1
 o=$(bash "$HERE/review-spec.sh" --fix fff9999 701 700 "$T/nocmp" 2>&1); check "compare fails: exit 1 and says so" "$?:$(echo "$o" | grep -c 'gh api compare fff9999')" "1:1"
 check "compare fails: no spec" "$(ls "$T/nocmp" 2>/dev/null | wc -l | tr -d ' ')" 0
+for t in adversarial codereview; do
+  check "plain $t: alpha's repo, folder and rules, no placeholder left" \
+    "$(grep -c "Repo: alpha ($HOME/code/alpha)" "$T/plain/$t.txt"):$(grep -c 'repos/o/alpha/pulls/701/reviews' "$T/plain/$t.txt"):$(grep -c 'Project rules: Alpha blocks on a lost record.' "$T/plain/$t.txt"):$(grep -c '<repo>\|<project>\|<git_dir>\|<review_rules>' "$T/plain/$t.txt")" "1:1:1:0"
+done
+PROJECTS_JSON=$T/projects.json bash "$HERE/review-spec.sh" --project beta 701 700 "$T/beta" >/dev/null; check "--project beta: written" $? 0
+check "--project beta: beta's repo, folder and rules, none of alpha's" \
+  "$(grep -c 'Repo: beta (/src/beta)' "$T/beta/adversarial.txt"):$(grep -c 'repos/o/beta/pulls' "$T/beta/adversarial.txt"):$(grep -c 'Beta blocks on a missed alert' "$T/beta/adversarial.txt"):$(grep -c -i alpha "$T/beta/adversarial.txt")" "1:1:1:0"
+PROJECTS_JSON=$T/projects.json bash "$HERE/review-spec.sh" 701 700 "$T/none" >/dev/null 2>&1; check "two projects and no --project: exit 2" $? 2
 bash "$HERE/review-spec.sh" --fix main 701 700 >/dev/null 2>&1; check "--fix with no sha: exit 2" $? 2
 bash "$HERE/review-spec.sh" --fix 701 700 >/dev/null 2>&1; check "--fix with no sha, PR next: exit 2" $? 2
 bash "$HERE/review-spec.sh" --finding x 701 700 >/dev/null 2>&1; check "--finding with no --fix: exit 2" $? 2

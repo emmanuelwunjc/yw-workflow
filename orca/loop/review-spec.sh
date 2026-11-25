@@ -1,6 +1,7 @@
 #!/bin/bash
-# usage: review-spec.sh [--fix <from-sha> [--finding "<text>"]] <pr> <issue> [outdir]
-# Writes adversarial.txt and codereview.txt (reviewer specs) for a twenty PR. Fails when a placeholder stays empty.
+# usage: review-spec.sh [--project <name>] [--fix <from-sha> [--finding "<text>"]] <pr> <issue> [outdir]
+# Writes adversarial.txt and codereview.txt (reviewer specs) for a PR of the project's repo. The project's
+# name, git_dir, repo and review_rules fill the templates. Fails when a placeholder stays empty.
 # Line 1 names the PR ("Review of PR <n>." or "FIX ROUND of PR <n>. ..."): orca worktree ps cuts a prompt
 # to 200 characters, and the sweep's pr_wait.sh finds a working reviewer by that line.
 # --fix writes a fix-round spec: the reviewer reads only the fix since <from-sha> (the commit the last
@@ -10,7 +11,9 @@
 # --finding names the earlier blocking finding.
 # Test: bash test-review-spec.sh
 set -e
-USAGE='usage: review-spec.sh [--fix <from-sha> [--finding "<text>"]] <pr> <issue> [outdir]'
+LOOP=$(cd "$(dirname "$0")" && pwd); . "$LOOP/project.sh" "$@"; set -- ${ARGS[@]+"${ARGS[@]}"}
+[ "$ALL_PROJECTS" = 0 ] || { echo "review-spec.sh takes one project"; exit 2; }
+USAGE='usage: review-spec.sh [--project <name>] [--fix <from-sha> [--finding "<text>"]] <pr> <issue> [outdir]'
 FROM=; FINDING=
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -23,7 +26,7 @@ done
 [ -z "$FROM" ] || [[ "$FROM" =~ ^[0-9a-f]{7,40}$ ]] || { echo "--fix needs a commit sha, got: $FROM"; exit 2; }
 PR=$1; ISSUE=$2; OUT=${3:-$(mktemp -d)}
 [ -n "$PR" ] && [ -n "$ISSUE" ] || { echo "$USAGE"; exit 2; }
-R=georgetown-mdi-gates4/twenty; D=$(dirname "$0")
+R=$(pget repo); GIT_DIR_=$(pget git_dir); RULES=$(pget review_rules); D=$LOOP
 BRANCH=$(gh pr view "$PR" -R $R --json headRefName --jq .headRefName)
 SHA=$(gh pr view "$PR" -R $R --json headRefOid --jq .headRefOid)
 BODY=$(gh issue view "$ISSUE" -R $R --json body --jq .body)
@@ -51,13 +54,14 @@ fi
 mkdir -p "$OUT"
 for t in adversarial codereview; do
   F=$D/reviewer-$t.txt
-  BRANCH="$BRANCH" SHA="$SHA" BODY="$BODY" PR="$PR" FIRST="$FIRST" python3 -I -c '
+  BRANCH="$BRANCH" SHA="$SHA" BODY="$BODY" PR="$PR" FIRST="$FIRST" R="$R" PROJ="$PROJECT" GD="$GIT_DIR_" RULES="$RULES" python3 -I -c '
 import os,sys
 e=os.environ
 s=open(sys.argv[1]).read()
+s=s.replace("<project>",e["PROJ"]).replace("<git_dir>",e["GD"]).replace("<repo>",e["R"]).replace("<review_rules>",e["RULES"])
 s=s.replace("<branch>",e["BRANCH"]).replace("<commit>",e["SHA"]).replace("<the ticket or PR body, pasted in>",e["BODY"]).replace("<n>",e["PR"])
 open(sys.argv[2],"w").write(e["FIRST"]+"\n"+s)' "$F" "$OUT/$t.txt"
-  grep -n '<branch>\|<commit>\|<n>\|pasted in' "$OUT/$t.txt" && { echo "placeholder left in $t.txt"; exit 1; } || true
+  grep -n '<branch>\|<commit>\|<n>\|pasted in\|<repo>\|<project>\|<git_dir>\|<review_rules>' "$OUT/$t.txt" && { echo "placeholder left in $t.txt"; exit 1; } || true
 done
 echo "$OUT"
-echo "start each with: bash $D/start.sh - $OUT/<adversarial or codereview>.txt pr-$PR (no item link, one reviewer of each kind per PR)"
+echo "start each with: bash $D/start.sh --project $PROJECT - $OUT/<adversarial or codereview>.txt pr-$PR (no item link, one reviewer of each kind per PR)"

@@ -9,7 +9,17 @@ work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 mkdir -p "$work/bin" "$work/fix"
 root="$work/ws"
-export TWENTY_WS_ROOT="$root" STATUS_SYNC_ROOTS="$root" FIX="$work/fix" SET_LOG="$work/set"
+export FIX="$work/fix" SET_LOG="$work/set"
+# Two fake projects: alpha (root $work/ws, every case, alone in its own file) and beta (root $work/beta,
+# repo o/beta) in a two-project file. A mutant in $work reads project.sh and projects.py beside it.
+cat > "$work/projects.json" <<J
+{"projects": {
+  "alpha": {"repo": "o/alpha", "ws_root": "$root", "labels": {"owner_wait": "needs-owner"}},
+  "beta":  {"repo": "o/beta", "ws_root": "$work/beta", "labels": {"owner_wait": "needs-owner"}}}}
+J
+jq '{projects: {alpha: .projects.alpha}}' "$work/projects.json" > "$work/alpha.json"
+export PROJECTS_JSON=$work/alpha.json GH_LOG=$work/gh.log
+cp "$dir/project.sh" "$dir/projects.py" "$work/"
 # Items: the bot name comes from $BOT_HOME/bot.json. A set goes to ITEM_LOG, and
 # each item move to the ledger.
 mkdir -p "$work/home"; echo '{"name": "Test Bot"}' > "$work/home/bot.json"
@@ -35,6 +45,7 @@ FAKE
 # real gh does on an HTTP error. Any other call prints the PR list.
 cat > "$work/bin/gh" <<'FAKE'
 #!/bin/bash
+echo "$*" >> "$GH_LOG"
 # `gh issue view <n> -R <repo> --json labels,body` prints $FIX/issue-<n>.json, or
 # fails as on an HTTP error when there is none.
 [ "$1 $2" = "issue view" ] && { [ -f "$FIX/issue-$3.json" ] && cat "$FIX/issue-$3.json" && exit; echo "GraphQL: Could not resolve" >&2; exit 1; }
@@ -157,7 +168,7 @@ ncompleted=$(awk '$2 == "completed"' <<<"$expect" | wc -l | tr -d ' ') nset=$(aw
 #   79: d11, ticket 506 still OPEN                              -> stays
 #   81: d5 (nopr-dsp), Waiting, no ticket                       -> stays
 #   72: d13 (k-report) and d12 (k-prnone, unchanged)            -> stays
-#   73: d16 (k-review), title "ws #502", label needs-owner      -> stays
+#   73: d16 (k-review), title "alpha #502", label needs-owner   -> stays
 #   74: d1 (nopr-done), ticket 503 with an open owner box       -> stays
 #   75: d99, a dispatch no worker-list row names                -> stays
 #   76: d11, but Needs you                                      -> stays
@@ -167,12 +178,12 @@ ncompleted=$(awk '$2 == "completed"' <<<"$expect" | wc -l | tr -d ' ') nset=$(aw
 it() { jq -n --argjson n "$1" --arg s "$2" --arg t "$3" --arg u "$4" --arg r "$5" '{number: $n, status: $s, title: $t,
   links: ([$r | split(" ")[] | select(. != "") | {kind: "dispatch", ref: ., state: "completed"}]
     + [$u | select(. != "") | {kind: "url", url: ., state: null}])}'; }
-gh_issue="https://github.com/georgetown-mdi-gates4/twenty/issues"
+gh_issue="https://github.com/o/alpha/issues"
 jq -s '{result: {botName: "Test Bot", items: ., nextCursor: "c2"}}' <(
   it 71 in_progress "PR 13 work" "$gh_issue/501" d11; it 72 waiting "two workers" "" "d13 d12"
-  it 73 in_progress "ws #502 (review)" "" d16; it 74 waiting "ws #503 (upload)" "" d1
-  it 75 in_progress "lost" "" d99; it 76 needs_you "ask" "" d11; it 78 in_progress "ws #504" "" d13
-  it 80 in_progress "no worker" "$gh_issue/505" "" ; it 79 in_progress "ws #506 (open)" "" d11) > "$FIX/items1.json"
+  it 73 in_progress "alpha #502 (review)" "" d16; it 74 waiting "alpha #503 (upload)" "" d1
+  it 75 in_progress "lost" "" d99; it 76 needs_you "ask" "" d11; it 78 in_progress "alpha #504" "" d13
+  it 80 in_progress "no worker" "$gh_issue/505" "" ; it 79 in_progress "alpha #506 (open)" "" d11) > "$FIX/items1.json"
 jq -s '{result: {botName: "Test Bot", items: .}}' <(it 77 in_progress "report" "https://example.org/x" d5; it 81 waiting "spend" "" d5) > "$FIX/items2.json"
 jq -n '{state: "CLOSED", labels: [{name: "slice:3"}], body: "## Acceptance\n- [x] The owner read it.\n- [ ] The code passes."}' > "$FIX/issue-501.json"
 jq -n '{state: "CLOSED", labels: [{name: "needs-owner"}], body: "- [x] done"}' > "$FIX/issue-502.json"
@@ -209,7 +220,16 @@ cases() {
   out=$(bash "$1" --apply merged openpr 2>&1)
   [ "$(sort "$SET_LOG" | tr '\n' ' ')" = "path:$root/merged completed path:$root/openpr in-review " ] || { echo "names limit"; bad=1; }
   out=$(TRUNC=true bash "$1" 2>&1) && { echo "ran on truncated ps"; bad=1; }
-  out=$(STATUS_SYNC_ROOTS=/elsewhere bash "$1" 2>&1) && { echo "ran on a root not allowed"; bad=1; }
+  # Projects (#244): the root is the named project's ws_root, and two projects need a name.
+  out=$(PROJECTS_JSON=$work/projects.json bash "$1" 2>&1) && { echo "ran with two projects and no --project"; bad=1; }
+  : > "$GH_LOG"; out=$(PROJECTS_JSON=$work/projects.json bash "$1" --project beta 2>&1) || { echo "--project beta exit $?: $out"; bad=1; }
+  grep -q '^SET ' <<<"$out" && { echo "--project beta set a workspace of alpha's root"; bad=1; }
+  grep -q 'o/alpha' "$GH_LOG" && { echo "--project beta read alpha's repo"; bad=1; }
+  grep -q -- '-R o/beta' "$GH_LOG" || { echo "--project beta did not read beta's repo"; bad=1; }
+  out=$(PROJECTS_JSON=$work/projects.json bash "$1" --all-projects 2>&1) || { echo "--all-projects exit $?: $out"; bad=1; }
+  [ "$(grep '^PROJECT ' <<<"$out" | tr '\n' ' ')" = "PROJECT alpha PROJECT beta " ] || { echo "--all-projects PROJECT lines: $(grep '^PROJECT' <<<"$out")"; bad=1; }
+  grep -qx 'SET reopened completed -> in-progress (agent working or waiting)' <<<"$out" || { echo "--all-projects missed alpha's sets"; bad=1; }
+  PROJECTS_JSON=$work/projects.json bash "$1" --all-projects merged >/dev/null 2>&1 && { echo "--all-projects took a workspace name"; bad=1; }
   return $bad
 }
 

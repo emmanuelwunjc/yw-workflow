@@ -22,8 +22,17 @@ ORCA
 chmod +x "$T/bin/"*
 echo "fix #652" > "$T/spec"
 export T PATH="$T/bin:$PATH"
-# The copies in $T (e.g. nolock.sh) read boilerplate.txt from the same bot home as start.sh.
-export BOT_HOME=${BOT_HOME:-$(cd "$HERE/../.." && pwd)}
+# A fake bot home and two fake projects. alpha has its own worker rules (a path under BOT_HOME).
+# The copies in $T (e.g. nolock.sh) read project.sh, projects.py and worker-rules.txt beside them.
+cp "$HERE/project.sh" "$HERE/projects.py" "$HERE/worker-rules.txt" "$T/"
+export BOT_HOME=$T/home; mkdir -p "$BOT_HOME"; echo "Alpha rule: read ALPHA.md first." > "$BOT_HOME/rules-alpha.txt"
+cat > "$T/projects.json" <<J
+{"projects": {
+  "alpha": {"repo": "o/alpha", "orca_repo_id": "rid-alpha", "worker_rules": "rules-alpha.txt"},
+  "beta":  {"repo": "o/beta",  "orca_repo_id": "rid-beta"}}}
+J
+jq '{projects: {alpha: .projects.alpha}}' "$T/projects.json" > "$T/alpha.json"
+export PROJECTS_JSON=$T/alpha.json
 fail=0
 
 race() { # $1 = script. Prints how many workers started.
@@ -164,4 +173,29 @@ check "no rendered screen: says so" "$(grep -c 'still unknown in term_t' "$T/out
 echo screen > "$T/source"
 printf 'Do you want to proceed?\n❯ 1. Yes\n  2. No\n' > "$T/screen"
 check "menu is not an unsent brief: no Enter" "$(submit 99)" "0 3"
+
+# Projects (#243): the worker starts in the named project's Orca repo, with the loop rules and the
+# project's own rules in its brief. Two projects and no --project starts nothing.
+cat > "$T/bin/orca" <<'ORCA'
+#!/bin/bash
+case "$1 $2" in
+  "orchestration worker-start") printf '%s\n' "$@" > "$T/start-args"; echo "dispatchId=d workspace=id::/w/y" ;;
+esac
+ORCA
+chmod +x "$T/bin/orca"
+rm -f "$T/start-args"; bash "$HERE/start.sh" - "$T/spec" >/dev/null 2>>"$T/err"
+check "alpha: the Orca repo of alpha" "$(grep -A1 -x -- --repo "$T/start-args" | tail -1)" "id:rid-alpha"
+check "alpha: the brief starts with the spec" "$(grep -c -x 'fix #652' "$T/start-args")" 1
+check "alpha: the brief holds the loop rules" "$(grep -c 'Standing rules for every loop worker' "$T/start-args")" 1
+check "alpha: the brief holds alpha's own rules" "$(grep -c 'Alpha rule: read ALPHA.md first.' "$T/start-args")" 1
+check "the brief names the real loop folder" "$(grep -c "bash $HERE/mutate.sh" "$T/start-args")" 1
+export PROJECTS_JSON=$T/projects.json
+rm -f "$T/start-args"; bash "$HERE/start.sh" --project beta - "$T/spec" >/dev/null 2>>"$T/err"
+check "--project beta: the Orca repo of beta" "$(grep -A1 -x -- --repo "$T/start-args" | tail -1)" "id:rid-beta"
+check "--project beta: no alpha rules" "$(grep -c 'Alpha rule' "$T/start-args")" 0
+rm -f "$T/start-args"; bash "$HERE/start.sh" - "$T/spec" >/dev/null 2>&1
+check "two projects and no --project: exit 2, no start" "$?:$([ -f "$T/start-args" ] && echo started || echo none)" "2:none"
+rm "$BOT_HOME/rules-alpha.txt"
+rm -f "$T/start-args"; bash "$HERE/start.sh" --project alpha - "$T/spec" >/dev/null 2>&1
+check "a missing worker_rules file: exit 2, no start" "$?:$([ -f "$T/start-args" ] && echo started || echo none)" "2:none"
 [ $fail = 0 ] || cat "$T/err"; exit $fail

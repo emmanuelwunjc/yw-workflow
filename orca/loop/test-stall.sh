@@ -4,10 +4,14 @@ set -u
 HERE=$(cd "$(dirname "$0")" && pwd)
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 cd "$T"
-export STARTS_LOG="$T/starts.log"
+export STARTS_LOG="$T/starts.log" BOT_HOME=$T/home
+# Two fake projects: alpha runs by default (run), beta (runb) keeps its own stall track.
+echo '{"projects": {"alpha": {"repo": "o/alpha"}, "beta": {"repo": "o/beta"}}}' > "$T/projects.json"
+export PROJECTS_JSON=$T/projects.json
 fail=0
 check() { if [ "$2" = "$3" ]; then echo "ok   $1"; else echo "FAIL $1: want $3, got $2"; fail=1; fi; }
-run() { bash "$HERE/stall.sh" "$@" >/dev/null 2>&1; echo $?; }   # exit 1 = STALL
+run() { bash "$HERE/stall.sh" --project alpha "$@" >/dev/null 2>&1; echo $?; }   # exit 1 = STALL
+runb() { bash "$HERE/stall.sh" --project beta "$@" >/dev/null 2>&1; echo $?; }
 fresh() { rm -f "$STARTS_LOG"; }
 
 fresh; check "one stalled run: no alarm" "$(run 5 0 6 0)" 0
@@ -30,4 +34,11 @@ check "a PR action line between two stalled runs: STALL" "$(run 5 0 6 0)" 1
 fresh; check "bad input: exit 2" "$(run 5 x 6 0)" 2
 check "bad input writes no log line" "$([ -f "$STARTS_LOG" ] && echo written || echo none)" none
 check "minus sign only on room: exit 2" "$(run -5 0 6 0)" 2
+fresh; run 5 0 6 0 >/dev/null; check "a stalled alpha run, then a stalled beta run: no STALL for beta" "$(runb 5 0 6 0)" 0
+check "alpha's second stalled run with a beta line between: STALL" "$(run 5 0 6 0)" 1
+check "a log line names its project" "$(grep -c ' project=beta free=5 ' "$STARTS_LOG")" 1
+check "two projects and no --project: exit 2" "$(bash "$HERE/stall.sh" 5 0 6 0 >/dev/null 2>&1; echo $?)" 2
+check "no BOT_HOME: exit 2" "$(env -u BOT_HOME bash "$HERE/stall.sh" --project alpha 5 0 6 0 >/dev/null 2>&1; echo $?)" 2
+fresh; unset STARTS_LOG; run 5 0 6 0 >/dev/null
+check "the default log is BOT_HOME/logs/starts.log" "$(grep -c ' project=alpha free=5 ' "$BOT_HOME/logs/starts.log")" 1
 exit $fail

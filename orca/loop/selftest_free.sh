@@ -1,9 +1,20 @@
 #!/bin/bash
-# Fake-data test of free_tickets.py and precheck.sh. A fake `gh` goes first on PATH: no network.
-# One case per rule of the free work check (ticket #689). Each case fails when its rule is removed:
-# see selftest_mutations.sh.
+# Fake-data test of free_tickets.py, slots.py, slot.sh and precheck.sh. A fake `gh` and `orca` go first on
+# PATH: no network. One case per rule of the free work check (twenty ticket #689). Each case fails when its
+# rule is removed: see selftest_mutations.sh. Two fake projects: alpha (most cases, alone in its own
+# projects.json) and beta (a second repo, workspace root and cap in a two-project file).
 D=$(cd "$(dirname "$0")" && pwd)
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
+LABELS='{"work": "slice:", "first": "slice:mvp-", "last": "slice:nits",
+  "skip": ["needs-owner", "wayfinder:grilling", "wayfinder:map", "deferred", "slice:later-slices", "tracker"]}'
+cat > "$T/projects.json" <<J
+{"projects": {
+  "alpha": {"repo": "o/alpha", "ws_root": "$T/ws/alpha", "worker_cap": 8, "pr_cap": 6, "labels": $LABELS},
+  "beta":  {"repo": "o/beta",  "ws_root": "$T/ws/beta",  "worker_cap": 5, "pr_cap": 6, "labels": $LABELS}}}
+J
+jq '{projects: {alpha: .projects.alpha}}' "$T/projects.json" > "$T/alpha.json"
+export PROJECTS_JSON=$T/alpha.json BOT_HOME=$T/home
+mkdir -p "$T/home"
 # iss <number> <labels, comma list> [subIssues] [blockedBy states, comma list] [linked branch] [closing PRs]
 iss() {
   jq -nc --arg n "$1" --arg l "$2" --arg s "${3:-0}" --arg b "${4:-}" --arg br "${5:-}" --arg c "${6:-0}" '{
@@ -32,6 +43,7 @@ echo '[{"number":60,"headRefName":"feat/x","files":[{"path":"scripts/a.py"}],"is
 mkdir "$T/bin"
 cat > "$T/bin/gh" <<EOF
 #!/bin/bash
+echo "\$*" >> "$T/gh.log"
 case "\$1 \$2" in
   "pr list") cat "\${PRS:-$T/prs.json}" ;;
   "api graphql") [ -n "\${GQL_FAIL:-}" ] && { echo "gh: FORBIDDEN" >&2; exit 1; }; cat "\${GQL:-$T/gql.json}" ;;
@@ -92,11 +104,11 @@ GQL=$T/gql-w8.json START_LOCKS=$T/held bash "$D/precheck.sh" >/dev/null && { ech
 
 # Live count (owner decision 2026-11-24): a working twenty workspace that is no review and on no TAKEN
 # branch with no PR takes a slot. ws <name> <branch> <displayName> [state] [root] [archived] [taskTitle]
-ws() { jq -nc --arg n "$1" --arg b "$2" --arg d "$3" --arg s "${4:-working}" --arg r "${5:-$HOME/orca/workspaces/twenty}" --arg a "${6:-false}" --arg t "${7:-}" \
+ws() { jq -nc --arg n "$1" --arg b "$2" --arg d "$3" --arg s "${4:-working}" --arg r "${5:-$T/ws/alpha}" --arg a "${6:-false}" --arg t "${7:-}" \
   '{path: ($r + "/" + $n), branch: $b, displayName: $d, isArchived: ($a == "true"), agents: [{state: $s, taskTitle: $t, prompt: $t}]}'; }
 psj() { jq -sc '{result: {worktrees: .}}'; }
 { ws a refs/heads/feat/a "Fix a"; ws b "" "Review code review 1"; ws c refs/heads/me/review-adversarial-x "Adversarial x"
-  ws d refs/heads/ticket-20 "Ticket 20"; ws e refs/heads/feat/e "Fix e" done; ws f refs/heads/feat/f "Fix f" working "$HOME/orca/workspaces/other"
+  ws d refs/heads/ticket-20 "Ticket 20"; ws e refs/heads/feat/e "Fix e" done; ws f refs/heads/feat/f "Fix f" working "$T/ws/beta"
   ws g refs/heads/feat/g "Fix g" working "" true; ws h "" "Chore h"
   # i: on #21's taken branch feat/x, which has open PR #60: WORKERS skips it, so LIVE counts it (review BLOCK 1).
   ws i refs/heads/feat/x "Fix conflict PR 60"
@@ -106,13 +118,13 @@ psj() { jq -sc '{result: {worktrees: .}}'; }
   ws l "" "Fresh eye 36" working "" "" "Repo: twenty (~/code/twenty). You are an independent adversarial reviewer (sk..."
   ws n "" "Task 34" working "" "" "Repo: twenty (~/code/twenty). You run mattpocock-skills:code-review on a chan..."
   ws m "" "Fix twenty status" working "" "" "Cap 8 review: BLOCK 2, fix now"; } | psj > "$T/ps-live.json"
-want "LIVE: working non-review twenty workspaces on no taken branch without a PR" \
+want "LIVE: working non-review workspaces of the project on no taken branch without a PR" \
   "$(PS=$T/ps-live.json bash -c "python3 -I '$D/slots.py'" | grep '^LIVE\|^SLOTS')" "$(printf 'LIVE: 4 (a, h, i, m)\nSLOTS: 3')"
 # A cut ps list (result.truncated) may hide live work: the count fails.
 jq '.result.truncated = true' "$T/ps-live.json" > "$T/ps-cut.json"
 PS=$T/ps-cut.json python3 -I "$D/slots.py" >/dev/null 2>&1 && { echo "FAIL: slots must fail on a truncated ps list"; fail=1; }
 # Sweeps of 2026-11-25: ps sets truncated when a paired host is not covered (hostScope.omittedHostIds), with
-# every local row in the page (worktrees = totalCount). Twenty workspaces are local, so the count goes on.
+# every local row in the page (worktrees = totalCount). Loop workspaces are local, so the count goes on.
 n=$(jq '.result.worktrees | length' "$T/ps-live.json")
 jq --argjson n "$n" '.result.truncated = true | .result.totalCount = $n | .result.hostScope = {hostIds: ["local"], omittedHostIds: ["runtime:x"]}' \
   "$T/ps-live.json" > "$T/ps-omit.json"
@@ -125,8 +137,8 @@ PS=$T/ps-omit-cut.json python3 -I "$D/slots.py" >/dev/null 2>&1 && { echo "FAIL:
 # (on ticket-104 and ticket-105, in the real ps shape). A workspace on a taken branch counts once: 8 - 6 - 1.
 # #104 and #105 have no start lock: their workspace holds them.
 mkdir "$T/held6" && for i in 20 101 102 103; do mkdir "$T/held6/$i"; done
-{ ws mako refs/heads/ticket-104 "Fix ticket 104" working "" "" "Repo: georgetown-mdi-gates4/twenty (~/code/twenty). Ticket: #104 (a..."
-  ws koi refs/heads/ticket-105 "Fix chat short" working "" "" "Repo: georgetown-mdi-gates4/twenty. Ticket: #105 (short list..."
+{ ws mako refs/heads/ticket-104 "Fix ticket 104" working "" "" "Repo: o/alpha (~/code/alpha). Ticket: #104 (a..."
+  ws koi refs/heads/ticket-105 "Fix chat short" working "" "" "Repo: o/alpha. Ticket: #105 (short list..."
   ws tope refs/heads/me/fix-twenty-status "Fix twenty status" working "" "" "Repo: none (bot home files under ~/.orca/bots/<bot>/skills/twen..."
 } | psj > "$T/ps-dbl.json"
 want "6 taken, 3 live of which 2 are taken workers: LIVE 1, SLOTS 1" \
@@ -138,11 +150,11 @@ ws tope refs/heads/me/fix-twenty-status "Fix twenty status" working "" "" "Repo:
 want "a live bot-home helper takes a slot: 8 - 6 - 1" \
   "$(GQL=$T/gql-w6.json PS=$T/ps-helper.json START_LOCKS=$T/held python3 -I "$D/slots.py" | grep '^LIVE\|^SLOTS')" \
   "$(printf 'LIVE: 1 (tope)\nSLOTS: 1')"
-# Cutover (2026-11-25): the Twenty bot runs this with its own BOT_HOME. A live twenty workspace that another
-# bot started still takes a slot: the count reads workspaces by path, never by bot.
-mkdir -p "$T/twenty-home" && echo '{"name": "Twenty"}' > "$T/twenty-home/bot.json"
+# Cutover (2026-11-25): a second bot runs this with its own BOT_HOME. A live workspace of the project that
+# another bot started still takes a slot: the count reads workspaces by path, never by bot.
+mkdir -p "$T/other-home" && echo '{"name": "Fake other bot"}' > "$T/other-home/bot.json"
 want "another bot's live workspace takes a slot under this bot's BOT_HOME" \
-  "$(BOT_HOME=$T/twenty-home GQL=$T/gql-w6.json PS=$T/ps-helper.json START_LOCKS=$T/held python3 -I "$D/slots.py" | grep '^LIVE\|^SLOTS')" \
+  "$(BOT_HOME=$T/other-home GQL=$T/gql-w6.json PS=$T/ps-helper.json START_LOCKS=$T/held python3 -I "$D/slots.py" | grep '^LIVE\|^SLOTS')" \
   "$(printf 'LIVE: 1 (tope)\nSLOTS: 1')"
 # 2 DEAD tickets free their slots: 6 taken, locks on 4, no workspace: 8 - 4 - 0.
 want "2 DEAD tickets free their slots" \
@@ -226,17 +238,38 @@ GQL=$T/gql-none.json bash "$D/precheck.sh" >/dev/null && { echo "FAIL: precheck 
 out=$(GQL_FAIL=1 bash "$D/precheck.sh") || { echo "FAIL: precheck must pass when free_tickets.sh fails"; fail=1; }
 grep -q '^PRECHECK ERROR: slots.py failed.*free_tickets.sh failed' <<<"$out" || { echo "FAIL: precheck must name the failure, got: $out"; fail=1; }
 
-# Run from another folder (sweep run 97, 2026-11-24: status.sh called by a relative path cd'd into the twenty
+# Run from another folder (sweep run 97, 2026-11-24: a status script called by a relative path cd'd into the
 # repo, so slots.py was not found, exit 2, and no worker started). The absolute path works from any folder.
 want "slots.py by its absolute path from a temp folder" "$(cd "$T" && START_LOCKS=$T/held python3 -I "$D/slots.py" | grep '^SLOTS')" "SLOTS: 7"
-out=$(cd "$D/.." && bash twenty-status/status.sh 2>&1 | sed -n '/== free work check/,$p')
-grep -q '^SLOTS: ' <<<"$out" || { echo "FAIL: status.sh by a relative path must still run slots.py, got: $out"; fail=1; }
+out=$(cd "$D/.." && bash loop/precheck.sh 2>&1; echo "exit $?")
+want "precheck.sh by a relative path still runs slots.py" "$out" "exit 0"
 # slots.py with no free_tickets.sh beside it (a lone copy): one hint line before the error, exit nonzero.
-mkdir "$T/lone" && cp "$D/slots.py" "$T/lone/"
+mkdir "$T/lone" && cp "$D/slots.py" "$D/projects.py" "$T/lone/"
 out=$(cd "$T" && python3 -I lone/slots.py 2>&1) && { echo "FAIL: a lone slots.py must exit nonzero"; fail=1; }
 want "hint line first when slots.py cannot read free_tickets.sh" "$(head -1 <<<"$out")" \
-  "slots.py: run it by its absolute path ~/.orca/bots/<bot>/skills/twenty-status/slots.py"
+  "slots.py: run it by its absolute path, e.g. ~/code/yw-workflow/orca/loop/slots.py"
 # A wrong relative path never runs slots.py, so only python's own error shows: exit nonzero.
-(cd "$T" && python3 -I twenty-status/slots.py >/dev/null 2>&1) && { echo "FAIL: a wrong relative path must exit nonzero"; fail=1; }
+(cd "$T" && python3 -I loop/slots.py >/dev/null 2>&1) && { echo "FAIL: a wrong relative path must exit nonzero"; fail=1; }
+
+# Two projects (#243): each script reads the named project, and refuses to guess when none is named.
+export PROJECTS_JSON=$T/projects.json
+for c in "bash $D/free_tickets.sh" "python3 -I $D/slots.py"; do
+  out=$($c 2>&1) && { echo "FAIL: $c with two projects and no --project must exit nonzero"; fail=1; }
+  grep -q '^FREE' <<<"$out" && { echo "FAIL: $c with two projects and no --project printed a FREE line"; fail=1; }
+done
+bash "$D/slot.sh" 20 >/dev/null 2>&1 && { echo "FAIL: slot.sh with two projects and no --project must exit 1"; fail=1; }
+: > "$T/gh.log"
+want "--project beta: beta's worker cap" "$(bash "$D/free_tickets.sh" --project beta | grep '^WORKERS')" "WORKERS: 1/5"
+want "--project beta: gh reads beta's repo only" "$(grep -c 'o/alpha\|name=alpha' "$T/gh.log"):$(grep -c 'o/beta\|name=beta' "$T/gh.log")" "0:3"
+want "--project alpha: alpha's worker cap" "$(bash "$D/free_tickets.sh" --project alpha | grep '^WORKERS')" "WORKERS: 1/8"
+# LIVE counts only the workspaces under the named project's root: f is beta's, a h i m are alpha's.
+want "--project beta: LIVE reads beta's workspace root" \
+  "$(PS=$T/ps-live.json START_LOCKS=$T/held python3 -I "$D/slots.py" --project beta | grep '^LIVE')" "LIVE: 1 (f)"
+want "slot.sh --project beta <n>: 5 - 1 - 1" "$(PS=$T/ps-live.json START_LOCKS=$T/held bash "$D/slot.sh" --project beta 20)" "SLOTS: 3"
+want "precheck.sh --project beta passes" "$(START_LOCKS=$T/held bash "$D/precheck.sh" --project beta; echo "exit $?")" "exit 0"
+want "an unknown project: exit 2" "$(bash "$D/free_tickets.sh" --project gamma >/dev/null 2>&1; echo $?)" 2
+unset BOT_HOME
+out=$(python3 -I "$D/slots.py" --project alpha 2>&1) && { echo "FAIL: slots.py with no BOT_HOME must exit nonzero"; fail=1; }
+grep -q 'BOT_HOME is not set' <<<"$out" || { echo "FAIL: slots.py must name the missing BOT_HOME, got: $out"; fail=1; }
 [ $fail = 0 ] && echo "selftest_free ok"
 exit $fail

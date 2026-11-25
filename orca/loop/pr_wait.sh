@@ -1,7 +1,7 @@
 #!/bin/bash
-# usage: pr_wait.sh   (read-only: gh pr list, orca worktree ps, and gh api compare per fix-review and per merge)
+# usage: pr_wait.sh [--project <name>]   (read-only: gh pr list, orca worktree ps, gh api compare per fix-review and merge)
 # The open PR check of the sweep (retro of 2026-11-24: 6 PRs sat open and waited on nobody).
-# Prints one line per open twenty PR that waits on nobody, the first reason that holds:
+# Prints one line per open PR of the project's repo that waits on nobody, the first reason that holds:
 #   WAIT <pr> conflict          GitHub says the PR conflicts with main
 #   WAIT <pr> fix-review <sha>  CI passes, the PR has a review but none at its head, and a commit
 #                               after <sha> (the commit the last review read) is no merge
@@ -15,7 +15,9 @@
 # a review. A PENDING (unsent) review counts as no review. All lines print at the end: on any failure it prints no WAIT
 # line and exits 1. PR_WAIT_NOW=<ISO time> sets the clock, for tests. Test: bash test-pr-wait.sh
 set -u
-R=georgetown-mdi-gates4/twenty
+LOOP=$(cd "$(dirname "$0")" && pwd); . "$LOOP/project.sh" "$@"; set -- ${ARGS[@]+"${ARGS[@]}"}
+[ "$ALL_PROJECTS" = 0 ] && [ $# = 0 ] || { sed -n '2p' "$0" >&2; exit 2; }
+R=$(pget repo) || exit 2
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 gh pr list -R $R --state open --limit 100 \
   --json number,headRefName,headRefOid,mergeable,updatedAt,statusCheckRollup,reviews,isDraft > "$T/prs" \

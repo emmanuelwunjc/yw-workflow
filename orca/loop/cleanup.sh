@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
-# Close the terminals of finished twenty worker workspaces. Files stay on disk.
+# Close the terminals of finished worker workspaces of one project. Files stay on disk.
+# Usage: cleanup.sh [--project <name> | --all-projects] [--apply [--remove]] [--run-scoped]
+# The project's ws_root, repo, git_dir, setup_links and retire_hold_days come from
+# projects.json (projects.py). --all-projects runs once per project, each run
+# after a `PROJECT <name>` line, and exits 1 when any run fails.
 # Default is a dry run: one line per workspace, CLOSE or KEEP with the reason.
 # --apply runs `orca terminal close --worktree path:<dir> --all` for each CLOSE.
 # Inputs come from one `orca worktree ps` call, one `gh pr list` call, the
@@ -24,7 +28,8 @@
 # terminal is closed or every agent is done. A grill never retires.
 #   RETIRE <ws>: eligible, not Retired. --apply logs `done -> retired` after
 #                its close (a failed close: no retire).
-#   HOLD <ws>:   eligible, Retired fewer than RETIRE_HOLD_DAYS (7) days ago.
+#   HOLD <ws>:   eligible, Retired fewer than retire_hold_days (RETIRE_HOLD_DAYS
+#                overrides it) days ago.
 #   REMOVE <ws>: eligible, Retired that many days or more. --apply --remove
 #                runs `orca terminal close --worktree path:<dir> --all`, then
 #                `orca worktree rm --worktree path:<dir>` (no --force, no
@@ -34,42 +39,45 @@
 #                status-sync.sh for it. The hold clock restarts at the next RETIRE.
 # The state of a workspace is the to state of its newest `ok` ledger line of
 # this project with one (retired, removed or in-progress).
-# Every run appends one TSV line per action to ledger.tsv (CLEANUP_LEDGER):
-# time, run kind (CLEANUP_KIND: daily|load|manual), workspace, action
-# (close-terminal|retire|back|remove|set-status|keep), reason, HEAD sha,
-# result, project (CLEANUP_PROJECT, default the root folder name), from state,
-# to state (`-` when the line is no move). Lines before 2026-11-24 have 7 fields.
+# Every run appends one TSV line per action to $BOT_HOME/logs/ledger.tsv
+# (CLEANUP_LEDGER moves it): time, run kind (CLEANUP_KIND: daily|load|manual),
+# workspace, action (close-terminal|retire|back|remove|set-status|keep),
+# reason, HEAD sha, result, project (the --project name), from state, to state
+# (`-` when the line is no move). Lines before 2026-11-24 have 7 fields.
 # Each guard line carries a `# guard:<name>` tag. selftest.sh deletes each
 # tagged line in turn and requires the test cases to fail.
 set -euo pipefail
-
-root=${TWENTY_WS_ROOT:-$HOME/orca/workspaces/twenty}
-repo=${TWENTY_REPO:-georgetown-mdi-gates4/twenty}
+LOOP=$(cd "$(dirname "$0")" && pwd); . "$LOOP/project.sh" "$@"; set -- ${ARGS[@]+"${ARGS[@]}"}
+if [ "$ALL_PROJECTS" = 1 ]; then
+  rc=0 names=$(pall) || exit 2
+  for p in $names; do echo "PROJECT $p"; bash "$0" --project "$p" "$@" || rc=1; done # guard:allprojects
+  exit $rc
+fi
+root=$(pget ws_root)
+repo=$(pget repo)
 # Untracked symlinks into the primary checkout come from the session setup
-# (.venv, data/email-extraction), so they are not worker output.
-setup_target=${TWENTY_SETUP_TARGET:-$HOME/code/twenty/}
+# (e.g. .venv), so they are not worker output. One target per line.
+setup_target=$(python3 -I "$LOOP/projects.py" get "$PROJECT" setup_links 2>/dev/null || true)
 # Any checkout of the repo. Every workspace shares its `origin`.
-git_dir=${TWENTY_GIT_DIR:-$HOME/code/twenty}
-# The bot's home folder: BOT_HOME, else the folder two levels above this script.
-BOT_HOME=${BOT_HOME:-$(cd "$(dirname "$0")/../.." && pwd)}
+git_dir=$(pget git_dir)
 apply=0 run_scoped=0 remove=0 scoped=false
 for arg in "$@"; do
   case "$arg" in
     --apply) apply=1 ;;
     --run-scoped) run_scoped=1 ;;
     --remove) remove=1 ;;
-    *) echo "usage: $0 [--apply [--remove]] [--run-scoped]" >&2; exit 2 ;;
+    *) echo "usage: $0 [--project <name> | --all-projects] [--apply [--remove]] [--run-scoped]" >&2; exit 2 ;;
   esac
 done
 [ "$remove$apply" = 10 ] && { echo "--remove needs --apply: the terminals close first." >&2; exit 2; }
-ledger=${CLEANUP_LEDGER:-$(cd "$(dirname "$0")" && pwd)/ledger.tsv}
+ledger=${CLEANUP_LEDGER:-$BOT_HOME/logs/ledger.tsv}; mkdir -p "$(dirname "$ledger")"
 kind=${CLEANUP_KIND:-manual}
 case "$kind" in daily | load | manual) ;; *) echo "CLEANUP_KIND is daily, load or manual" >&2; exit 2 ;; esac
 # The owner allowed the daily run to close and remove by rule (2026-11-24, #246).
 # A Run-scoped worker list still needs the owner in chat.
 [ "$kind" = daily ] && [ "$run_scoped" = 1 ] && { echo "CLEANUP_KIND=daily: --run-scoped needs the owner in chat. Stop." >&2; exit 2; } # guard:dailyscoped
-project=${CLEANUP_PROJECT:-$(basename "${root%/}")}
-hold=${RETIRE_HOLD_DAYS:-7}
+project=$PROJECT
+hold=${RETIRE_HOLD_DAYS:-$(pget retire_hold_days)}
 case "$hold" in "" | *[!0-9]*) echo "RETIRE_HOLD_DAYS is a whole number of days" >&2; exit 2 ;; esac
 
 ps_json=$(orca worktree ps --json --limit 100000)
@@ -181,6 +189,9 @@ kind_rows=$(jq -nr --slurpfile ps <(printf '%s' "$ps_json") --slurpfile mail <(p
 # prune), so `--remotes` alone can hide commits that exist only here.
 live_heads=$({ git -C "$git_dir" ls-remote --heads origin | cut -f1; jq -r '.[].headRefOid // empty' <<<"$prs"; } | sed 's/^/^/')
 
+setup_link() { # link target -> exit 0 when it starts with one of the setup_links
+  local t; while IFS= read -r t; do [ -n "$t" ] && [[ "$1" == "$t"* ]] && return 0; done <<<"$setup_target"; return 1
+}
 decide() { # dir -> prints "CLOSE|KEEP <reason>"
   local dir=$1 row waits branch up states own unpushed status line tracked=0 untracked=0 ignored=0 p kind n
   row=$(awk -F'\t' -v p="$dir" '$1 == p' <<<"$ps_rows")
@@ -226,7 +237,7 @@ decide() { # dir -> prints "CLOSE|KEEP <reason>"
     case "${line:0:2}" in "??" | "!!") ;; *) tracked=$((tracked + 1)); continue ;; esac
     p=${line:3}
     case "$p" in .claude/* | *__pycache__/* | .ruff_cache/* | */.ruff_cache/*) continue ;; esac
-    if [ -L "$dir/$p" ] && [[ "$(readlink "$dir/$p")" == "$setup_target"* ]]; then continue; fi
+    if [ -L "$dir/$p" ] && setup_link "$(readlink "$dir/$p")"; then continue; fi
     if [ "${line:0:2}" = "!!" ]; then ignored=$((ignored + 1)); else untracked=$((untracked + 1)); fi
   done <<<"$status"
   [ "$tracked" != 0 ] && { echo "KEEP $tracked tracked-file changes"; return; }          # guard:tracked
@@ -263,7 +274,7 @@ report() { # the verdict line, any WAITING lines as they are, then one RETIRE, H
   elif [ "$age" -lt "$hold" ]; then echo "HOLD $name (retired ${age}d ago, hold ${hold}d)" # guard:hold
   else echo "REMOVE $name (${r#* }, held ${age}d)"; fi
 }
-export -f decide report
+export -f decide report setup_link
 export ps_rows pr_rows setup_target live_heads wait_rows scoped repo kind_rows life_rows hold canceled_paths
 [ "$scoped" = true ] && echo "NOTE worker-list is scoped to one Run (--run-scoped): the waits guard was not checked for dispatches outside it. CLOSE needs every agent done and a MERGED PR or a detached HEAD."
 # Each workspace costs several git calls, so 8 run at a time.
@@ -300,7 +311,7 @@ if [ "$apply" = 1 ]; then
   # The sidebar label of each closed and each BACK workspace, by the status-sync.sh rule.
   # With no name, status-sync.sh would set every workspace, so none skips it.
   if [ -n "$closed_names$back_names" ]; then
-    res=ok; bash "$(dirname "$0")/status-sync.sh" --apply $closed_names $back_names || { failed=$((failed + 1)); res=failed; } # guard:statussync
+    res=ok; bash "$LOOP/status-sync.sh" --project "$PROJECT" --apply $closed_names $back_names || { failed=$((failed + 1)); res=failed; } # guard:statussync
     for name in $closed_names $back_names; do log "$name" set-status "" "$res"; done
   fi
   # Done -> Retired. A workspace whose close failed keeps its terminal: no retire.

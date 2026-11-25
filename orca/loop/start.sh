@@ -1,10 +1,15 @@
 #!/bin/bash
-# usage: start.sh <item-number|-> <spec-file> [<ticket> <lane> | pr-<n>]   (DRY=1 prints the command only)
+# usage: start.sh [--project <name>] <item-number|-> <spec-file> [<ticket> <lane> | pr-<n>]   (DRY=1: command only)
 # "pr-<n>" (reviewer starts) takes locks/pr-<n>-<spec file name>, so two sweeps start one reviewer of
 #   each kind per PR. The lock stays after the start. It drops when the PR has a review newer than the
 #   lock, or the lock is 3 hours old.
 # "-" starts the worker with no item link (reviewers), so the item gets no link mail.
-# Starts a twenty worker, moves its workspace into the project list, prints dispatch id and workspace.
+# Starts a worker in the project's Orca repo (orca_repo_id), moves its workspace into the project list, and
+# prints dispatch id and workspace. The brief is the spec, then worker-rules.txt (the standing rules of
+# every loop worker), then the project's own rules: the file its worker_rules key names (a relative path is
+# under BOT_HOME). A worker_rules key whose file is missing starts nothing.
+# <lane> is the issue whose comments say "Ticket #<n> worked by" or "done". Lanes are retired: the sweep
+# passes the ticket itself (start.sh <item> <spec> <n> <n>).
 # With <ticket> <lane> (the sweep always passes them), a start lock stops two sweeps from
 # starting two workers on one ticket (merge runs 36 and 37 both started #652):
 #   locks/<ticket> is taken with mkdir (atomic). It is dropped when the lane has a
@@ -14,17 +19,20 @@
 # After the start it checks the brief left the worker's input box, and sends Enter again
 # (3 tries) if not. Exit 3 means the worker started but its brief is still unsent.
 # Test: bash test-start.sh (a fake gh and orca, no network).
-[ -n "$2" ] || { echo "usage: start.sh <item> <spec-file> [<ticket> <lane>]"; exit 2; }
+LOOP=$(cd "$(dirname "$0")" && pwd); . "$LOOP/project.sh" "$@"; set -- ${ARGS[@]+"${ARGS[@]}"}
+[ "$ALL_PROJECTS" = 0 ] || { echo "start.sh takes one project"; exit 2; }
+[ -n "$2" ] || { echo "usage: start.sh [--project <name>] <item> <spec-file> [<ticket> <lane>]"; exit 2; }
 [ -s "$2" ] || { echo "spec file is missing or empty: $2 (no worker started)"; exit 2; }
 [ -z "$3" ] || [ -n "$4" ] || [[ "$3" =~ ^pr-[0-9]+$ ]] || { echo "a ticket needs its lane: start.sh <item> <spec> <ticket> <lane>"; exit 2; }
-REPO=id:64ed486f-0085-477a-9d9f-a4552aef276f
-R=georgetown-mdi-gates4/twenty
-# The bot's home folder: BOT_HOME, else the folder two levels above this script.
-BOT_HOME=${BOT_HOME:-$(cd "$(dirname "$0")/../.." && pwd)}
+REPO=id:$(pget orca_repo_id) || exit 2
+R=$(pget repo) || exit 2
+RULES=$(python3 -I "$LOOP/projects.py" get "$PROJECT" worker_rules 2>/dev/null) || RULES=
+case "$RULES" in "" | /*) ;; *) RULES=$BOT_HOME/$RULES ;; esac
+[ -z "$RULES" ] || [ -s "$RULES" ] || { echo "worker_rules of $PROJECT names $RULES, which is missing or empty (no worker started)"; exit 2; }
 LOCKS=${START_LOCKS:-$BOT_HOME/locks}
 LOCK_MIN=180
-# boilerplate.txt names paths as ~/.orca/bots/<bot>/...: the worker gets this bot's real home.
-SPEC="$(cat "$2"; sed "s#~/.orca/bots/<bot>#$BOT_HOME#g" "$BOT_HOME/skills/twenty-worker-spec/boilerplate.txt")"
+# worker-rules.txt names paths as ~/.orca/bots/<bot>/... and <loop>/...: the worker gets the real folders.
+SPEC="$(cat "$2"; sed -e "s#~/.orca/bots/<bot>#$BOT_HOME#g" -e "s#<loop>#$LOOP#g" "$LOOP/worker-rules.txt" ${RULES:+"$RULES"})"
 ITEM=(--item "$1"); [ "$1" = - ] && ITEM=()
 if [ -n "$DRY" ]; then echo "worker-start ${ITEM[*]} (spec $(echo "$SPEC" | wc -l) lines)"; exit 0; fi
 

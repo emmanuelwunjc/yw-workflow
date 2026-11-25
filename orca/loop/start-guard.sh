@@ -7,8 +7,9 @@
 #   died, so it is dropped first. release: exit 0.
 # ponytail: two sweeps that both see one stale guard can both drop it, one after the other took a new one.
 # The window is one stale guard per 10 minutes and a few milliseconds wide.
-# The bot's home folder: BOT_HOME, else the folder two levels above this script.
-BOT_HOME=${BOT_HOME:-$(cd "$(dirname "$0")/../.." && pwd)}
+# One guard for all projects of the bot: the starts share one machine. It lives in $BOT_HOME/locks
+# (START_LOCKS moves it, for tests).
+[ -n "${START_LOCKS:-}" ] || [ -n "${BOT_HOME:-}" ] || { echo "BOT_HOME is not set: export the bot's home folder" >&2; exit 2; }
 L=${START_LOCKS:-$BOT_HOME/locks}/sweep-start
 case "${1:-}" in
   take)

@@ -1,27 +1,32 @@
-import json, subprocess, sys
-# The free work check of the twenty repo (ticket #689, owner decisions of the #672 grill, 2026-11-23).
+import json, os, subprocess, sys
+# The free work check of one project (twenty ticket #689, owner decisions of the #672 grill, 2026-11-23).
+# Usage: free_tickets.py [--project <name>]. The repo, labels and caps come from projects.json (projects.py).
 # It reads GitHub state only, never the words of an issue: labels, "blocked by" links, sub-issues,
 # branches linked with `gh issue develop`, and open PRs. Output, in this order:
-#   CAP: <n> open PRs ...   more than PR_CAP non-draft PRs are open: nothing else is printed
+#   CAP: <n> open PRs ...   more than pr_cap non-draft PRs are open: nothing else is printed
 #   TAKEN: #<n> <branch> [PR #<p>]  a branch linked to ticket <n>, and its open PR when it has one (slots.py reads it)
 #   WORKERS: <n>/<cap>      taken tickets with no open PR yet (a linked branch that is no PR head).
 #                           slots.py adds live work and prints SLOTS: the most workers the sweep may START.
-#   NO SLICE: #<n>          an open ticket with no slice label: reported, never started
+#   NO SLICE: #<n>          an open ticket with no work label (labels.work, a prefix): reported, never started
 #   BUSY: <path> <where>    a file that an open PR or a taken ticket's branch changes (the real diff)
 #   FREE: #<n>              a ticket that may start now, best first. Every free ticket prints, so the sweep
 #                           can skip one that clashes or waits on the owner and take the next (bug of 2026-11-24).
-# A ticket is FREE when it is open, has a slice label and no sub-issues (no tracker, no layer), no open
-# blocker (the GitHub link only), none of the SKIP labels, and is not taken: no linked branch and no open
-# PR that closes it. Order: slice:mvp-* by number, then other slices by number, then slice:nits only when
-# nothing else is free (NORTH-STAR.md rule 10).
+# A ticket is FREE when it is open, has a work label and no sub-issues (no tracker, no layer), no open
+# blocker (the GitHub link only), none of the labels.skip labels, and is not taken: no linked branch and no
+# open PR that closes it. Order: labels.first (a prefix) by number, then other work labels by number, then
+# labels.last only when nothing else is free (twenty: slice:mvp-*, other slices, slice:nits).
 # The sweep drops a FREE ticket that would change a BUSY file. Which files a ticket will change is known
 # only to a reader of the ticket, so this script does not guess them.
-# GitHub calls per run: 1 PR list, 1 paged GraphQL query (2 pages today), 1 compare per linked branch with no PR.
-R = "georgetown-mdi-gates4/twenty"
-BASE = "main"
-WORKER_CAP, PR_CAP = 8, 6  # owner decision 2026-11-24: 8 workers, PR backlog guard stays 6
-SKIP = {"needs-owner", "wayfinder:grilling", "wayfinder:map", "deferred", "slice:later-slices", "tracker"}
-SLICE, MVP, NITS = "slice:", "slice:mvp-", "slice:nits"
+# GitHub calls per run: 1 PR list, 1 paged GraphQL query, 1 compare per linked branch with no PR.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import projects  # noqa: E402
+
+NAME, _ = projects.from_argv(sys.argv[1:])
+P = projects.project(NAME)
+R, BASE = P["repo"], P.get("base", "main")
+WORKER_CAP, PR_CAP = P["worker_cap"], P["pr_cap"]
+L = P["labels"]
+SKIP, SLICE, MVP, NITS = set(L.get("skip", [])), L["work"], L.get("first"), L.get("last")
 QUERY = """query($owner: String!, $name: String!, $endCursor: String) {
   repository(owner: $owner, name: $name) {
     issues(states: OPEN, first: 100, after: $endCursor) {
@@ -54,8 +59,8 @@ def issues():
 
 
 def rank(labels):
-    # 0: slice:mvp-*, 1: another slice, 2: slice:nits (a nits label wins over the others).
-    return 2 if NITS in labels else 0 if any(l.startswith(MVP) for l in labels) else 1
+    # 0: labels.first, 1: another work label, 2: labels.last (it wins over the others).
+    return 2 if NITS in labels else 0 if MVP and any(l.startswith(MVP) for l in labels) else 1
 
 
 def main():

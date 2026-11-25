@@ -7,12 +7,23 @@ set -u
 dir=$(cd "$(dirname "$0")" && pwd)
 work=$(mktemp -d)
 trap '[ -n "${KEEP_WORK:-}" ] || rm -rf "$work"' EXIT
-mkdir -p "$work/bin" "$work/ws" "$work/fix" "$work/setup/.venv"
-export TWENTY_WS_ROOT="$work/ws" TWENTY_SETUP_TARGET="$work/setup/" FIX="$work/fix" CLOSE_LOG="$work/closed"
-export REAL_GIT TWENTY_GIT_DIR="$work/clone"
-# cleanup.sh --apply runs status-sync.sh beside it, also for a mutant in $work.
-export SET_LOG="$work/set" STATUS_SYNC_ROOTS="$work/ws" RM_LOG="$work/rm" CLEANUP_LEDGER="$work/ledger.tsv"
-cp "$dir/status-sync.sh" "$work/"
+mkdir -p "$work/bin" "$work/ws" "$work/beta" "$work/fix" "$work/setup/.venv"
+export FIX="$work/fix" CLOSE_LOG="$work/closed" REAL_GIT GH_LOG="$work/gh.log"
+# Two fake projects: alpha (root $work/ws, every case, alone in its own file) and beta (root $work/beta,
+# no workspace, repo o/beta) in a two-project file.
+cat > "$work/projects.json" <<J
+{"live_terminal_max": 40, "projects": {
+  "alpha": {"repo": "o/alpha", "ws_root": "$work/ws", "git_dir": "$work/clone", "setup_links": ["$work/setup/"],
+            "retire_hold_days": 7, "labels": {"owner_wait": "needs-owner"}},
+  "beta":  {"repo": "o/beta", "ws_root": "$work/beta", "git_dir": "$work/clone", "setup_links": [],
+            "retire_hold_days": 7, "labels": {"owner_wait": "needs-owner"}}}}
+J
+jq '{live_terminal_max, projects: {alpha: .projects.alpha}}' "$work/projects.json" > "$work/alpha.json"
+export PROJECTS_JSON=$work/alpha.json
+# cleanup.sh --apply runs status-sync.sh beside it, also for a mutant in $work, which also reads
+# project.sh and projects.py beside it.
+export SET_LOG="$work/set" RM_LOG="$work/rm" CLEANUP_LEDGER="$work/ledger.tsv"
+cp "$dir/status-sync.sh" "$dir/project.sh" "$dir/projects.py" "$work/"
 # The bot name for `orca bot item list` comes from $BOT_HOME/bot.json.
 mkdir -p "$work/home"; echo '{"name": "Test Bot"}' > "$work/home/bot.json"; export BOT_HOME="$work/home" ITEM_LOG="$work/items"
 REAL_GIT=$(command -v git)
@@ -39,6 +50,7 @@ FAKE
 # $FIX/pr-commits (a commit GitHub links to a PR), else 0.
 cat > "$work/bin/gh" <<'FAKE'
 #!/usr/bin/env bash
+echo "$*" >> "$GH_LOG"
 [ "$1" = api ] || { cat "$FIX/prs.json"; exit; }
 # A <sha> in $FIX/gh-error gets what real gh gives on HTTP 422: the error
 # JSON on stdout (--jq is skipped) and exit 1.
@@ -305,10 +317,10 @@ printf '%s\n' canceled claude detached held kindprmerged livehead merged nolive 
 # so REMOVE. merged has an old 7-field line, nopr a dry-run retire and squash a
 # retire of another project: none of them counts.
 ago() { python3 -c 'import sys, datetime as d; print((d.datetime.now(d.timezone.utc) - d.timedelta(days=float(sys.argv[1]))).astimezone().strftime("%Y-%m-%dT%H:%M:%S%z"))' "$1"; }
-lg() { printf '%s\tdaily\t%s\t%s\tx\t-\t%s\t%s\t%s\t%s\n' "$(ago "$1")" "$2" "$3" "$4" "${5:-ws}" "$6" "$7"; }
-{ lg 8 prhead retire ok ws done retired; lg 2 held retire ok ws done retired; lg 9 backagain retire ok ws done retired
-  lg 3 backdsp retire ok ws done retired; lg 9 reback retire ok ws done retired; lg 1 reback back ok ws retired in-progress
-  lg 8 agedkeep retire ok ws done retired; lg 10 nopr retire dry-run ws done retired; lg 9 squash retire ok other done retired
+lg() { printf '%s\tdaily\t%s\t%s\tx\t-\t%s\t%s\t%s\t%s\n' "$(ago "$1")" "$2" "$3" "$4" "${5:-alpha}" "$6" "$7"; }
+{ lg 8 prhead retire ok alpha done retired; lg 2 held retire ok alpha done retired; lg 9 backagain retire ok alpha done retired
+  lg 3 backdsp retire ok alpha done retired; lg 9 reback retire ok alpha done retired; lg 1 reback back ok alpha retired in-progress
+  lg 8 agedkeep retire ok alpha done retired; lg 10 nopr retire dry-run alpha done retired; lg 9 squash retire ok other done retired
   printf '%s\tmanual\tmerged\tremove\tdetached\t-\tok\n' "$(ago 9)"; } > "$work/ledger-seed"
 grep -vxE 'prhead|held' "$work/expect-retire0" > "$work/expect-retire"
 echo held > "$work/expect-hold"; echo prhead > "$work/expect-remove"; printf '%s\n' backagain backdsp > "$work/expect-back"
@@ -362,7 +374,7 @@ cases() { # script -> prints FAIL lines, returns 1 on any failure
   # every guard true now. Its terminals close first, then it is removed.
   cl --apply --remove > /dev/null 2>&1
   [ "$(sort "$RM_LOG" 2>/dev/null)" = "$(sed "s|^|path:$work/ws/|" "$work/expect-remove" | sort)" ] || { echo "FAIL --remove removed the wrong set:"; cat "$RM_LOG" 2>/dev/null; fail=1; }
-  grep -q $'\tprhead\tremove\t.*\tok\tws\tretired\tremoved$' "$CLEANUP_LEDGER" || { echo "FAIL ledger retired -> removed line"; fail=1; }
+  grep -q $'\tprhead\tremove\t.*\tok\talpha\tretired\tremoved$' "$CLEANUP_LEDGER" || { echo "FAIL ledger retired -> removed line"; fail=1; }
   rm -f "$RM_LOG"
   # A hold of 1 day: held (2 days) goes too.
   RETIRE_HOLD_DAYS=1 cl --apply --remove > /dev/null 2>&1
@@ -388,6 +400,16 @@ cases() { # script -> prints FAIL lines, returns 1 on any failure
   if out=$(WL_SCOPE=bound cl --apply 2>&1) || [ -e "$CLOSE_LOG" ] || grep -q '^CLOSE' <<<"$out"; then
     echo "FAIL a worker list scoped to one Run did not stop the run"; fail=1
   fi
+  # Projects (#244): two projects need a name, --project beta reads only beta, --all-projects runs both.
+  PROJECTS_JSON=$work/projects.json cl > /dev/null 2>&1 && { echo "FAIL ran with two projects and no --project"; fail=1; }
+  : > "$GH_LOG"; sout=$(PROJECTS_JSON=$work/projects.json cl --project beta 2>&1)
+  grep -qx 'TOTAL 0 CLOSE, 0 KEEP, dry run' <<<"$sout" || { echo "FAIL --project beta TOTAL: $(grep '^TOTAL' <<<"$sout")"; fail=1; }
+  grep -q 'o/alpha' "$GH_LOG" && { echo "FAIL --project beta read alpha's repo"; fail=1; }
+  grep -q -- '-R o/beta' "$GH_LOG" || { echo "FAIL --project beta did not read beta's repo"; fail=1; }
+  sout=$(PROJECTS_JSON=$work/projects.json cl --all-projects 2>&1)
+  [ "$(grep '^PROJECT ' <<<"$sout" | tr '\n' ' ')" = "PROJECT alpha PROJECT beta " ] || { echo "FAIL --all-projects PROJECT lines"; fail=1; }
+  [ "$(grep -c '^TOTAL ' <<<"$sout")" = 2 ] && grep -q '^CLOSE ' <<<"$sout" || { echo "FAIL --all-projects did not run alpha and beta"; fail=1; }
+  PROJECTS_JSON=$work/projects.json cl --all-projects --project beta > /dev/null 2>&1 && { echo "FAIL --all-projects with --project ran"; fail=1; }
   # The daily run may act by rule, but --run-scoped needs the owner in chat.
   if CLEANUP_KIND=daily WL_SCOPE=bound cl --run-scoped > /dev/null 2>&1; then
     echo "FAIL CLEANUP_KIND=daily did not refuse --run-scoped"; fail=1
@@ -413,8 +435,8 @@ CLEANUP_KIND=load bash "$dir/cleanup.sh" > /dev/null 2>&1
 want=$(( $(wc -l < "$work/expect") + $(wc -l < "$work/expect-retire0") ))
 if [ "$(wc -l < "$work/ledger1" | tr -d ' ')" = "$want" ] && [ "$(head -n "$want" "$CLEANUP_LEDGER")" = "$(cat "$work/ledger1")" ] \
   && [ "$(wc -l < "$CLEANUP_LEDGER" | tr -d ' ')" = $((want * 2)) ] && awk -F'\t' 'NF != 10 {exit 1}' "$CLEANUP_LEDGER" \
-  && grep -q $'\tmanual\ttracked\tkeep\t1 tracked-file changes\t-\t-\tws\t-\t-$' "$work/ledger1" \
-  && grep -q $'\tload\tnolive\tretire\tdetached\t-\tdry-run\tws\tdone\tretired$' "$CLEANUP_LEDGER" \
+  && grep -q $'\tmanual\ttracked\tkeep\t1 tracked-file changes\t-\t-\talpha\t-\t-$' "$work/ledger1" \
+  && grep -q $'\tload\tnolive\tretire\tdetached\t-\tdry-run\talpha\tdone\tretired$' "$CLEANUP_LEDGER" \
   && ! CLEANUP_KIND=x bash "$dir/cleanup.sh" > /dev/null 2>&1; then
   echo "ok ledger: $want lines per dry run, appended"
 else echo "FAIL ledger"; fail=1; fi
@@ -422,7 +444,7 @@ else echo "FAIL ledger"; fail=1; fi
 # the rm (the fake rm moves the folder away, as the real one deletes it).
 cp "$work/ledger-seed" "$CLEANUP_LEDGER"; RM_MOVE=1 bash "$dir/cleanup.sh" --apply --remove > /dev/null 2>&1
 for d in "$work/ws/"*.rm; do mv "$d" "${d%.rm}"; done; rm -f "$RM_LOG" "$CLOSE_LOG" "$SET_LOG"
-grep -q $'\tprhead\tremove\tdetached, held 8d\t'"$(g -C "$work/ws/prhead" rev-parse --short HEAD)"$'\tok\tws\tretired\tremoved$' "$CLEANUP_LEDGER" \
+grep -q $'\tprhead\tremove\tdetached, held 8d\t'"$(g -C "$work/ws/prhead" rev-parse --short HEAD)"$'\tok\talpha\tretired\tremoved$' "$CLEANUP_LEDGER" \
   && echo "ok ledger remove line has the HEAD sha" || { echo "FAIL ledger remove line sha:"; grep $'\tremove\t' "$CLEANUP_LEDGER" | head -3; fail=1; }
 rm -f "$CLEANUP_LEDGER"
 # REASON lines count the KEEP lines by reason, with the leading number dropped.
@@ -438,16 +460,23 @@ done_line="DONE $(awk '$2 == "CLOSE"' "$work/expect" | wc -l | tr -d ' ') closed
 [ "$(grep -c $'\tclose-terminal\t[^\t]*\t[^\t]*\tok\t' "$CLEANUP_LEDGER")" = "$(awk '$2 == "CLOSE"' "$work/expect" | wc -l | tr -d ' ')" ] || { echo "FAIL ledger close-terminal lines after --apply"; fail=1; }
 [ "$(tail -1 "$work/apply.log")" = "$done_line" ] && echo "ok background apply log ends: $done_line" || { echo "FAIL apply log last line: $(tail -1 "$work/apply.log")"; fail=1; }
 rm -f "$CLOSE_LOG"
-# load.sh: live terminals under ~/orca/workspaces are 20 + 19 = 39. The row
-# outside it (5) does not count.
-jq -n --arg h "$work/home" '{result: {truncated: false, worktrees: [{path: "\($h)/orca/workspaces/twenty/a", liveTerminalCount: 20},
-  {path: "\($h)/orca/workspaces/yw-workflow/b", liveTerminalCount: 19}, {path: "\($h)/code/c", liveTerminalCount: 5}]}}' > "$FIX/load.json"
+# load.sh: live terminals under the project roots. alpha's root holds 20, beta's 19, a row outside
+# both 5. --all-projects sums 39, --project alpha 20. live_terminal_max (40) is the default limit.
+jq -n --arg w "$work" '{result: {truncated: false, worktrees: [{path: "\($w)/ws/a", liveTerminalCount: 20},
+  {path: "\($w)/beta/b", liveTerminalCount: 19}, {path: "\($w)/other/c", liveTerminalCount: 5}]}}' > "$FIX/load.json"
 jq '.result.truncated = true' "$FIX/load.json" > "$FIX/load-truncated.json"
-load() { HOME="$work/home" PS=$1 LIVE_MAX=$2 bash "$dir/load.sh" 2>/dev/null; }
-out=$(load load.json 40) && { echo "FAIL load.sh below LIVE_MAX exits 0"; fail=1; } || echo "ok load.sh 39 below 40 exits 1"
-[ "$(load load.json 39)" = 39 ] && echo "ok load.sh 39 at 39 prints 39" || { echo "FAIL load.sh at LIVE_MAX"; fail=1; }
-[ "$(load load.json 38)" = 39 ] && echo "ok load.sh 39 above 38 prints 39" || { echo "FAIL load.sh above LIVE_MAX"; fail=1; }
-load load-truncated.json 1 > /dev/null && { echo "FAIL load.sh truncated exits 0"; fail=1; } || echo "ok load.sh truncated exits 1"
+load() { PROJECTS_JSON=$work/projects.json PS=$1 LIVE_MAX=$2 bash "$dir/load.sh" "${@:3}" 2>/dev/null; }
+out=$(load load.json 40 --all-projects) && { echo "FAIL load.sh below LIVE_MAX exits 0"; fail=1; } || echo "ok load.sh 39 below 40 exits 1"
+[ "$(load load.json 39 --all-projects)" = 39 ] && echo "ok load.sh 39 at 39 prints 39" || { echo "FAIL load.sh at LIVE_MAX"; fail=1; }
+[ "$(load load.json 38 --all-projects)" = 39 ] && echo "ok load.sh 39 above 38 prints 39" || { echo "FAIL load.sh above LIVE_MAX"; fail=1; }
+[ "$(load load.json 1 --project alpha)" = 20 ] && echo "ok load.sh --project alpha counts only alpha's root" || { echo "FAIL load.sh --project alpha"; fail=1; }
+[ "$(load load.json 1 --project beta)" = 19 ] && echo "ok load.sh --project beta counts only beta's root" || { echo "FAIL load.sh --project beta"; fail=1; }
+load load.json 1 > /dev/null && { echo "FAIL load.sh with two projects and no --project exits 0"; fail=1; } || echo "ok load.sh needs a project"
+load load-truncated.json 1 --all-projects > /dev/null && { echo "FAIL load.sh truncated exits 0"; fail=1; } || echo "ok load.sh truncated exits 1"
+sed 's/^ *"live_terminal_max": 40,/"live_terminal_max": 39,/; s/{"live_terminal_max": 40,/{"live_terminal_max": 39,/' "$work/projects.json" > "$work/max39.json"
+[ "$(PROJECTS_JSON=$work/max39.json PS=load.json bash "$dir/load.sh" --all-projects 2>/dev/null)" = 39 ] \
+  && ! PS=load.json PROJECTS_JSON=$work/projects.json bash "$dir/load.sh" --all-projects > /dev/null 2>&1 \
+  && echo "ok load.sh reads live_terminal_max when LIVE_MAX is unset" || { echo "FAIL load.sh live_terminal_max"; fail=1; }
 tags=$(grep -o '# guard:[a-z]*$' "$dir/cleanup.sh" | sed 's/# guard://')
 [ "$(wc -w <<<"$tags")" -ge 8 ] || { echo "FAIL fewer than 8 guard tags"; fail=1; }
 for tag in $tags; do

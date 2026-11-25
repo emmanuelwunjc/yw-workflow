@@ -1,26 +1,27 @@
 #!/bin/bash
-# Merge a reviewed twenty PR: update the branch, wait for CI, squash-merge, log the override on the item.
-# Use only after an independent reviewer posted a pass. Usage: merge.sh [--bg] <pr> <item-number>
+# Merge a reviewed PR of the project's repo: update the branch, wait for CI, squash-merge, log the override
+# on the item. Use only after an independent reviewer posted a pass.
+# Usage: merge.sh [--project <name>] [--bg] <pr> <item-number>
 # Test: bash test-merge.sh (a fake gh, no network).
 # Background: merge.sh --bg <pr> <item-number> returns at once and logs to
 # ${MERGE_LOG_DIR:-$BOT_HOME/logs}/merge-<pr>.log. The CI wait can pass a 120 s tool limit.
 # The log's last line starts with "FINAL:" when the merge is over (merged, or not merged and why).
+LOOP=$(cd "$(dirname "$0")" && pwd); . "$LOOP/project.sh" "$@"; set -- ${ARGS[@]+"${ARGS[@]}"}
+[ "$ALL_PROJECTS" = 0 ] || { echo "merge.sh takes one project"; exit 2; }
 if [ "$1" = --bg ]; then
   shift
-  [ -n "$1" ] && [ -n "$2" ] || { echo "usage: merge.sh --bg <pr> <item-number>"; exit 2; }
-  # The bot's home folder: BOT_HOME, else the folder two levels above this script.
-  BOT_HOME=${BOT_HOME:-$(cd "$(dirname "$0")/../.." && pwd)}
+  [ -n "$1" ] && [ -n "$2" ] || { echo "usage: merge.sh [--project <name>] --bg <pr> <item-number>"; exit 2; }
   LOG_DIR=${MERGE_LOG_DIR:-$BOT_HOME/logs}; mkdir -p "$LOG_DIR"; LOG=$LOG_DIR/merge-$1.log
-  nohup bash -c 'bash "$0" "$1" "$2"; rc=$?
+  nohup bash -c 'bash "$0" --project "$3" "$1" "$2"; rc=$?
     if [ $rc = 0 ]; then echo "FINAL: merged #$1"; else echo "FINAL: not merged #$1 (exit $rc), see the line above"; fi' \
-    "$0" "$1" "$2" > "$LOG" 2>&1 < /dev/null &
+    "$0" "$1" "$2" "$PROJECT" > "$LOG" 2>&1 < /dev/null &
   echo "merge of #$1 runs in the background. Log: $LOG. Done when its last line starts with FINAL:"
   exit 0
 fi
 set -e
 PR=$1; ITEM=$2
-[ -n "$PR" ] && [ -n "$ITEM" ] || { echo "usage: merge.sh <pr> <item-number>"; exit 2; }
-R=georgetown-mdi-gates4/twenty
+[ -n "$PR" ] && [ -n "$ITEM" ] || { echo "usage: merge.sh [--project <name>] <pr> <item-number>"; exit 2; }
+R=$(pget repo)
 POLL=${MERGE_POLL_SECS:-10}
 
 head_sha() { gh pr view "$PR" -R $R --json headRefOid --jq .headRefOid; }

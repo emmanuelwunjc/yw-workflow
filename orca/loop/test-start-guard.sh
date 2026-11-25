@@ -25,5 +25,6 @@ for r in 1 2 3 4 5; do
   check "race $r: 8 takers at once, exactly one wins" "$(cat "$T"/race$r-* | grep -c '^0$')" 1
   g release >/dev/null
 done
+check "no BOT_HOME and no START_LOCKS: exit 2" "$(env -u START_LOCKS -u BOT_HOME bash "$HERE/start-guard.sh" take >/dev/null 2>&1; echo $?)" 2
 [ $fail = 0 ] && echo "test-start-guard ok"
 exit $fail

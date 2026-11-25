@@ -1,21 +1,22 @@
 #!/bin/bash
-# Proves selftest_free.sh can fail: each line removes one rule of the free work check (ticket #689)
-# in a temp copy (../mutate.sh), and selftest_free.sh must catch it. Prints `caught:` per rule.
-D=$(cd "$(dirname "$0")" && pwd); M="$D/../mutate.sh"; fail=0
-m() { bash "$M" "$D" "$1" selftest_free.sh "$2" "$3" "$4" || fail=1; }
+# Proves selftest_free.sh and test-projects.sh can fail: each line removes one rule of the free work check
+# (twenty ticket #689) or of the project reader in a temp copy (mutate.sh), and the test must catch it.
+# Prints `caught:` per rule.
+D=$(cd "$(dirname "$0")" && pwd); M="$D/mutate.sh"; fail=0
+# m <file> <old> <new> <label> [<test>]: the test is selftest_free.sh, or test-projects.sh for projects.py.
+m() { local t=${5:-selftest_free.sh}; [ -z "${5:-}" ] && [ "$1" = projects.py ] && t=test-projects.sh
+  bash "$M" "$D" "$1" "$t" "$2" "$3" "$4" || fail=1; }
 P=free_tickets.py
 m $P 'print(f"NO SLICE: #{n}")' 'pass' 'no-slice-line'
 m $P 'if not any(l.startswith(SLICE) for l in labels):' 'if False:' 'slice-label-required'
 m $P 'any(b["state"] == "OPEN" for b in i["blockedBy"]["nodes"])' 'False' 'open-blocker'
-for l in needs-owner wayfinder:grilling wayfinder:map deferred slice:later-slices tracker; do
-  m $P "\"$l\"" '"x-none"' "skip-label-$l"
-done
+m $P 'SKIP, SLICE, MVP, NITS = set(L.get("skip", []))' 'SKIP, SLICE, MVP, NITS = set()' 'skip-labels-from-project'
 m $P 'if i["subIssues"]["totalCount"]:' 'if False:' 'tracker-or-layer'
 m $P 'labels & SKIP or branches or closing_pr' 'labels & SKIP or closing_pr' 'taken-linked-branch'
 m $P 'labels & SKIP or branches or closing_pr' 'labels & SKIP or branches' 'taken-closing-pr'
 m $P 'busy = {f["path"]: f"PR #{p['"'"'number'"'"']}" for p in prs for f in p["files"] or []}' 'busy = {}' 'busy-pr-files'
 m $P 'busy.setdefault(path, f"#{n} branch {b}")' 'pass' 'busy-branch-diff'
-m $P 'else 0 if any(l.startswith(MVP) for l in labels) else 1' 'else 1' 'mvp-first'
+m $P 'else 0 if MVP and any(l.startswith(MVP) for l in labels) else 1' 'else 1' 'mvp-first'
 m $P 'return 2 if NITS in labels else' 'return' 'nits-rank'
 m $P 'if any(r < 2 for r, _ in free):' 'if False:' 'nits-wait'
 m $P 'for _, n in sorted(free):' 'for _, n in sorted(free)[:max(0, WORKER_CAP - workers)]:' 'every-free-line-prints'
@@ -27,7 +28,7 @@ m $P 'if errors:' 'if False:' 'graphql-error-stops'
 m $P 'for p in pages for i in' 'for p in pages[:1] for i in' 'all-pages-read'
 m precheck.sh "grep -q '^FREE: #'" 'true' 'precheck-needs-free'
 m precheck.sh 'exit 0; }' 'exit 1; }' 'precheck-error-passes'
-m $P 'WORKER_CAP, PR_CAP = 8, 6' 'WORKER_CAP, PR_CAP = 6, 6' 'worker-cap-8'
+m $P 'WORKER_CAP, PR_CAP = P["worker_cap"], P["pr_cap"]' 'WORKER_CAP, PR_CAP = 8, P["pr_cap"]' 'worker-cap-from-project'
 m $P 'print(f"TAKEN: #{n} {b}" + ' 'pass; (' 'taken-lines'
 m $P '+ (f" PR #{heads[b]}" if b in heads else "")' '' 'taken-marks-pr-branch'
 m precheck.sh "grep -q '^SLOTS: [1-9]'" 'true' 'precheck-needs-slot'
@@ -36,7 +37,8 @@ m $S 'int(m[2]) - (int(m[1]) - len(freed)) - len(names)' 'int(m[2]) - len(names)
 m $S 'int(m[2]) - (int(m[1]) - len(freed)) - len(names)' 'int(m[2]) - (int(m[1]) - len(freed))' 'slots-count-live'
 m $S 'int(m[2]) - (int(m[1]) - len(freed)) - len(names)' 'int(m[2]) - int(m[1]) - len(names)' 'dead-frees-slot'
 m $S 'if held or n in own or' 'if held or' 'slot-own-link-held'
-m slot.sh 'slots.py" "$@"' 'slots.py"' 'slot-passes-own-ticket'
+m slot.sh '"${proj[@]}" "${args[@]}"' '"${proj[@]}"' 'slot-passes-own-ticket'
+m slot.sh '"${proj[@]}" "${args[@]}"' '"${args[@]}"' 'slot-passes-project'
 m $S 'or branch in taken' '' 'live-skips-taken-branch'
 m $S '(not path.startswith(WS) or branch' '(branch' 'live-twenty-only'
 m $S 'if not w.get("isArchived")' 'if True' 'live-skips-archived'
@@ -53,12 +55,24 @@ m $S 'a.get("state") == "working" and (w in on_branch' 'True and (w in on_branch
 m $S 'w in on_branch or re.search(rf"#{n}\b", title(a))' 'w in on_branch' 'dead-named-ticket-keeps'
 m $S 'any(w.get("terminalVerdict") == "live" for w in on_branch) or ' '' 'dead-live-terminal-keeps'
 m $S 'if not os.path.isdir(LOCKS):' 'if False:' 'missing-locks-folder-stops'
-m $S 'if set(sys.argv[1:]) - set(taken.values()):' 'if False:' 'slots-rejects-untaken-ticket'
-m slot.sh '[ $# = 1 ] ||' 'true ||' 'slot-needs-one-ticket'
+m $S 'if set(ARGS) - set(taken.values()):' 'if False:' 'slots-rejects-untaken-ticket'
+m slot.sh '[ ${#args[@]} = 1 ] ||' 'true ||' 'slot-needs-one-ticket'
 m $S '< LOCK_SECS' '< 0' 'dead-fresh-lock-keeps'
 m $S '< LOCK_SECS' '< 10**9' 'dead-old-lock-does-not-keep'
 m $S 'if out.returncode:' 'if False:' 'orca-failure-stops'
 m slot.sh '[ "$s" -ge 0 ]' 'true' 'slot-stops-over-cap'
 m slot.sh '[ "$s" -ge 0 ]' '[ "$s" -gt 0 ]' 'slot-own-branch-counted'
+m $S '"--project", NAME]' ']' 'slots-passes-project'
+m $S 'WS = projects.project(NAME)["ws_root"]' 'WS = projects.project("alpha")["ws_root"]' 'live-reads-named-root'
+m $P 'R, BASE = P["repo"]' 'R, BASE = "o/alpha"' 'repo-from-project'
+m precheck.sh 'slots.py" "$@"' 'slots.py"' 'precheck-passes-project'
+X=projects.py
+m $X 'given, i = argv[i + 1], i + 2' 'i = i + 2' 'argv-reads-project' selftest_free.sh
+m $X 'if len(names) == 1:' 'if names:' 'two-projects-refuse'
+m $X 'return load()["projects"][name(given)]' 'return list(load()["projects"].values())[0]' 'named-project-read'
+m $X 'if given not in names:' 'if False:' 'unknown-project-refused'
+m $X 'return os.path.expanduser(v) if v.startswith("~/") else v' 'return v' 'home-expanded'
+m $X 'fail(f"no key {key!r} in {where}")' 'return ""' 'unknown-key-refused'
+m $X 'if home and os.path.exists' 'if False and os.path.exists' 'bot-home-file'
 [ $fail = 0 ] && echo "selftest_mutations ok"
 exit $fail

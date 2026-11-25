@@ -65,8 +65,12 @@ J
 #   hO..h27: an octopus `git merge origin/main origin/ticket-650`: head h27 has parents (hO, m1, g1).
 # "compare/<sha>...main" says if <sha> is on main: the m commits are ("ahead"), g1 is not ("diverged").
 #   any other: one fix commit <head> on <base>.
+# Two fake projects: the fake gh answers only for o/alpha, so a run that reads another repo fails.
+echo '{"projects": {"alpha": {"repo": "o/alpha"}, "beta": {"repo": "o/beta"}}}' > "$T/projects.json"
+export PROJECTS_JSON=$T/projects.json BOT_HOME=$T/home
 cat > bin/gh <<'GH'
 #!/bin/bash
+case "$*" in *o/alpha*) ;; *) exit 1 ;; esac
 c() { echo '{"sha":"'$1'","parents":['$2']}'; }
 case "$*" in
   "pr list"*) cat prs.json ;;
@@ -87,7 +91,7 @@ chmod +x bin/*
 export PATH="$T/bin:$PATH" PR_WAIT_NOW=2026-11-24T20:00:00Z
 fail=0
 check() { if [ "$2" = "$3" ]; then echo "ok   $1"; else echo "FAIL $1: want $3, got $2"; fail=1; fi; }
-out=$(bash "$HERE/pr_wait.sh"); rc=$?
+out=$(bash "$HERE/pr_wait.sh" --project alpha); rc=$?
 line() { echo "$out" | grep "^WAIT $1 " | cut -d' ' -f3; }
 field4() { echo "$out" | grep "^WAIT $1 " | cut -d' ' -f4; }
 check "runs" $rc 0
@@ -120,14 +124,17 @@ check "a merge of another branch: names the reviewed commit" "$(field4 24)" b31x
 check "a PENDING review (null submittedAt) beside a review at head: no line" "$(line 25)" ""
 check "only a PENDING review: no-reviewer" "$(line 26)" no-reviewer
 check "an octopus merge of main and another branch after the review: fix-review" "$(line 27)" fix-review
+check "two projects and no --project: exit 2" "$(bash "$HERE/pr_wait.sh" >/dev/null 2>&1; echo $?)" 2
+o=$(bash "$HERE/pr_wait.sh" --project beta 2>/dev/null); rc=$?
+check "--project beta reads beta's repo (the fake gh knows only alpha): exit 1, no WAIT line" "$rc:$(echo "$o" | grep -c WAIT)" "1:0"
 # A failure prints no WAIT line at all, so the sweep acts on nothing.
 sed -i '' 's/^  \*compare\/\*) r=.*/  *compare\/*) exit 1 ;;/' bin/gh
-o=$(bash "$HERE/pr_wait.sh" 2>"$T/err"); rc=$?
+o=$(bash "$HERE/pr_wait.sh" --project alpha 2>"$T/err"); rc=$?
 check "compare fails: exit 1" "$rc" 1
 check "compare fails: no WAIT line" "$(echo "$o" | grep -c WAIT)" 0
 check "compare fails: says so" "$(grep -c '^pr_wait: gh api compare' "$T/err")" 1
 printf '#!/bin/bash\nexit 1\n' > bin/orca
-err=$(bash "$HERE/pr_wait.sh" 2>&1 >/dev/null); check "orca fails: exit 1 and says so" "$?:$err" "1:pr_wait: orca worktree ps failed"
+err=$(bash "$HERE/pr_wait.sh" --project alpha 2>&1 >/dev/null); check "orca fails: exit 1 and says so" "$?:$err" "1:pr_wait: orca worktree ps failed"
 printf '#!/bin/bash\nexit 1\n' > bin/gh
-err=$(bash "$HERE/pr_wait.sh" 2>&1 >/dev/null); check "gh fails: exit 1 and says so" "$?:$err" "1:pr_wait: gh pr list failed"
+err=$(bash "$HERE/pr_wait.sh" --project alpha 2>&1 >/dev/null); check "gh fails: exit 1 and says so" "$?:$err" "1:pr_wait: gh pr list failed"
 exit $fail

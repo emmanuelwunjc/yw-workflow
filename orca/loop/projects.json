@@ -1,0 +1,28 @@
+{
+  "live_agent_cap": 12,
+  "live_terminal_max": 40,
+  "projects": {
+    "twenty": {
+      "repo": "georgetown-mdi-gates4/twenty",
+      "orca_repo_id": "64ed486f-0085-477a-9d9f-a4552aef276f",
+      "ws_root": "~/orca/workspaces/twenty",
+      "git_dir": "~/code/twenty",
+      "setup_links": ["~/code/twenty/"],
+      "base": "main",
+      "labels": {
+        "work": "slice:",
+        "first": "slice:mvp-",
+        "last": "slice:nits",
+        "owner_wait": "needs-owner",
+        "grill": "wayfinder:grilling",
+        "skip": ["needs-owner", "wayfinder:grilling", "wayfinder:map", "deferred", "slice:later-slices", "tracker"]
+      },
+      "worker_cap": 8,
+      "pr_cap": 6,
+      "retire_hold_days": 7,
+      "worker_rules": "~/.orca/bots/twenty/worker-rules.txt",
+      "review_rules": "The standards files are the repo's CLAUDE.md and NORTH-STAR.md. Blocking means wrong data, a lost record, overspend or a missed alert (NORTH-STAR.md rule 10). Everything else is a nit.",
+      "gcp": {"project": "mdi-yimingwu-pets", "region": "us-east1", "app": "twenty-bot", "legacy_app": "twenty-chatbot"}
+    }
+  }
+}

@@ -8,9 +8,16 @@ mkdir "$T/bin"
 # One clock ticks on every gh call. The head is "new" once the clock passes FAKE_HEAD_AFTER.
 # The old head carries passing checks, so a script that does not wait for the new head
 # reads them and merges the old head. The new head gets checks after FAKE_CHECKS_AFTER rollup reads.
+# Two fake projects. The fake gh refuses any repo but $FAKE_REPO (default o/alpha).
+cat > "$T/projects.json" <<J
+{"projects": {"alpha": {"repo": "o/alpha"}, "beta": {"repo": "o/beta"}}}
+J
+jq '{projects: {alpha: .projects.alpha}}' "$T/projects.json" > "$T/alpha.json"
+export PROJECTS_JSON=$T/alpha.json BOT_HOME=$T/home
 cat > "$T/bin/gh" <<'GH'
 #!/bin/bash
 echo "$*" >> "$T/log"
+case "$*" in *"-R ${FAKE_REPO:-o/alpha}"*) ;; *) echo "fake gh: wrong repo: $*" >&2; exit 1 ;; esac
 c() { local f="$T/$1"; local n=$(( $(cat "$f" 2>/dev/null || echo 0) + 1 )); echo $n > "$f"; echo $n; }
 tick=$(c clock)
 [ "$tick" -gt "$FAKE_HEAD_AFTER" ] && head=new || head=old
@@ -30,9 +37,9 @@ printf '#!/bin/bash\nexit ${FAKE_ORCA_RC:-0}\n' > "$T/bin/orca"
 chmod +x "$T/bin/"*
 
 fail=0
-run() { # name expected-exit expected-output-substring
+run() { # name expected-exit expected-output-substring [--project <name>]
   rm -f "$T/log" "$T/head" "$T/rollup" "$T/clock" "$T/merged"
-  out=$(PATH="$T/bin:$PATH" T="$T" MERGE_POLL_SECS=0 MERGE_HEAD_SECS=0 bash "$HERE/merge.sh" 622 1 2>&1); rc=$?
+  out=$(PATH="$T/bin:$PATH" T="$T" MERGE_POLL_SECS=0 MERGE_HEAD_SECS=0 bash "$HERE/merge.sh" "${@:4}" 622 1 2>&1); rc=$?
   if [ "$rc" = "$2" ] && grep -q "$3" <<<"$out"; then echo "ok   $1"; else echo "FAIL $1 (exit $rc): $out"; fail=1; fi
 }
 export FAKE_UPDATE_OUT="✓ PR branch updated"
@@ -50,9 +57,9 @@ FAKE_UPDATE_OUT="! PR branch already up-to-date" FAKE_HEAD_AFTER=999 FAKE_CHECKS
 [ "$(cat "$T/head")" = 1 ] || { echo "FAIL waited for a new head on an up-to-date branch"; fail=1; }
 
 # Background mode: returns at once, the log ends with a FINAL: line.
-bg() { # name expected-final-substring
+bg() { # name expected-final-substring [--project <name>]
   rm -f "$T/log" "$T/head" "$T/rollup" "$T/clock" "$T/merged" "$T/logs/merge-622.log"
-  out=$(PATH="$T/bin:$PATH" T="$T" MERGE_LOG_DIR="$T/logs" MERGE_POLL_SECS=0 MERGE_HEAD_SECS=0 bash "$HERE/merge.sh" --bg 622 1 2>&1)
+  out=$(PATH="$T/bin:$PATH" T="$T" MERGE_LOG_DIR="$T/logs" MERGE_POLL_SECS=0 MERGE_HEAD_SECS=0 bash "$HERE/merge.sh" "${@:3}" --bg 622 1 2>&1)
   grep -q "Log: $T/logs/merge-622.log" <<<"$out" || { echo "FAIL $1: no log path printed: $out"; fail=1; return; }
   for i in $(seq 1 100); do tail -1 "$T/logs/merge-622.log" 2>/dev/null | grep -q '^FINAL:' && break; sleep 0.1; done
   last=$(tail -1 "$T/logs/merge-622.log" 2>/dev/null)
@@ -64,4 +71,10 @@ grep -q "CI did not pass" "$T/logs/merge-622.log" || { echo "FAIL background log
 # The item comment fails after the merge: FINAL still says merged, and the log says the comment failed.
 FAKE_ORCA_RC=1 FAKE_HEAD_AFTER=6 FAKE_CHECKS_AFTER=3 bg "background merge, comment fails: FINAL merged" "^FINAL: merged #622"
 grep -q "item comment failed" "$T/logs/merge-622.log" || { echo "FAIL background log does not say the comment failed"; fail=1; }
+# Projects (#243): merge.sh works on the named project's repo, in the foreground and in the background.
+export PROJECTS_JSON=$T/projects.json
+FAKE_REPO=o/beta FAKE_HEAD_AFTER=6 FAKE_CHECKS_AFTER=3 run "--project beta: merges beta's PR" 0 "merged #622" --project beta
+FAKE_REPO=o/beta FAKE_HEAD_AFTER=6 FAKE_CHECKS_AFTER=3 bg "--project beta in the background: FINAL merged" "^FINAL: merged #622" --project beta
+run "two projects and no --project: exit 2" 2 "name one with --project"
+[ -e "$T/log" ] && { echo "FAIL gh called with two projects and no --project"; fail=1; }
 exit $fail

@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # Set the Orca sidebar status (workspaceStatus) of each workspace under the
-# root from what is on record. Dry run by default: one line per change,
+# project's ws_root from what is on record.
+# Usage: status-sync.sh [--project <name> | --all-projects] [--apply] [workspace...]
+# The ws_root, repo and labels.owner_wait come from projects.json (projects.py).
+# --all-projects runs once per project, each run after a `PROJECT <name>` line,
+# and takes no workspace names. Dry run by default: one line per change,
 # `SET <ws> <old> -> <new> (<why>)`. --apply runs
 # `orca worktree set --worktree path:<dir> --workspace-status <new>` for each
 # SET line, 8 at a time, and ends with `DONE <n> set, <m> failed`.
@@ -33,7 +37,7 @@
 #   it links at least one dispatch, and every dispatch it links is in a
 #   workspace of this root that is completed after this run,
 #   its ticket (an issues URL of the repo, else a title `<project> #<n>`) is
-#   CLOSED, with no OWNER_LABEL (needs-owner) label and no open `- [ ]` box that
+#   CLOSED, with no labels.owner_wait label (e.g. needs-owner) and no open `- [ ]` box that
 #   names the owner,
 #   a Waiting item has a ticket: with none, its wait names something outside
 #   the workspaces (a spend manifest, an owner's "not yet"), which no rule here sees.
@@ -50,21 +54,24 @@
 # per kind: review candidate. No git call: the branch comes from ps.
 # Each guard line carries a `# guard:<name>` tag for the self-test.
 set -euo pipefail
-
-root=${TWENTY_WS_ROOT:-$HOME/orca/workspaces/twenty}
-repo=${TWENTY_REPO:-georgetown-mdi-gates4/twenty}
-# The bot's home folder: BOT_HOME, else the folder two levels above this script.
-BOT_HOME=${BOT_HOME:-$(cd "$(dirname "$0")/../.." && pwd)}
-ledger=${CLEANUP_LEDGER:-$(cd "$(dirname "$0")" && pwd)/ledger.tsv}
-kind=${CLEANUP_KIND:-manual}
-project=${CLEANUP_PROJECT:-$(basename "${root%/}")}
-owner_label=${OWNER_LABEL:-needs-owner}
+LOOP=$(cd "$(dirname "$0")" && pwd); . "$LOOP/project.sh" "$@"; set -- ${ARGS[@]+"${ARGS[@]}"}
 apply=0
 [ "${1:-}" = --apply ] && { apply=1; shift; }
-case "${1:-}" in -*) echo "usage: $0 [--apply] [workspace...]" >&2; exit 2 ;; esac
-# The same two roots as cleanup.sh. STATUS_SYNC_ROOTS exists for the self-test.
-allowed=${STATUS_SYNC_ROOTS:-$HOME/orca/workspaces/twenty $HOME/orca/workspaces/yw-workflow}
-case " $allowed " in *" ${root%/} "*) ;; *) echo "root $root is not one of: $allowed. Stop." >&2; exit 2 ;; esac # guard:root
+case "${1:-}" in -*) echo "usage: $0 [--project <name> | --all-projects] [--apply] [workspace...]" >&2; exit 2 ;; esac
+if [ "$ALL_PROJECTS" = 1 ]; then
+  [ $# = 0 ] || { echo "--all-projects takes no workspace names" >&2; exit 2; }
+  rc=0 flag= names=$(pall) || exit 2
+  [ "$apply" = 1 ] && flag=--apply
+  for p in $names; do echo "PROJECT $p"; bash "$0" --project "$p" $flag || rc=1; done # guard:allprojects
+  exit $rc
+fi
+# The root is the project's ws_root: a script reads no other root (it replaced STATUS_SYNC_ROOTS, #244).
+root=$(pget ws_root)
+repo=$(pget repo)
+ledger=${CLEANUP_LEDGER:-$BOT_HOME/logs/ledger.tsv}; mkdir -p "$(dirname "$ledger")"
+kind=${CLEANUP_KIND:-manual}
+project=$PROJECT
+owner_label=$(pget labels.owner_wait)
 
 ps_json=$(orca worktree ps --json --limit 100000)
 [ "$(jq -r '.result.truncated' <<<"$ps_json")" = false ] || { echo "orca worktree ps output is truncated, so a working agent can hide. Stop." >&2; exit 1; } # guard:truncated
