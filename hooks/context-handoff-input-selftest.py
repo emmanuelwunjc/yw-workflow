@@ -109,18 +109,20 @@ check("no session_id: exit 0, silent",
 # --- config ------------------------------------------------------------------
 e = Env()
 (e.home / ".handrail.json").write_text(json.dumps(
-    {"context_handoff": {"first": 50_000, "step": 10_000, "grace_minutes": 5}}))
+    {"context_handoff": {"first_percent": 5, "step_percent": 1, "grace_minutes": 5}}))
+check("config first_percent=5: 49,999 on a 1M window is silent",
+      silent(e.at(49_999, now=T0 - 1)), True)
 r = e.at(50_000, now=T0)
-check("config first=50k: winds down at 50k", warned(r), True)
+check("config first_percent=5: winds down at 50k", warned(r), True)
 check("config threshold is named in the text", "~50k" in context(r[1]), True)
 check("config grace_minutes=5 is named, with its timer",
       "at most 5 minutes" in context(r[1]) and "`sleep 300`" in context(r[1]), True)
-check("config step=10k: 55k silent", silent(e.at(55_000, now=T0 + 1)), True)
+check("config step_percent=1: 55k silent", silent(e.at(55_000, now=T0 + 1)), True)
 check("config grace_minutes=5: silent at 4:59",
       silent(e.at(55_000, now=T0 + 5 * MIN - 1)), True)
 check("config grace_minutes=5: deadline notice at 5:00",
       deadline(e.at(55_000, now=T0 + 5 * MIN)), True)
-check("config step=10k: 60k winds down again",
+check("config step_percent=1: 60k winds down again",
       warned(e.at(60_000, now=T0 + 6 * MIN)), True)
 
 e = Env()
@@ -130,7 +132,9 @@ check("user config switches it off: Stop is allowed", silent(e.run(event="Stop")
 
 e = Env()
 (e.home / ".handrail.json").write_text(json.dumps(
-    {"context_handoff": {"first": "lots", "step": 0, "grace_minutes": -3}}))
+    {"context_handoff": {"first_percent": "lots", "step_percent": 0,
+                         "grace_minutes": -3, "default_window": -1,
+                         "windows": {"claude-opus": "big"}}}))
 check("nonsense config values fall back to defaults: 299k silent",
       silent(e.at(299_000)), True)
 r = e.at(300_000, now=T0)
@@ -148,6 +152,52 @@ for bad in (True, 2.5, "15", None):
         {"context_handoff": {"grace_minutes": bad}}))
     check("grace_minutes=%r falls back to 15" % (bad,),
           "at most 15 minutes" in context(e.at(300_000)[1]), True)
+
+e = Env()
+(e.home / ".handrail.json").write_text(json.dumps(
+    {"context_handoff": {"first_percent": 101}}))
+check("first_percent over 100 falls back to 30: 300k winds down",
+      warned(e.at(300_000)), True)
+
+def windows_env():
+    e = Env()
+    (e.home / ".handrail.json").write_text(json.dumps(
+        {"context_handoff": {"windows": {"claude-sonnet": 1_000_000,
+                                         "claude-sonnet-old": 100_000},
+                             "default_window": 500_000}}))
+    return e
+
+
+e = windows_env()
+check("config windows: a sonnet given 1M is silent at 299k",
+      silent(e.at(299_000, model="claude-sonnet-5-5")), True)
+check("config windows: and winds down at 300k",
+      warned(e.at(300_000, model="claude-sonnet-5-5")), True)
+e = windows_env()
+check("config windows: the longest matching key wins (100k window): 29,999 silent",
+      silent(e.at(29_999, model="claude-sonnet-old-1")), True)
+check("config windows: the longest matching key wins (100k window): 30k winds down",
+      warned(e.at(30_000, model="claude-sonnet-old-1")), True)
+e = windows_env()
+check("config windows add to the default table: opus keeps 1M, 299k silent",
+      silent(e.at(299_000)), True)
+e = windows_env()
+check("config default_window=500k: an unknown model winds down at 150k",
+      silent(e.at(149_999, model="gpt-x")) and warned(e.at(150_000, model="gpt-x")),
+      True)
+
+# The hook keeps a copy of the defaults for a broken config module.
+import importlib.util
+import pathlib
+import sys
+_dir = pathlib.Path(__file__).resolve().parent
+sys.path.insert(0, str(_dir))
+import handrail_config
+_spec = importlib.util.spec_from_file_location("hook", _dir / "context-handoff.py")
+_hook = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_hook)
+check("the hook's fallback defaults match handrail_config",
+      _hook.DEFAULTS, handrail_config.VALUE_DEFAULTS["context_handoff"])
 
 e = Env()
 (e.home / ".handrail.json").write_text("{broken")

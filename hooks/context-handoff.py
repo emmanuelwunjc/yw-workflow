@@ -1,19 +1,25 @@
 #!/usr/bin/env python3
 """Wind a session down and get its handoff written once its context is large.
 
-The line is 300k tokens, the owner's setting since 2026-11-20 (about 30% of
-a 1M Opus window). docs/DECISIONS.md, 2026-11-20, records why it moved from
-120k, and 2026-11-15 that mattpocock's ask-matt skill gives about 150k. A session
-cannot see its own size, so it pushes on degraded. The owner decided on
-2026-09-30 that a warning is too weak: past the line the session lets its
-running subagents finish, for a bounded time, and writes the handoff either
-way. The threshold is a token count. It is no percentage of any model's
-window.
+The line is 30% of the session's context window, the owner's setting since
+2026-11-20 (#208): 300k tokens on a 1M window, 60k on a 200k window.
+docs/DECISIONS.md, 2026-11-20, records why it moved from 120k, and 2026-11-15
+that mattpocock's ask-matt skill gives about 150k. A session cannot see its
+own size, so it pushes on degraded. The owner decided on 2026-09-30 that a
+warning is too weak: past the line the session lets its running subagents
+finish, for a bounded time, and writes the handoff either way.
+
+The window comes from the model id on the last main-thread assistant message,
+looked up in the `windows` table (longest matching prefix wins). A model the
+table does not name gets `default_window`, 200k: the smaller window, because
+a notice that comes early costs one handoff, and one that never comes costs a
+compaction with no handoff.
 
 This hook instructs and the model acts. It kills nothing itself. Three parts:
 
 1. Wind-down notice. The first PostToolBatch or UserPromptSubmit at or past
-   `first` tokens (300k), and again at each `step` past it (400k, 500k): start no
+   `first_percent` of the window (300k on 1M), and again at each
+   `step_percent` past it (400k, 500k): start no
    new work, spawn no subagents, let running ones finish for at most
    `grace_minutes`, set a background timer for the deadline, then write the
    handoff and tell the user to start a fresh session. The time is recorded.
@@ -22,8 +28,10 @@ This hook instructs and the model acts. It kills nothing itself. Three parts:
    running subagent has, stop it (TaskStop), write the handoff now. Once.
 3. Stop check. After a notice, with no handoff written since, one Stop is
    blocked with the same instruction. One only, per notice. `stop_hook_active`
-   is honored, and inside the grace a Stop with background work in flight is
-   let through, because a main thread waiting on subagents must go idle.
+   is honored, and inside the grace a Stop with a subagent or workflow in
+   flight is let through, because a main thread waiting on subagents must go
+   idle. Shell tasks do not count: the notice's own `sleep` timer is one, and
+   counting it let every Stop through until the grace was over (#183).
 
 Notices go through `hookSpecificOutput.additionalContext`. PostToolBatch runs
 once per batch of tool calls, before the next model call, where PostToolUse
@@ -46,12 +54,13 @@ granularity.
 
 State is one JSON file per session in ~/.claude/state/context-handoff/. A drop
 below the recorded step (a /compact) lowers the record, so growing back over
-the line gives the notice again. A drop below `first` ends the wind-down.
+the line gives the notice again. A drop below the line ends the wind-down.
 
 Never fails the turn: any error exits 0 with nothing printed. The one
 deliberate block is the Stop check.
-Config: [rules] context_handoff, and [context_handoff] first / step /
-grace_minutes, in .handrail.toml (see handrail_config.py).
+Config: [rules] context_handoff, and [context_handoff] first_percent /
+step_percent / grace_minutes / windows / default_window, in .handrail.toml
+(see handrail_config.py). A `windows` table in config adds to the default one.
 """
 import json
 import sys
@@ -70,7 +79,15 @@ except Exception:  # a missing or broken helper leaves no detector: see respond(
 HANDOFF = getattr(handoff_touch, "HANDOFF", "docs/HANDOFF.md")
 
 RULE = "context_handoff"
-DEFAULTS = {"first": 300000, "step": 100000, "grace_minutes": 15}
+# The same values as handrail_config.VALUE_DEFAULTS, for a broken config
+# module. The input self-test checks the two match.
+DEFAULTS = {"first_percent": 30, "step_percent": 10, "grace_minutes": 15,
+            "windows": {"claude-opus": 1000000, "claude-sonnet": 200000,
+                        "claude-haiku": 200000},
+            "default_window": 200000}
+# Background task types that are agents the grace waits for. A "shell" task,
+# e.g. the notice's own sleep timer, is not one (#183).
+AGENT_TASKS = ("subagent", "workflow")
 USAGE_FIELDS = ("input_tokens", "cache_read_input_tokens",
                 "cache_creation_input_tokens")
 STATE_TTL_SECONDS = 7 * 24 * 3600
@@ -126,12 +143,27 @@ def settings():
     except Exception:
         return True, dict(DEFAULTS)
     ok = lambda v: isinstance(v, int) and not isinstance(v, bool) and v > 0
-    return enabled, {key: val if ok(val) else DEFAULTS[key]
-                     for key, val in values.items()}
+    windows = dict(DEFAULTS["windows"])
+    if isinstance(values["windows"], dict):
+        windows.update((k, v) for k, v in values["windows"].items() if ok(v))
+    out = {key: val if ok(val) else DEFAULTS[key]
+           for key, val in values.items() if key != "windows"}
+    for key in ("first_percent", "step_percent"):
+        if out[key] > 100:
+            out[key] = DEFAULTS[key]
+    out["windows"] = windows
+    return enabled, out
+
+
+def window(cfg, model):
+    """The context window of this model: the longest matching prefix."""
+    keys = [k for k in cfg["windows"] if isinstance(model, str)
+            and model.startswith(k)]
+    return cfg["windows"][max(keys, key=len)] if keys else cfg["default_window"]
 
 
 def context_tokens(path):
-    """The context size at the last main-thread assistant message, or None."""
+    """(size, model id) at the last main-thread assistant message, or None."""
     with open(path, "rb") as fh:
         fh.seek(0, 2)
         fh.seek(max(0, fh.tell() - TAIL_BYTES))
@@ -150,7 +182,7 @@ def context_tokens(path):
         # notices, "No response requested.") with every field 0. Read as a size,
         # one looks like a /compact and the same step warns twice.
         if sum(values):
-            return sum(values)
+            return sum(values), entry["message"].get("model")
     return None
 
 
@@ -206,16 +238,20 @@ def respond(data, now):
     enabled, cfg = settings()
     if not enabled:
         return None
-    tokens = context_tokens(data["transcript_path"])
-    if tokens is None:
+    found = context_tokens(data["transcript_path"])
+    if found is None:
         return None
+    tokens, model = found
     # the session id comes from Claude Code, but it names a file, so keep it one
     name = "".join(c for c in str(session) if c.isalnum() or c in "-_")
     if not name:
         return None
     path = state_dir() / name
     state = read_state(path)
-    first, grace = cfg["first"], cfg["grace_minutes"]
+    size = window(cfg, model)
+    first = size * cfg["first_percent"] // 100
+    step_size = max(1, size * cfg["step_percent"] // 100)
+    grace = cfg["grace_minutes"]
     fill = {"size": tokens // 1000, "first": first // 1000, "grace": grace,
             "seconds": grace * 60}
     event = data.get("hook_event_name", "PostToolBatch")
@@ -227,7 +263,10 @@ def respond(data, now):
                 or data.get("stop_hook_active")):
             return None
         # Waiting on subagents inside the grace is what the notice asked for.
-        if not over and data.get("background_tasks"):
+        tasks = data.get("background_tasks")
+        if not over and isinstance(tasks, list) and any(
+                isinstance(t, dict) and t.get("type") in AGENT_TASKS
+                for t in tasks):
             return None
         # Without the detector the hook cannot tell, so it never blocks.
         if handoff_touch is None or handoff_touch.touched_since(
@@ -240,7 +279,7 @@ def respond(data, now):
         return {"decision": "block",
                 "reason": (DEADLINE if over else STOP) % fill + tail}
 
-    step = (tokens - first) // cfg["step"] if tokens >= first else -1
+    step = (tokens - first) // step_size if tokens >= first else -1
     text = None
     if step > state["step"]:
         state = {"step": step, "noticed": now, "deadline_sent": False,

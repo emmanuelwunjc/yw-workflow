@@ -92,12 +92,21 @@ VALUE_DEFAULTS = {
         "wrappers": [],
     },
     "handoff": {"path": "docs/HANDOFF.md"},
-    # `first` and `step` are tokens of context. The wind-down notice is given
-    # at `first`, then again at each `step` past it. Both are the owner's
-    # call: 120k on 2026-09-21, raised to 300k on 2026-11-20 (about 30% of a
-    # 1M Opus window). docs/DECISIONS.md, 2026-11-20, records why. `grace_minutes` is how long running subagents may take
-    # to finish after a notice, the owner's call on 2026-09-30.
-    "context_handoff": {"first": 300000, "step": 100000, "grace_minutes": 15},
+    # The wind-down notice is given at `first_percent` of the session's
+    # context window, then again at each `step_percent` past it. The owner's
+    # call: 120k tokens on 2026-09-21, 300k on 2026-11-20, then "Use 30% of
+    # the window" the same day (#208). `windows` maps a model id prefix to its
+    # window in tokens, the longest prefix wins, and a config table adds to
+    # this one. A model it does not name gets `default_window`, the smaller
+    # window, because an early notice costs less than a missed one.
+    # `grace_minutes` is how long running subagents may take to finish after
+    # a notice, the owner's call on 2026-09-30.
+    "context_handoff": {
+        "first_percent": 30, "step_percent": 10, "grace_minutes": 15,
+        "windows": {"claude-opus": 1000000, "claude-sonnet": 200000,
+                    "claude-haiku": 200000},
+        "default_window": 200000,
+    },
     # Scripts a Slack post may not contain: a name, then its code point ranges
     # as [first, last] pairs. The default is the CJK set english-only.py uses.
     "slack_language": {
