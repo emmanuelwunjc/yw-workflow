@@ -415,7 +415,6 @@ def prose_only(text):
     return INLINE_CODE.sub("", strip_fences(text))
 
 
-
 ORCA_BOTS_DIR = Path.home() / ".orca" / "bots"
 
 
