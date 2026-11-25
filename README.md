@@ -1,7 +1,8 @@
 # yw-workflow
 
-Fifteen skills and ten hooks that make an engineering workflow mechanical
-instead of remembered.
+Fifteen skills and ten hooks for Claude Code that make an engineering workflow
+mechanical instead of remembered. Everything works in plain Claude Code. Inside
+Orca, `pm` runs its agents as Orca workers and `orca-bot` sets up new Orca bots.
 
 ## Install
 
@@ -25,6 +26,30 @@ project level and would write into whatever directory you are standing in.
 
 A few skills mention "your CLAUDE.md". They read fine without one, and better
 with the rules in it.
+
+## Claude Code + Orca
+
+yw-workflow is made for Claude Code, and it works inside Orca too.
+
+**Claude Code alone.** Every skill and hook works. Skills that start agents,
+such as `pm` and `fresh-eye`, use Claude Code subagents in their own git
+worktrees.
+
+**With Orca.** When the `orca` command is installed and the chat runs in an
+Orca terminal at the repo's primary checkout, `pm` starts builders and
+reviewers as Orca workers instead. Each worker is a full Claude Code session,
+so it gets your hooks too.
+
+**Orca bots.** Run `/yw-workflow:orca-bot setup <bot name>` once after
+`orca bot create`. It adds the general bot rules to the bot's home: which
+language goes where, and how to hand work to workers. Orca still writes the
+bot's `AGENTS.md`, `CLAUDE.md` and `bot.json`, and the setup step does not
+touch them. The hook `slack-language.py` checks the language of an
+`orca slack post`. It is off until you turn it on (see
+[`docs/HOOKS.md`](docs/HOOKS.md)).
+
+Nothing here needs Orca. Without it, `pm` uses subagents, the Slack hook never
+matches, and the `orca-bot` setup step stops with one line.
 
 
 ## Workflow
