@@ -18,6 +18,11 @@ touch -t "$(date -v-9M +%Y%m%d%H%M)" "$START_LOCKS/sweep-start"
 check "a guard under 10 minutes old holds: refused" "$(g take)" 1
 g release >/dev/null
 check "no or a wrong argument: exit 2" "$(g; g wait)" "$(printf '2\n2')"
+# A wrapper passes --project to every loop script (twenty sweep, 2026-11-25: "usage: start-guard.sh take|release").
+check "--project <name> take: taken" "$(g --project twenty take)" 0
+check "--project=<name> take while held: refused" "$(g --project=twenty take)" 1
+check "--project <name> release" "$(g --project twenty release)" 0
+check "--project alone: exit 2" "$(g --project)" 2
 
 # Review NIT 1 (2026-11-24): five sweeps ran at once and WORKERS read 9/8. Many takers race: one wins.
 for r in 1 2 3 4 5; do
