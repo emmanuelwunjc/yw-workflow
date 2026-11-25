@@ -7,8 +7,8 @@ Orca install. CI runs it through hooks/orca-bot-selftest.py.
 Run: python3 skills/orca-bot/test_setup.py
 """
 import hashlib
-import os
 import pathlib
+import re
 import subprocess
 import sys
 import tempfile
@@ -85,8 +85,12 @@ with tempfile.TemporaryDirectory() as d:
 with tempfile.TemporaryDirectory() as d:
     print("refuses a name that leaves ~/.orca/bots")
     home, bot, bindir = make_world(pathlib.Path(d))
+    # a SOUL.md where each bad name points, so a name fails only by the guard
+    for decoy in ("SOUL.md", "bots/SOUL.md", "demo/SOUL.md"):
+        (home / ".orca" / decoy).parent.mkdir(parents=True, exist_ok=True)
+        (home / ".orca" / decoy).write_text("# decoy\n")
     before = snapshot(home / ".orca")
-    for bad in ("../demo", "demo/../demo", "", "."):
+    for bad in ("../demo", "demo/../demo", "", ".", ".."):
         r = run(home, bindir, bad)
         check("refuses %r" % bad, r.returncode != 0 and one_line(r))
     r = run(home, bindir)
@@ -140,6 +144,42 @@ with tempfile.TemporaryDirectory() as d:
     check("exit is 0", r.returncode == 0, r.stdout + r.stderr)
     check("wrote both memory files",
           all((bot / "memory" / n).exists() for n in MEMORY_FILES))
+
+with tempfile.TemporaryDirectory() as d:
+    print("stops with one line when memory is a plain file")
+    home, bot, bindir = make_world(pathlib.Path(d))
+    (bot / "memory").rmdir()
+    (bot / "memory").write_text("not a folder\n")
+    before = snapshot(home / ".orca")
+    r = run(home, bindir, "demo")
+    check("exit is not 0", r.returncode != 0)
+    check("one line of output", one_line(r), repr(r.stdout + r.stderr))
+    check("names memory", "memory" in (r.stdout + r.stderr))
+    check("nothing changed, SOUL.md too", snapshot(home / ".orca") == before)
+
+with tempfile.TemporaryDirectory() as d:
+    print("keeps a dangling symlink at a memory file name")
+    home, bot, bindir = make_world(pathlib.Path(d))
+    link = bot / "memory" / MEMORY_FILES[0]
+    target = bot / "gone.md"
+    link.symlink_to(target)
+    r = run(home, bindir, "demo")
+    check("exit is 0", r.returncode == 0, r.stdout + r.stderr)
+    check("did not write through the link", not target.exists())
+    check("the link is still a link", link.is_symlink())
+
+print("SKILL.md names a source date for each rule")
+DATE = re.compile(r"\b20\d\d-\d\d-\d\d\b")
+skill = (HERE / "SKILL.md").read_text()
+rules = skill.split("\n## The rules\n", 1)[-1]
+sections = re.split(r"\n(?=### )", rules)[1:]
+check("SKILL.md has rule sections", len(sections) >= 4, str(len(sections)))
+for sec in sections:
+    title = sec.splitlines()[0]
+    check("%s names a date" % title, bool(DATE.search(sec)))
+    for bullet in re.findall(r"^- \*\*.*?(?=^- |\Z)", sec, re.M | re.S):
+        check("%s: %s names a date" % (title, bullet.split("**")[1]),
+              bool(DATE.search(bullet)))
 
 print("RESULT: " + ("FAIL: " + ", ".join(failures) if failures else "orca-bot setup checks pass"))
 sys.exit(1 if failures else 0)
