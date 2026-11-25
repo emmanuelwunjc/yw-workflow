@@ -255,8 +255,9 @@ permission notice in full, which is what MIT actually requires.
 - `.github/actions/guards/` the composite action that runs the guards in CI.
 - `tools/check-repo.py` what the self-tests do not cover.
 - `docs/HOOKS.md` each hook's full rules, the CI gate, and the config.
-- `docs/HANDOFF.md` why decisions went the way they did, and the traps.
-- `docs/DECISIONS.md` the dated measurements behind the skills.
+- `docs/HANDOFF.md` where the work stands now, and what comes next.
+- `docs/adr/` one file per decision, and why it went that way.
+- `docs/DECISIONS.md` the dated measurements behind the skills, frozen on 2026-11-24.
 
 Edit here, commit, then `claude plugin update yw-workflow`. A version bump is
 required, because the update keys off it.
