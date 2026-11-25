@@ -1,13 +1,13 @@
 # yw-workflow
 
-Fifteen skills and ten hooks for Claude Code that make an engineering workflow
+Sixteen skills and ten hooks for Claude Code that make an engineering workflow
 mechanical instead of remembered. Everything works in plain Claude Code. Inside
 Orca, `pm` runs its agents as Orca workers, `orca-bot` sets up new Orca bots,
 and `orca-loop` runs a bot's work loop.
 
 ## Install
 
-Pick one. Both serve the same fifteen skills, and installing both leaves
+Pick one. Both serve the same sixteen skills, and installing both leaves
 duplicates that drift apart.
 
 ```bash
@@ -149,6 +149,7 @@ Skills for any stage:
 | `wizard` | matt | A human step has many values to enter, e.g. CI secrets. |
 | `pm` | yw | You want status, or one chat that runs the agents. |
 | `goal-tracker` | yw | A goal with a date and several parts needs one progress page. |
+| `gcp-cost-audit` | yw | A GCP deploy needs its labels and spend checked. |
 | `eli5`, `eli5-text` | yw | A topic needs the plain version. |
 | `wait-what` | matt | The last message did not land. |
 | `domain-modeling` | matt | A term needs one meaning in `GLOSSARY.md`. |
@@ -176,6 +177,7 @@ Each one carries a one-line summary at the top.
 | **pm** | Gives you one chat that reports status and runs builder and reviewer agents, through Orca when it is installed and subagents when not. |
 | **orca-bot** | Holds the rules every Orca bot follows, and a setup step that points a new bot's home at them. |
 | **orca-loop** | Lets an Orca bot run the work loop for any repo in `projects.json`: free work check, sweep, open PR check, cleanup. It lives in `orca/`, mapped in `orca/README.md`. |
+| **gcp-cost-audit** | Finds the GCP resources of one app that lack the deploy labels, shows what the app spends, and prints the fix commands without running them. |
 
 Invoke them namespaced: `/yw-workflow:grill`.
 
