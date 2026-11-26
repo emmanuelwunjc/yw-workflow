@@ -131,6 +131,8 @@ once, in the same `gh issue create` call:
 
     gh issue create --title "<title>" --body "<body>" --label slice:<part>
 
+The body has the six parts of `ship-loop` step 1, with `## ELI5` first.
+
 An issue with no `slice:` label is in no layer, so no bar counts it, and the
 goal reads closer to done than it is. Step 9 finds such issues.
 

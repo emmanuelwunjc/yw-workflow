@@ -230,8 +230,12 @@ that merges the PRs runs it before it stops.
    that ticket. "After #X": link the waiting ticket as blocked by #X. A
    question for the owner: the label `needs-owner` on the ticket it holds
    back. Notes with no next step, or `(no handoff notes)`, change no
-   ticket: list them in the pass's PR body for the owner.
-6. Open the PR. It goes through review like any other. Have the PR
+   ticket: list them in the pass's PR body for the owner. A new ticket
+   starts with `## ELI5`, in the six parts of `ship-loop` step 1.
+6. Open the PR. Its body starts with `## ELI5`, as every PR body does
+   (`ship-loop` step 6), e.g. "The notes from today's merged work went
+   where the next helper will look. Now a fresh session knows what is
+   done and what comes next." It goes through review like any other. Have the PR
    reviewed, and merge it before the session stops. Then trunk holds the newest
    handoff, and every new worktree reads it.
 7. Leave the pass's folder where the newest handoff is. If the pass ran
@@ -263,7 +267,8 @@ miss is blocking:
 A PR with no notes prints `(no handoff notes)`. List it for the owner in the
 pass's PR body, as step 5 says.
 
-To make each PR carry the section, add it to `.github/pull_request_template.md`:
+To make each PR carry the section, add it to `.github/pull_request_template.md`,
+below the `## ELI5` section that opens every PR body:
 
 ```
 ## Handoff notes
